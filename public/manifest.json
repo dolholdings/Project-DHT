@@ -1,0 +1,18 @@
+{
+  "name": "DOLPHIN GLOBAL HOLDINGS",
+  "short_name": "DOLPHIN",
+  "description": "Enterprise Multi-Tenant Project Management Platform for DOLPHIN GLOBAL HOLDINGS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1520",
+  "theme_color": "#0D1520",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/dolphin-logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

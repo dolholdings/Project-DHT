@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "Company": {
+      "title": "Company",
+      "description": "Enterprise entity or affiliate within Dolphin Group",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 32 },
+        "domain": { "type": "string", "maxLength": 128 },
+        "logo": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 512 },
+        "type": { "type": "string", "maxLength": 64 },
+        "isExternal": { "type": "boolean" },
+        "contactEmail": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "name", "code", "domain"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and role definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["Admin", "Project Manager", "Team Member", "Viewer"] },
+        "companyId": { "type": "string", "maxLength": 64 },
+        "avatar": { "type": "string", "maxLength": 256 },
+        "department": { "type": "string", "maxLength": 128 },
+        "hourlyRate": { "type": "number" },
+        "maxWeeklyHours": { "type": "number" },
+        "status": { "type": "string", "enum": ["Active", "Offline", "In Meeting", "On Leave"] }
+      },
+      "required": ["id", "name", "email", "role", "companyId"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Project record with timelines and budget tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "code": { "type": "string", "maxLength": 32 },
+        "companyId": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 2048 },
+        "status": { "type": "string", "enum": ["Planning", "In Progress", "On Hold", "In Review", "Completed"] },
+        "progress": { "type": "number" },
+        "managerId": { "type": "string", "maxLength": 64 },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "dueDate": { "type": "string", "maxLength": 32 },
+        "budget": { "type": "number" },
+        "spentBudget": { "type": "number" },
+        "category": { "type": "string", "maxLength": 128 },
+        "members": { "type": "array" }
+      },
+      "required": ["id", "title", "code", "companyId", "status"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Project task with assignments and hour tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "projectId": { "type": "string", "maxLength": 64 },
+        "companyId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 4096 },
+        "status": { "type": "string", "enum": ["Backlog", "To Do", "In Progress", "In Review", "Done"] },
+        "priority": { "type": "string", "enum": ["Urgent", "High", "Medium", "Low"] },
+        "assigneeIds": { "type": "array" },
+        "reporterId": { "type": "string", "maxLength": 64 },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "dueDate": { "type": "string", "maxLength": 32 },
+        "estimatedHours": { "type": "number" },
+        "loggedHours": { "type": "number" },
+        "tags": { "type": "array" },
+        "createdAt": { "type": "string", "maxLength": 64 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "projectId", "companyId", "title", "status", "priority"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "Company",
+      "description": "Collection of internal and external companies"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and credentials"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of projects"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Collection of tasks"
+    }
+  }
+}

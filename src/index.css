@@ -1,0 +1,81 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background-color: #0D1520;
+    color: #F1F5F9;
+  }
+
+  code, pre, .font-mono, .data-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Technical Data Grid Patterns & Backgrounds */
+.bg-tech-grid {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(30, 45, 61, 0.4) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 45, 61, 0.4) 1px, transparent 1px);
+}
+
+.bg-tech-dots {
+  background-image: radial-gradient(rgba(59, 192, 187, 0.15) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Custom Scrollbar for Dense Data Grids */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D1520;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E2D3D;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #0773BB;
+}
+
+/* Glassmorphism technical cards */
+.tech-card {
+  background: rgba(22, 34, 47, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid #1E2D3D;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.tech-card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+.tech-card-hover:hover {
+  border-color: rgba(59, 192, 187, 0.4);
+  box-shadow: 0 0 15px -3px rgba(59, 192, 187, 0.15);
+}
+
+/* Technical Data Table cell styling */
+.tech-table th {
+  background-color: #121C28;
+  border-bottom: 1px solid #1E2D3D;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94A3B8;
+}
+
+.tech-table td {
+  border-bottom: 1px solid rgba(30, 45, 61, 0.6);
+}
+
+.tech-table tr:hover td {
+  background-color: rgba(7, 115, 187, 0.08);
+}
