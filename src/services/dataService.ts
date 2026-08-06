@@ -9,10 +9,11 @@ import {
   query
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Project, Task } from '../types';
+import { Project, Task, ProjectFile } from '../types';
 
 const PROJECTS_COLLECTION = 'projects';
 const TASKS_COLLECTION = 'tasks';
+const FILES_COLLECTION = 'files';
 
 // ==================== PROJECTS CRUD ====================
 
@@ -143,8 +144,94 @@ export async function deleteTaskFromFirestore(id: string): Promise<void> {
   }
 }
 
+// ==================== FILES & VERSION HISTORY CRUD ====================
+
+export async function fetchFilesFromFirestore(): Promise<ProjectFile[]> {
+  try {
+    const colRef = collection(db, FILES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const files: ProjectFile[] = [];
+    snapshot.forEach((docSnap) => {
+      files.push({ id: docSnap.id, ...docSnap.data() } as ProjectFile);
+    });
+    return files;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, FILES_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToFiles(onUpdate: (files: ProjectFile[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, FILES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const files: ProjectFile[] = [];
+      snapshot.forEach((docSnap) => {
+        files.push({ id: docSnap.id, ...docSnap.data() } as ProjectFile);
+      });
+      onUpdate(files);
+    },
+    (error) => {
+      console.warn('Firestore files snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createFileInFirestore(file: ProjectFile): Promise<void> {
+  const docRef = doc(db, FILES_COLLECTION, file.id);
+  try {
+    await setDoc(docRef, file);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `files/${file.id}`);
+  }
+}
+
+export async function updateFileInFirestore(id: string, updates: Partial<ProjectFile>): Promise<void> {
+  const docRef = doc(db, FILES_COLLECTION, id);
+  try {
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `files/${id}`);
+  }
+}
+
+export async function deleteFileFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, FILES_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `files/${id}`);
+  }
+}
+
+// Clear all projects and tasks from Firestore for clean fresh workspace
+export async function clearAllFirestoreData(): Promise<void> {
+  try {
+    const existingProjects = await fetchProjectsFromFirestore();
+    for (const p of existingProjects) {
+      await deleteProjectFromFirestore(p.id);
+    }
+    const existingTasks = await fetchTasksFromFirestore();
+    for (const t of existingTasks) {
+      await deleteTaskFromFirestore(t.id);
+    }
+    const existingFiles = await fetchFilesFromFirestore();
+    for (const f of existingFiles) {
+      await deleteFileFromFirestore(f.id);
+    }
+  } catch (error) {
+    console.warn('Could not clear Firestore data:', error);
+  }
+}
+
 // Seed initial data into Firestore if collection is empty
-export async function seedInitialFirestoreData(initialProjects: Project[], initialTasks: Task[]): Promise<void> {
+export async function seedInitialFirestoreData(
+  initialProjects: Project[],
+  initialTasks: Task[],
+  initialFiles: ProjectFile[] = []
+): Promise<void> {
   try {
     const existingProjects = await fetchProjectsFromFirestore();
     if (existingProjects.length === 0) {
@@ -156,6 +243,12 @@ export async function seedInitialFirestoreData(initialProjects: Project[], initi
     if (existingTasks.length === 0) {
       for (const t of initialTasks) {
         await createTaskInFirestore(t);
+      }
+    }
+    const existingFiles = await fetchFilesFromFirestore();
+    if (existingFiles.length === 0 && initialFiles.length > 0) {
+      for (const f of initialFiles) {
+        await createFileInFirestore(f);
       }
     }
   } catch (error) {

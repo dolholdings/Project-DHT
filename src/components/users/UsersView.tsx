@@ -1,23 +1,58 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserPlus, AlertTriangle, Check, X, Building2, Key, Plus, Globe, Briefcase, ExternalLink, Users as UsersIcon } from 'lucide-react';
+import { ShieldCheck, UserPlus, AlertTriangle, Check, X, Building2, Key, Plus, Globe, Briefcase, ExternalLink, Users as UsersIcon, Trash2, Mail, Lock, Edit2, ShieldAlert } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company } from '../../types';
 
 export const UsersView: React.FC = () => {
-  const { users, inviteUser, activeCompany, companies, addCompany } = useApp();
+  const {
+    users,
+    inviteUser,
+    updateUser,
+    deleteUser,
+    activeCompany,
+    companies,
+    addCompany,
+    authorizedDomains,
+    addAuthorizedDomain,
+    removeAuthorizedDomain,
+    clearAllData,
+    theme
+  } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'users' | 'companies'>('users');
+  const [activeSubTab, setActiveSubTab] = useState<'users' | 'domains' | 'companies'>('users');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [clearSuccess, setClearSuccess] = useState('');
 
-  // Invite Form State
+  // Domain state
+  const [newDomainInput, setNewDomainInput] = useState('');
+  const [domainSuccess, setDomainSuccess] = useState('');
+
+  // Add User Form State (Manual user creation)
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [assignedPassword, setAssignedPassword] = useState('');
   const [role, setRole] = useState<Role>('Team Member');
   const [department, setDepartment] = useState('Engineering');
-  const [selectedCompanyId, setSelectedCompanyId] = useState(activeCompany.id || 'comp_5');
+  const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id || 'comp_5');
+
+  // Custom company option state
+  const [isCustomCompany, setIsCustomCompany] = useState(false);
+  const [customCompanyName, setCustomCompanyName] = useState('');
+  const [customCompanyDomain, setCustomCompanyDomain] = useState('');
+
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
+
+  // User Controller inline edit state
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDepartment, setEditDepartment] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+
+  // User deletion confirm modal state
+  const [userToDelete, setUserToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
 
   // Register Company Form State
   const [compName, setCompName] = useState('');
@@ -46,24 +81,73 @@ export const UsersView: React.FC = () => {
     return u.companyId === companyFilter;
   });
 
-  const handleInvite = (e: React.FormEvent) => {
+  const [invitedCode, setInvitedCode] = useState<string | null>(null);
+
+  const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
     setInviteError('');
     setInviteSuccess('');
+    setInvitedCode(null);
 
-    const targetComp = companies.find((c) => c.id === selectedCompanyId);
-    const res = inviteUser(name, email, role, department, selectedCompanyId);
+    if (!name || !email) {
+      setInviteError('Please provide both user full name and email address.');
+      return;
+    }
+
+    let targetCompanyId = selectedCompanyId;
+    const cleanEmail = email.toLowerCase().trim();
+    const domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : '';
+
+    // Handle Custom Company Creation if selected
+    if (isCustomCompany) {
+      if (!customCompanyName) {
+        setInviteError('Please enter a Custom Company Name.');
+        return;
+      }
+      const newDomain = customCompanyDomain
+        ? customCompanyDomain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').trim()
+        : domain || `${customCompanyName.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`;
+
+      const newComp = addCompany({
+        name: customCompanyName,
+        code: customCompanyName.slice(0, 4).toUpperCase(),
+        domain: newDomain,
+        logo: '🏢',
+        description: 'Manually added partner entity',
+        type: 'Client',
+        isExternal: true,
+        contactEmail: cleanEmail
+      });
+      targetCompanyId = newComp.id;
+    }
+
+    // Auto-whitelist email domain if not whitelisted
+    if (domain && !authorizedDomains.map((d) => d.toLowerCase()).includes(domain)) {
+      addAuthorizedDomain(domain);
+    }
+
+    const finalPassword = assignedPassword.trim() || 'Dolphin@123';
+    const res = inviteUser(name, email, role, department, targetCompanyId, finalPassword);
 
     if (!res.success) {
-      setInviteError(res.error || 'Failed to invite user.');
+      setInviteError(res.error || 'Failed to add user.');
     } else {
-      setInviteSuccess(`Successfully invited ${name} (${email}) for ${targetComp?.name || 'selected company'}!`);
+      const targetComp = companies.find((c) => c.id === targetCompanyId) || { name: customCompanyName || 'Specified Entity' };
+      setInviteSuccess(
+        `User "${name}" (${email}) added successfully with assigned password "${finalPassword}"!`
+      );
       setTimeout(() => {
         setShowInviteModal(false);
         setName('');
         setEmail('');
+        setAssignedPassword('');
+        setRole('Team Member');
+        setDepartment('Engineering');
+        setIsCustomCompany(false);
+        setCustomCompanyName('');
+        setCustomCompanyDomain('');
         setInviteSuccess('');
-      }, 1500);
+      }, 1400);
     }
   };
 
@@ -119,11 +203,11 @@ export const UsersView: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in">
+    <div className="p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[#3BC0BB] tracking-tight flex items-center gap-2">
             <ShieldCheck className="w-6 h-6 text-[#3BC0BB]" />
             <span>User & Company Governance</span>
           </h1>
@@ -132,21 +216,30 @@ export const UsersView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setShowClearConfirmModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-semibold text-xs transition-all"
+            title="Wipe sample projects, tasks, and activities to start adding real data"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Remove Old Data</span>
+          </button>
+
           <button
             onClick={() => setShowCompanyModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-[#16222F] hover:bg-[#1A2838] border border-[#233549] text-white font-medium text-xs transition-all shadow-md"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#16222F] hover:bg-[#1A2838] border border-[#233549] text-white font-medium text-xs transition-all shadow-md"
           >
             <Building2 className="w-4 h-4 text-[#3BC0BB]" />
-            <span>Register External Company</span>
+            <span>Register Company</span>
           </button>
 
           <button
             onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
           >
             <UserPlus className="w-4 h-4" />
-            <span>Invite Team Member</span>
+            <span>Invite Users</span>
           </button>
         </div>
       </div>
@@ -166,6 +259,18 @@ export const UsersView: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveSubTab('domains')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeSubTab === 'domains'
+              ? 'bg-[#0773BB] text-white shadow-lg'
+              : 'bg-[#16222F] text-slate-400 hover:text-white'
+          }`}
+        >
+          <Lock className="w-4 h-4 text-[#3BC0BB]" />
+          <span>Email Access Control ({authorizedDomains.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('companies')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
             activeSubTab === 'companies'
@@ -174,7 +279,7 @@ export const UsersView: React.FC = () => {
           }`}
         >
           <Building2 className="w-4 h-4" />
-          <span>Registered Companies & Domains ({companies.length})</span>
+          <span>Registered Entities ({companies.length})</span>
         </button>
       </div>
 
@@ -193,27 +298,16 @@ export const UsersView: React.FC = () => {
           Direct signups and invitations are restricted to verified <strong>Dolphin Heat Transfer SPS LLC / Dolphin Group</strong> domains, or companies registered by the Admin:
         </p>
         <div className="flex flex-wrap gap-2 pt-1 font-mono text-xs">
-          {APPROVED_DOMAINS.map((d) => (
+          {companies.map((c) => (
             <span
-              key={d}
-              className="px-3 py-1 rounded-xl bg-[#0D1520] border border-[#0773BB]/50 text-white font-bold flex items-center gap-1.5"
+              key={c.id}
+              className="px-3.5 py-1.5 rounded-xl bg-[#0D1520] border border-[#0773BB]/50 text-white font-bold flex items-center gap-2 shadow-sm"
             >
-              <span className="text-amber-400">🔥</span>
-              <span>@{d}</span>
+              <span>{c.logo || '🏢'}</span>
+              <span className="font-sans font-extrabold text-white">{c.name}</span>
+              <span className="text-[#3BC0BB] font-mono">({c.domain})</span>
             </span>
           ))}
-          {companies
-            .filter((c) => c.isExternal)
-            .map((c) => (
-              <span
-                key={c.id}
-                className="px-3 py-1 rounded-xl bg-[#0D1520] border border-[#3BC0BB]/50 text-[#3BC0BB] font-bold flex items-center gap-1.5"
-              >
-                <span>{c.logo}</span>
-                <span>@{c.domain}</span>
-                <span className="text-[10px] text-slate-400 font-sans">({c.code})</span>
-              </span>
-            ))}
         </div>
       </div>
 
@@ -221,14 +315,19 @@ export const UsersView: React.FC = () => {
       {activeSubTab === 'users' && (
         <div className="p-6 rounded-2xl bg-[#16222F]/80 backdrop-blur-md border border-[#233549] space-y-4 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <UsersIcon className="w-4 h-4 text-[#0773BB]" />
-              <span>Team Members & External Collaborators ({filteredUsers.length})</span>
-            </h2>
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <UsersIcon className="w-4 h-4 text-[#0773BB]" />
+                <span>Team Members & Organization Users ({filteredUsers.length})</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Manage user access levels (Viewer, Member, PM, Admin), edit user details, or remove user access.
+              </p>
+            </div>
 
-            {/* Filter */}
+            {/* Filter & Add User Button */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">Filter Company:</span>
+              <span className="text-xs text-slate-400">Company:</span>
               <select
                 value={companyFilter}
                 onChange={(e) => setCompanyFilter(e.target.value)}
@@ -243,6 +342,14 @@ export const UsersView: React.FC = () => {
                   </option>
                 ))}
               </select>
+
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add User</span>
+              </button>
             </div>
           </div>
 
@@ -250,33 +357,53 @@ export const UsersView: React.FC = () => {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-[#0D1520] text-slate-400 font-semibold uppercase tracking-wider border-b border-[#233549]">
                 <tr>
-                  <th className="p-3">User</th>
+                  <th className="p-3">User Profile</th>
                   <th className="p-3">Corporate Email</th>
                   <th className="p-3">Company Entity</th>
-                  <th className="p-3">Classification</th>
                   <th className="p-3">Department</th>
-                  <th className="p-3">Role</th>
-                  <th className="p-3">Rate</th>
+                  <th className="p-3">Assigned Password</th>
+                  <th className="p-3">Access Level (Role Controller)</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3 text-right">Controller Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#233549]">
                 {filteredUsers.map((u) => {
                   const comp = companies.find((c) => c.id === u.companyId);
+                  const isEditing = editingUserId === u.id;
+
                   return (
                     <tr key={u.id} className="hover:bg-[#0D1520]/80">
-                      <td className="p-3 font-bold text-white flex items-center gap-2.5">
-                        <img
-                          src={u.avatar}
-                          alt={u.name}
-                          className="w-8 h-8 rounded-full object-cover ring-1 ring-[#0773BB]"
-                        />
-                        <div>
-                          <div className="text-white font-bold">{u.name}</div>
-                          <div className="text-[10px] text-slate-400">{u.role}</div>
+                      {/* User Profile */}
+                      <td className="p-3 font-bold text-white">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={u.avatar}
+                            alt={u.name}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-[#0773BB]"
+                          />
+                          <div>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="bg-[#0D1520] border border-[#0773BB] rounded px-2 py-1 text-xs text-white font-bold"
+                              />
+                            ) : (
+                              <div className="text-white font-bold flex items-center gap-1.5">
+                                <span>{u.name}</span>
+                              </div>
+                            )}
+                            <div className="text-[10px] text-slate-400 font-mono">ID: {u.id.slice(0, 10)}</div>
+                          </div>
                         </div>
                       </td>
+
+                      {/* Email */}
                       <td className="p-3 font-mono text-[#3BC0BB] font-semibold">{u.email}</td>
+
+                      {/* Company Entity */}
                       <td className="p-3">
                         <div className="flex items-center gap-1.5">
                           <span>{comp?.logo || '🏢'}</span>
@@ -284,24 +411,128 @@ export const UsersView: React.FC = () => {
                           <span className="text-[10px] font-mono text-slate-400">({comp?.code})</span>
                         </div>
                       </td>
-                      <td className="p-3">
-                        {comp?.isExternal ? (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            {comp.type || 'External Partner'}
-                          </span>
+
+                      {/* Department */}
+                      <td className="p-3 text-slate-300">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editDepartment}
+                            onChange={(e) => setEditDepartment(e.target.value)}
+                            className="bg-[#0D1520] border border-[#0773BB] rounded px-2 py-1 text-xs text-white"
+                          />
                         ) : (
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
-                            Internal Dolphin
+                          u.department
+                        )}
+                      </td>
+
+                      {/* Assigned Password */}
+                      <td className="p-3 font-mono">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            placeholder="New password"
+                            value={editPassword}
+                            onChange={(e) => setEditPassword(e.target.value)}
+                            className="bg-[#0D1520] border border-[#0773BB] rounded px-2 py-1 text-xs text-amber-300 font-mono"
+                          />
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-[#0D1520] border border-[#233549] text-amber-300 font-mono text-[11px] font-semibold flex items-center gap-1 w-fit">
+                            <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+                            {u.password || 'Dolphin@123'}
                           </span>
                         )}
                       </td>
-                      <td className="p-3 text-slate-300">{u.department}</td>
-                      <td className="p-3 font-bold text-white">{u.role}</td>
-                      <td className="p-3 font-mono">${u.hourlyRate}/hr</td>
+
+                      {/* Role Access Controller (Dropdown) */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={u.role}
+                            onChange={(e) => updateUser(u.id, { role: e.target.value as Role })}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0773BB] ${
+                              u.role === 'Admin'
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                : u.role === 'Project Manager'
+                                ? 'bg-[#0773BB]/20 text-[#0773BB] border-[#0773BB]/40'
+                                : u.role === 'Team Member'
+                                ? 'bg-[#3BC0BB]/20 text-[#3BC0BB] border-[#3BC0BB]/40'
+                                : 'bg-slate-800 text-slate-300 border-slate-700'
+                            }`}
+                            title="Change Access Role"
+                          >
+                            <option value="Viewer" className="bg-[#0D1520] text-slate-300">
+                              Viewer (Read-Only)
+                            </option>
+                            <option value="Team Member" className="bg-[#0D1520] text-[#3BC0BB]">
+                              Team Member (Standard)
+                            </option>
+                            <option value="Project Manager" className="bg-[#0D1520] text-[#0773BB]">
+                              Project Manager (PM)
+                            </option>
+                            <option value="Admin" className="bg-[#0D1520] text-amber-400">
+                              Admin (Super Admin)
+                            </option>
+                          </select>
+                        </div>
+                      </td>
+
+                      {/* Status */}
                       <td className="p-3">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
                           {u.status}
                         </span>
+                      </td>
+
+                      {/* Controller Actions (Edit details & Remove user) */}
+                      <td className="p-3 text-right">
+                        {isEditing ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                updateUser(u.id, {
+                                  name: editName,
+                                  department: editDepartment,
+                                  ...(editPassword.trim() ? { password: editPassword.trim() } : {})
+                                });
+                                setEditingUserId(null);
+                              }}
+                              className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold flex items-center gap-1"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Save
+                            </button>
+                            <button
+                              onClick={() => setEditingUserId(null)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingUserId(u.id);
+                                setEditName(u.name);
+                                setEditDepartment(u.department);
+                                setEditPassword(u.password || '');
+                              }}
+                              className="p-1.5 bg-[#0D1520] hover:bg-[#1C2C3D] text-slate-300 border border-[#233549] rounded-lg text-xs transition-all flex items-center gap-1"
+                              title="Edit User Info"
+                            >
+                              <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                            </button>
+
+                            <button
+                              onClick={() => setUserToDelete({ id: u.id, name: u.name, email: u.email })}
+                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs transition-all flex items-center gap-1"
+                              title="Remove User Access"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Remove</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -312,7 +543,93 @@ export const UsersView: React.FC = () => {
         </div>
       )}
 
-      {/* VIEW 2: Companies Directory Tab */}
+      {/* VIEW 2: Email Access Control Domains Tab */}
+      {activeSubTab === 'domains' && (
+        <div className="space-y-4">
+          <div className="p-6 rounded-2xl bg-[#16222F] border border-[#233549] space-y-4 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-[#3BC0BB]" />
+                  <span>Project Management Email Whitelist Control</span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  Control which corporate email domains can sign in, create accounts, and access project management data.
+                </p>
+              </div>
+
+              {/* Add Domain Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newDomainInput) return;
+                  addAuthorizedDomain(newDomainInput);
+                  setDomainSuccess(`Domain @${newDomainInput.toLowerCase().replace(/^@/, '')} added to authorized whitelist!`);
+                  setNewDomainInput('');
+                  setTimeout(() => setDomainSuccess(''), 3000);
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  placeholder="e.g. dolrad.ae"
+                  value={newDomainInput}
+                  onChange={(e) => setNewDomainInput(e.target.value)}
+                  className="bg-[#0D1520] border border-[#233549] rounded-xl px-3.5 py-2 text-xs text-white font-mono focus:outline-none focus:border-[#0773BB]"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Domain</span>
+                </button>
+              </form>
+            </div>
+
+            {domainSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>{domainSuccess}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+              {authorizedDomains.map((dom) => {
+                const domainUsersCount = users.filter((u) => u.email.toLowerCase().endsWith(`@${dom}`)).length;
+                return (
+                  <div
+                    key={dom}
+                    className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] flex items-center justify-between shadow-inner"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <span className="font-mono font-bold text-white text-sm">@{dom}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        {domainUsersCount} active team members
+                      </div>
+                    </div>
+
+                    {authorizedDomains.length > 1 && (
+                      <button
+                        onClick={() => removeAuthorizedDomain(dom)}
+                        className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all"
+                        title="Remove Domain Authorization"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: Companies Directory Tab */}
       {activeSubTab === 'companies' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -441,14 +758,19 @@ export const UsersView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1: Invite User Modal */}
+      {/* MODAL 1: Add User & Grant Access Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-[#233549] pb-3">
               <div>
-                <h2 className="text-base font-bold text-white">Invite Member to Project</h2>
-                <p className="text-xs text-slate-400">Invite Dolphin internal or registered partner company team members.</p>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-[#0773BB]" />
+                  <span>Add New User & Assign Access Level</span>
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Manually add a team member or partner user, specify their company, and assign their access permissions.
+                </p>
               </div>
               <button
                 onClick={() => setShowInviteModal(false)}
@@ -458,35 +780,7 @@ export const UsersView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleInvite} className="space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Company / Organization *</label>
-                <select
-                  value={selectedCompanyId}
-                  onChange={(e) => setSelectedCompanyId(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
-                >
-                  <optgroup label="Internal Dolphin Entities">
-                    {companies
-                      .filter((c) => !c.isExternal)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} (@{c.domain})
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Registered External Partners & Clients">
-                    {companies
-                      .filter((c) => c.isExternal)
-                      .map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} - {c.type} (@{c.domain})
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
-              </div>
-
+            <form onSubmit={handleAddUser} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
                 <input
@@ -501,38 +795,138 @@ export const UsersView: React.FC = () => {
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  Email Address *
+                  Corporate Email Address *
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="user@company.com"
+                  placeholder="e.g., hamdan@company.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEmail(val);
+                    if (val.includes('@') && !isCustomCompany) {
+                      const dom = val.split('@')[1].toLowerCase().trim();
+                      const matchedComp = companies.find((c) => c.domain.toLowerCase() === dom);
+                      if (matchedComp) {
+                        setSelectedCompanyId(matchedComp.id);
+                      }
+                    }
+                  }}
                   className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#0773BB]"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Must match a Dolphin internal domain or a registered partner company domain.
-                </p>
               </div>
 
+              {/* Password Setting Field */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Assigned Password *</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randPass = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000);
+                      setAssignedPassword(randPass);
+                    }}
+                    className="text-[11px] text-[#3BC0BB] hover:underline font-bold flex items-center gap-1"
+                  >
+                    <Key className="w-3 h-3" /> Auto-Generate
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g., Dolphin@2026 (or leave blank for auto Dolphin@123)"
+                  value={assignedPassword}
+                  onChange={(e) => setAssignedPassword(e.target.value)}
+                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-amber-300 font-mono focus:outline-none focus:border-[#0773BB]"
+                />
+              </div>
+
+              {/* Company Selection or Custom Company Entry */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">Company Entity *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomCompany(!isCustomCompany)}
+                    className="text-[11px] text-[#3BC0BB] hover:underline font-bold"
+                  >
+                    {isCustomCompany ? '← Choose Existing Company' : '+ Enter Custom Company Name'}
+                  </button>
+                </div>
+
+                {isCustomCompany ? (
+                  <div className="space-y-2 p-3 rounded-xl bg-[#0D1520] border border-[#0773BB]/50 animate-in fade-in">
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Company Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Dolphin Cooling Systems LLC"
+                        value={customCompanyName}
+                        onChange={(e) => setCustomCompanyName(e.target.value)}
+                        className="w-full bg-[#16222F] border border-[#233549] rounded-lg px-2.5 py-1.5 text-white"
+                        required={isCustomCompany}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Company Domain (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g., dolcool.ae"
+                        value={customCompanyDomain}
+                        onChange={(e) => setCustomCompanyDomain(e.target.value)}
+                        className="w-full bg-[#16222F] border border-[#233549] rounded-lg px-2.5 py-1.5 text-white font-mono"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={selectedCompanyId}
+                    onChange={(e) => setSelectedCompanyId(e.target.value)}
+                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                  >
+                    <optgroup label="Internal Dolphin Entities">
+                      {companies
+                        .filter((c) => !c.isExternal)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.domain})
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Registered External Partners & Clients">
+                      {companies
+                        .filter((c) => c.isExternal)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} - {c.type} ({c.domain})
+                          </option>
+                        ))}
+                    </optgroup>
+                  </select>
+                )}
+              </div>
+
+              {/* Role & Department */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Role</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Access Level (Role) *</label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as Role)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
                   >
-                    <option value="Admin">Admin</option>
-                    <option value="Project Manager">Project Manager</option>
-                    <option value="Team Member">Team Member</option>
-                    <option value="Viewer">Viewer</option>
+                    <option value="Viewer">Viewer (Read-Only Access)</option>
+                    <option value="Team Member">Team Member (Standard Member)</option>
+                    <option value="Project Manager">Project Manager (PM Access)</option>
+                    <option value="Admin">Admin (Full System Governance)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Department / Discipline</label>
+                  <label className="block text-slate-300 font-semibold mb-1">Department</label>
                   <input
                     type="text"
                     value={department}
@@ -544,24 +938,9 @@ export const UsersView: React.FC = () => {
               </div>
 
               {inviteError && (
-                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs flex flex-col gap-2">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                    <span>{inviteError}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowInviteModal(false);
-                      setShowCompanyModal(true);
-                      if (email.includes('@')) {
-                        setCompDomain(email.split('@')[1]);
-                      }
-                    }}
-                    className="text-left text-[11px] font-bold text-[#3BC0BB] hover:underline"
-                  >
-                    + Register missing company domain now
-                  </button>
+                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{inviteError}</span>
                 </div>
               )}
 
@@ -581,12 +960,51 @@ export const UsersView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#0773BB] text-white font-medium shadow-lg"
+                  className="px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold shadow-lg transition-all"
                 >
-                  Send Invitation
+                  Save & Add User
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* USER DELETION CONFIRMATION MODAL */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#16222F] border border-rose-500/40 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center gap-3 text-rose-400 border-b border-[#233549] pb-3">
+              <ShieldAlert className="w-6 h-6 text-rose-500 shrink-0" />
+              <div>
+                <h3 className="text-base font-bold text-white">Confirm Remove User</h3>
+                <p className="text-xs text-slate-400">Deactivate user access from the tenant workspace</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Are you sure you want to remove user <strong className="text-white">{userToDelete.name}</strong> (<span className="font-mono text-[#3BC0BB]">{userToDelete.email}</span>)?
+              This will revoke their access to project data and remove them from active tenant directories.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteUser(userToDelete.id);
+                  setUserToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Remove User</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -739,6 +1157,61 @@ export const UsersView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Old Sample Data Confirmation Modal */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-[#16222F] border border-red-500/40 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-[#233549]">
+              <div className="flex items-center gap-2 text-red-400 font-bold">
+                <Trash2 className="w-5 h-5 text-red-400" />
+                <span>Remove Old Sample Data?</span>
+              </div>
+              <button onClick={() => setShowClearConfirmModal(false)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              This action will clear all default demo sample projects, tasks, subtasks, files, activity logs, and time entries from local storage and database.
+            </p>
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2 font-medium">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>You will have a completely clean workspace ready to create real projects and invite team members!</span>
+            </div>
+
+            {clearSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold text-center">
+                {clearSuccess}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirmModal(false)}
+                className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 text-xs font-semibold hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllData();
+                  setClearSuccess('Old sample data removed! Your workspace is clean and ready.');
+                  setTimeout(() => {
+                    setClearSuccess('');
+                    setShowClearConfirmModal(false);
+                  }, 1500);
+                }}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-600/30 transition-all"
+              >
+                Yes, Remove Old Data
+              </button>
+            </div>
           </div>
         </div>
       )}

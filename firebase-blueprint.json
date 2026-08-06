@@ -80,6 +80,26 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "projectId", "companyId", "title", "status", "priority"]
+    },
+    "ProjectFile": {
+      "title": "ProjectFile",
+      "description": "Project document with version history and edit metadata",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "projectId": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 256 },
+        "size": { "type": "string", "maxLength": 32 },
+        "mimeType": { "type": "string", "maxLength": 128 },
+        "uploadedBy": { "type": "string", "maxLength": 64 },
+        "uploadedByName": { "type": "string", "maxLength": 128 },
+        "uploadedAt": { "type": "string", "maxLength": 64 },
+        "url": { "type": "string", "maxLength": 512 },
+        "currentVersion": { "type": "number" },
+        "versions": { "type": "array" },
+        "contentSnippet": { "type": "string", "maxLength": 4096 }
+      },
+      "required": ["id", "projectId", "name", "uploadedBy"]
     }
   },
   "firestore": {
@@ -98,6 +118,10 @@
     "/tasks/{taskId}": {
       "schema": "Task",
       "description": "Collection of tasks"
+    },
+    "/files/{fileId}": {
+      "schema": "ProjectFile",
+      "description": "Collection of project document files and version histories"
     }
   }
 }

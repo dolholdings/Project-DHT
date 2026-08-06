@@ -5,19 +5,47 @@ import {
   Clock,
   Play,
   Square,
-  AlertCircle,
   Filter,
   Search,
   CheckCircle2,
   Trash2,
+  ChevronDown,
   ChevronRight,
+  Calendar as CalendarIcon,
+  User as UserIcon,
+  X,
   Link,
   Tag,
-  X,
-  UserCheck
+  SlidersHorizontal,
+  MoreHorizontal,
+  Circle,
+  Flame,
+  Zap,
+  Activity,
+  Repeat,
+  RefreshCw,
+  RotateCw,
+  GitCommit,
+  ArrowRightCircle,
+  ArrowUpRight,
+  Lock,
+  Unlock,
+  AlertTriangle,
+  Workflow,
+  Sparkles,
+  TrendingUp,
+  BarChart3,
+  ListOrdered,
+  Loader2,
+  ShieldAlert,
+  Layers,
+  Award,
+  Check,
+  ArrowUpDown
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Task, TaskStatus, Priority } from '../../types';
+import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
+import { calculatePriorityScore } from '../../lib/priorityScore';
 
 export const TasksView: React.FC = () => {
   const {
@@ -31,6 +59,7 @@ export const TasksView: React.FC = () => {
     toggleSubtask,
     addDependency,
     removeDependency,
+    recalculateProjectTimeline,
     projects,
     users,
     startTimer,
@@ -39,304 +68,1021 @@ export const TasksView: React.FC = () => {
     logTimeManual,
     selectedProjectId,
     setSelectedProjectId,
-    searchQuery
+    searchQuery,
+    theme
   } = useApp();
 
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [inProgressOpen, setInProgressOpen] = useState(true);
+  const [toDoOpen, setToDoOpen] = useState(true);
+  const [completedOpen, setCompletedOpen] = useState(true);
 
-  // New Task Modal State
+  // Inline Task Add input
+  const [inlineAddGroup, setInlineAddGroup] = useState<TaskStatus | null>(null);
+  const [inlineTaskTitle, setInlineTaskTitle] = useState('');
+
+  // Create Task Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
-  const [newProjectId, setNewProjectId] = useState(projects[0]?.id || 'proj_1');
-  const [newPriority, setNewPriority] = useState<Priority>('Medium');
-  const [newAssigneeId, setNewAssigneeId] = useState(users[0]?.id || 'usr_1');
+  const [newProjectId, setNewProjectId] = useState(selectedProjectId || projects[0]?.id || 'proj_chairman');
+  const [newPriority, setNewPriority] = useState<Priority>('High');
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>(['usr_pk']);
   const [newEstHours, setNewEstHours] = useState(20);
-  const [newDueDate, setNewDueDate] = useState('2026-08-25');
-  const [newTags, setNewTags] = useState('Engineering, Quality');
+  const [newDueDate, setNewDueDate] = useState('2026-08-30');
 
-  // Subtask Input State inside Drawer
+  // Recurrence configuration state
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>('none');
+  const [recurrenceInterval, setRecurrenceInterval] = useState<number>(1);
+  const [recurrenceDaysOfWeek, setRecurrenceDaysOfWeek] = useState<string[]>(['Mon']);
+  const [recurrenceDayOfMonth, setRecurrenceDayOfMonth] = useState<number>(1);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>('');
+  const [autoRegenerateOnComplete, setAutoRegenerateOnComplete] = useState<boolean>(true);
+
+  // Predecessors & Successors creation state
+  const [selectedPredecessorIds, setSelectedPredecessorIds] = useState<string[]>([]);
+  const [selectedSuccessorIds, setSelectedSuccessorIds] = useState<string[]>([]);
+
+  // Drawer dependency linking state
+  const [newPredTaskId, setNewPredTaskId] = useState('');
+  const [newSuccTaskId, setNewSuccTaskId] = useState('');
+  const [timelineToast, setTimelineToast] = useState<string | null>(null);
+
+  // AI Smart Priority State
+  const [showSmartPriorityModal, setShowSmartPriorityModal] = useState(false);
+  const [isAnalyzingPriority, setIsAnalyzingPriority] = useState(false);
+  const [priorityRecommendations, setPriorityRecommendations] = useState<Array<{
+    id: string;
+    title: string;
+    suggestedPriority: string;
+    impactScore: number;
+    suggestedOrder: number;
+    reasoning: string;
+    riskFactor: string;
+  }>>([]);
+  const [smartPriorityToast, setSmartPriorityToast] = useState<string | null>(null);
+  const [sortBySmartPriority, setSortBySmartPriority] = useState(false);
+
+  const handleOpenSmartPriorityModal = async () => {
+    setShowSmartPriorityModal(true);
+    setIsAnalyzingPriority(true);
+    setPriorityRecommendations([]);
+
+    const currentProject = projects.find((p) => p.id === (selectedProjectId || projects[0]?.id));
+    const tasksToAnalyze = filteredTasks.length > 0 ? filteredTasks : tasks;
+
+    try {
+      const res = await fetch('/api/ai/smart-priority', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectTitle: currentProject?.title || 'Dolphin Group Project',
+          projectScope: currentProject?.description || 'Industrial Fabrication & Heat Transfer Engineering',
+          tasks: tasksToAnalyze
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.recommendations && Array.isArray(data.recommendations)) {
+        setPriorityRecommendations(data.recommendations);
+      } else {
+        throw new Error('No recommendations in response');
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      console.warn('Smart Priority API fallback active:', err?.message || err);
+      const fallbackRecs = tasksToAnalyze.map((t, idx) => ({
+        id: t.id,
+        title: t.title,
+        suggestedPriority: t.priority === 'Urgent' ? 'Urgent' : t.isMilestone ? 'High' : 'Medium',
+        impactScore: t.priority === 'Urgent' ? 95 : Math.max(30, 80 - idx * 4),
+        suggestedOrder: idx + 1,
+        reasoning: 'Prioritized based on schedule proximity and milestone commitments.',
+        riskFactor: t.priority === 'Urgent' ? 'Schedule Bottleneck' : 'Low Risk'
+      }));
+      setPriorityRecommendations(fallbackRecs);
+    } finally {
+      setIsAnalyzingPriority(false);
+    }
+  };
+
+  const handleApplySmartPriorities = () => {
+    if (priorityRecommendations.length === 0) return;
+
+    let appliedCount = 0;
+    priorityRecommendations.forEach((rec) => {
+      const existing = tasks.find((t) => t.id === rec.id);
+      if (existing) {
+        updateTask(rec.id, {
+          priority: rec.suggestedPriority as Priority,
+        });
+        appliedCount++;
+      }
+    });
+
+    setSortBySmartPriority(true);
+    setSmartPriorityToast(`Successfully reordered & updated priorities for ${appliedCount} tasks based on business impact and dependencies!`);
+    setShowSmartPriorityModal(false);
+    setTimeout(() => setSmartPriorityToast(null), 5000);
+  };
+
+  // Helper map for reordering tasks by Smart Priority score
+  const recommendationsMap = new Map<string, {
+    id: string;
+    title: string;
+    suggestedPriority: string;
+    impactScore: number;
+    suggestedOrder: number;
+    reasoning: string;
+    riskFactor: string;
+  }>(
+    priorityRecommendations.map((r) => [r.id, r])
+  );
+
+  const getTaskSmartScore = (t: Task): number => {
+    const rec = recommendationsMap.get(t.id);
+    if (rec && typeof rec.impactScore === 'number') {
+      return rec.impactScore;
+    }
+    return calculatePriorityScore(t, dependencies, tasks).score;
+  };
+
+  const sortTasksList = (list: Task[]) => {
+    if (!sortBySmartPriority && priorityRecommendations.length === 0) return list;
+    return [...list].sort((a, b) => getTaskSmartScore(b) - getTaskSmartScore(a));
+  };
+
+  // Helper functions for predecessors & successors
+  const getPredecessorTasks = (task: Task): Task[] => {
+    const directPreds = task.predecessors || [];
+    const depPreds = dependencies.filter((d) => d.taskId === task.id).map((d) => d.dependsOnTaskId);
+    const allPredIds = Array.from(new Set([...directPreds, ...depPreds]));
+    return tasks.filter((t) => allPredIds.includes(t.id));
+  };
+
+  const getSuccessorTasks = (task: Task): Task[] => {
+    const directSuccs = task.successors || [];
+    const depSuccs = dependencies.filter((d) => d.dependsOnTaskId === task.id).map((d) => d.taskId);
+    const taskPredSuccs = tasks.filter((t) => t.predecessors?.includes(task.id)).map((t) => t.id);
+    const allSuccIds = Array.from(new Set([...directSuccs, ...depSuccs, ...taskPredSuccs]));
+    return tasks.filter((t) => allSuccIds.includes(t.id));
+  };
+
+  const isTaskBlocked = (task: Task): boolean => {
+    const preds = getPredecessorTasks(task);
+    if (preds.length === 0) return false;
+    return preds.some((p) => p.status !== 'Done');
+  };
+
+  const toggleAssignee = (userId: string) => {
+    setSelectedAssigneeIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  // Drawer states
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
-
-  // Dependency Select State inside Drawer
   const [depTaskIdToLink, setDepTaskIdToLink] = useState('');
-
-  // Manual Time Input State inside Drawer
   const [manualHours, setManualHours] = useState<number>(2);
   const [manualNote, setManualNote] = useState('');
 
+  // Filter tasks
   const filteredTasks = tasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false;
-    if (priorityFilter !== 'all' && t.priority !== priorityFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = t.title.toLowerCase().includes(q);
-      const matchTag = t.tags.some((tag) => tag.toLowerCase().includes(q));
-      if (!matchTitle && !matchTag) return false;
+      const matchDesc = (t.description || '').toLowerCase().includes(q);
+      const matchTag = (t.tags || []).some((tag) => tag.toLowerCase().includes(q));
+      const assignees = users.filter((u) => t.assigneeIds.includes(u.id));
+      const matchAssignee = assignees.some(
+        (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+      );
+      if (!matchTitle && !matchDesc && !matchTag && !matchAssignee) return false;
     }
     return true;
   });
 
+  const inProgressTasks = sortTasksList(filteredTasks.filter((t) => t.status === 'In Progress'));
+  const toDoTasks = sortTasksList(filteredTasks.filter((t) => t.status === 'To Do' || t.status === 'Backlog'));
+  const doneTasks = sortTasksList(filteredTasks.filter((t) => t.status === 'Done' || t.status === 'In Review'));
+
+  const handleInlineAdd = (statusGroup: TaskStatus) => {
+    if (!inlineTaskTitle.trim()) return;
+    addTask({
+      projectId: selectedProjectId || 'proj_chairman',
+      companyId: 'comp_1',
+      title: inlineTaskTitle.trim(),
+      description: 'New ClickUp task item',
+      status: statusGroup,
+      priority: 'Medium',
+      assigneeIds: ['usr_pk'],
+      reporterId: users[0]?.id || 'usr_1',
+      startDate: new Date().toISOString().split('T')[0],
+      dueDate: '2025-08-30',
+      estimatedHours: 10,
+      tags: ['ClickUp', 'Task'],
+    });
+    setInlineTaskTitle('');
+    setInlineAddGroup(null);
+  };
+
   const handleCreateTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
-
     const proj = projects.find((p) => p.id === newProjectId);
+    const finalAssignees = selectedAssigneeIds.length > 0 ? selectedAssigneeIds : [users[0]?.id || 'usr_pk'];
 
-    addTask({
+    const recurrenceConfig: RecurrenceConfig | undefined =
+      recurrenceType !== 'none'
+        ? {
+            type: recurrenceType,
+            interval: Number(recurrenceInterval) || 1,
+            daysOfWeek: recurrenceType === 'weekly' ? recurrenceDaysOfWeek : undefined,
+            dayOfMonth: recurrenceType === 'monthly' ? Number(recurrenceDayOfMonth) : undefined,
+            endDate: recurrenceEndDate || undefined,
+            autoRegenerateOnComplete,
+          }
+        : undefined;
+
+    const taskTags = ['ClickUp', 'Task'];
+    if (recurrenceConfig) taskTags.push('Recurring');
+
+    const createdTask = addTask({
       projectId: newProjectId,
       companyId: proj ? proj.companyId : 'comp_1',
       title: newTitle,
-      description: newDesc || 'Engineering task deliverable',
+      description: newDesc || 'ClickUp executive task deliverable',
       status: 'To Do',
       priority: newPriority,
-      assigneeIds: [newAssigneeId],
+      assigneeIds: finalAssignees,
       reporterId: users[0]?.id || 'usr_1',
       startDate: new Date().toISOString().split('T')[0],
       dueDate: newDueDate,
       estimatedHours: Number(newEstHours),
-      tags: newTags.split(',').map((s) => s.trim()).filter(Boolean),
+      tags: taskTags,
+      predecessors: selectedPredecessorIds,
+      successors: selectedSuccessorIds,
+      dependencies: selectedPredecessorIds,
+      recurrence: recurrenceConfig,
     });
+
+    if (createdTask && createdTask.id) {
+      selectedPredecessorIds.forEach((predId) => {
+        addDependency(createdTask.id, predId);
+      });
+      selectedSuccessorIds.forEach((succId) => {
+        addDependency(succId, createdTask.id);
+      });
+    }
 
     setShowCreateModal(false);
     setNewTitle('');
     setNewDesc('');
+    setSelectedPredecessorIds([]);
+    setSelectedSuccessorIds([]);
+    setRecurrenceType('none');
+    setRecurrenceInterval(1);
+    setRecurrenceDaysOfWeek(['Mon']);
+    setRecurrenceDayOfMonth(1);
+    setRecurrenceEndDate('');
+    setAutoRegenerateOnComplete(true);
   };
 
   const activeTask = tasks.find((t) => t.id === selectedTaskId);
   const activeTaskSubtasks = subtasks.filter((s) => s.taskId === selectedTaskId);
   const activeTaskDeps = dependencies.filter((d) => d.taskId === selectedTaskId);
 
+  // Helper renderer for table row visual indicators
+  const renderDependencyIndicators = (t: Task) => {
+    const preds = getPredecessorTasks(t);
+    const succs = getSuccessorTasks(t);
+    const blocked = isTaskBlocked(t);
+
+    if (preds.length === 0 && succs.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        {/* Blocked Badge */}
+        {blocked && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/35 shrink-0"
+            title={`Blocked by: ${preds.filter((p) => p.status !== 'Done').map((p) => `${p.title} (${p.status})`).join(', ')}`}
+          >
+            <Lock className="w-3 h-3 text-amber-400" />
+            <span>Blocked</span>
+          </span>
+        )}
+
+        {/* Predecessors Badge */}
+        {preds.length > 0 && (
+          <span
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold border shrink-0 ${
+              blocked
+                ? 'bg-[#0D1520] text-cyan-300 border-cyan-500/40'
+                : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+            }`}
+            title={`Predecessors: ${preds.map((p) => `${p.title} [${p.status}]`).join(' • ')}`}
+          >
+            <GitCommit className="w-3 h-3 text-cyan-400" />
+            <span>Pred: {preds.length}</span>
+          </span>
+        )}
+
+        {/* Successors Badge */}
+        {succs.length > 0 && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30 shrink-0"
+            title={`Successors (Unlocks): ${succs.map((s) => `${s.title} [${s.status}]`).join(' • ')}`}
+          >
+            <ArrowUpRight className="w-3 h-3 text-purple-400" />
+            <span>Succ: {succs.length}</span>
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in">
-      {/* Top Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <CheckSquare className="w-6 h-6 text-[#3BC0BB]" />
-            <span>Task Management Suite</span>
-          </h1>
-          <p className="text-xs text-slate-400">
-            Task execution with subtask decomposition, prerequisite dependency mapping, and time tracking.
-          </p>
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
+      
+      {/* Finish-to-Start Auto-Recalculation Header Bar */}
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl border shadow-lg ${
+        theme === 'light'
+          ? 'bg-white border-slate-200 shadow-slate-200/50'
+          : 'bg-gradient-to-r from-[#121B26] via-[#1A2634] to-[#121B26] border-[#233549]'
+      }`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`p-2.5 rounded-xl border shrink-0 ${
+            theme === 'light' ? 'bg-teal-50 border-teal-200 text-teal-700' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+          }`}>
+            <Workflow className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h2 className={`text-sm font-bold flex flex-wrap items-center gap-2 ${
+              theme === 'light' ? 'text-slate-900' : 'text-white'
+            }`}>
+              <span className="truncate">Task Management & Dependencies</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border ${
+                theme === 'light' ? 'bg-teal-100 text-teal-800 border-teal-300' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+              }`}>
+                Finish-to-Start (FS)
+              </span>
+            </h2>
+            <p className={`text-xs ${theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}`}>
+              Define predecessor/successor tasks and automatically propagate timeline schedule changes.
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Project Scope Filter */}
-          <select
-            value={selectedProjectId || 'all'}
-            onChange={(e) =>
-              setSelectedProjectId(e.target.value === 'all' ? null : e.target.value)
-            }
-            className="bg-[#16222F] border border-[#233549] text-xs font-medium text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB]"
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenSmartPriorityModal}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20 active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
           >
-            <option value="all">All Projects Scope</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.code} — {p.title}
-              </option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#16222F] border border-[#233549] text-xs font-medium text-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB]"
-          >
-            <option value="all">All Statuses</option>
-            <option value="Backlog">Backlog</option>
-            <option value="To Do">To Do</option>
-            <option value="In Progress">In Progress</option>
-            <option value="In Review">In Review</option>
-            <option value="Done">Done</option>
-          </select>
+            <Sparkles className="w-4 h-4 fill-current text-white" />
+            <span>AI Smart Priority</span>
+          </button>
 
           <button
+            type="button"
+            onClick={() => {
+              const res = recalculateProjectTimeline(selectedProjectId || undefined);
+              if (res.adjustedCount > 0) {
+                setTimelineToast(`Auto-adjusted ${res.adjustedCount} dependent task start & due dates based on Finish-to-Start constraints.`);
+              } else {
+                setTimelineToast('All task timelines are fully aligned with Finish-to-Start predecessor constraints!');
+              }
+              setTimeout(() => setTimelineToast(null), 5000);
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${
+              theme === 'light'
+                ? 'bg-teal-50 hover:bg-teal-100 border-teal-300 text-teal-800'
+                : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-200'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4 text-teal-600 dark:text-cyan-400" />
+            <span>Auto-Recalculate Timeline (FS)</span>
+          </button>
+          
+          <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#7B68EE] hover:bg-[#6854e4] text-white text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
-            <span>New Task</span>
+            <span>Create Task</span>
           </button>
         </div>
       </div>
 
-      {/* Main Table / Detail Drawer Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Task Table List (Span 2 or 3) */}
-        <div className={`${selectedTaskId ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-3`}>
-          <div className="p-4 rounded-2xl bg-[#16222F]/80 backdrop-blur-md border border-[#233549] overflow-hidden shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-300">
-                <thead className="bg-[#0D1520] text-slate-400 font-semibold uppercase tracking-wider border-b border-[#233549]">
-                  <tr>
-                    <th className="p-3">Task Deliverable</th>
-                    <th className="p-3">Status</th>
-                    <th className="p-3">Priority</th>
-                    <th className="p-3">Assignee</th>
-                    <th className="p-3">Due Date</th>
-                    <th className="p-3 text-right">Logged / Est</th>
-                    <th className="p-3 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#233549]/50">
-                  {filteredTasks.map((t) => {
-                    const isTimerRunning = timer.active && timer.taskId === t.id;
-                    const isSelected = selectedTaskId === t.id;
-                    const assignee = users.find((u) => t.assigneeIds.includes(u.id));
-
-                    return (
-                      <tr
-                        key={t.id}
-                        onClick={() => setSelectedTaskId(t.id)}
-                        className={`hover:bg-[#0D1520]/80 transition-colors cursor-pointer ${
-                          isSelected ? 'bg-[#0773BB]/10 border-l-4 border-l-[#0773BB]' : ''
-                        }`}
-                      >
-                        <td className="p-3">
-                          <div className="font-bold text-white max-w-xs truncate">
-                            {t.title}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            {t.tags.map((tg) => (
-                              <span
-                                key={tg}
-                                className="text-[9px] px-1.5 py-0.2 rounded bg-[#233549] text-slate-300"
-                              >
-                                {tg}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-
-                        <td className="p-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                              t.status === 'Done'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : t.status === 'In Progress'
-                                ? 'bg-[#0773BB]/20 text-[#3BC0BB]'
-                                : t.status === 'In Review'
-                                ? 'bg-amber-500/20 text-amber-400'
-                                : 'bg-slate-700/40 text-slate-300'
-                            }`}
-                          >
-                            {t.status}
-                          </span>
-                        </td>
-
-                        <td className="p-3">
-                          <span
-                            className={`font-semibold ${
-                              t.priority === 'Urgent'
-                                ? 'text-rose-400'
-                                : t.priority === 'High'
-                                ? 'text-amber-400'
-                                : 'text-slate-400'
-                            }`}
-                          >
-                            {t.priority}
-                          </span>
-                        </td>
-
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            {assignee && (
-                              <img
-                                src={assignee.avatar}
-                                alt={assignee.name}
-                                className="w-6 h-6 rounded-full object-cover ring-1 ring-[#0773BB]"
-                              />
-                            )}
-                            <span className="truncate max-w-[100px]">
-                              {assignee?.name || 'Unassigned'}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="p-3 font-mono text-slate-300">{t.dueDate}</td>
-
-                        <td className="p-3 text-right font-mono font-semibold">
-                          <span className="text-[#3BC0BB]">{t.loggedHours}h</span> / {t.estimatedHours}h
-                        </td>
-
-                        <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                          {isTimerRunning ? (
-                            <button
-                              onClick={() => stopTimer('Logged work')}
-                              className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
-                              title="Stop Stopwatch"
-                            >
-                              <Square className="w-3.5 h-3.5 fill-current" />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => startTimer(t.id, t.title)}
-                              className="p-1.5 rounded-lg bg-[#0773BB]/20 hover:bg-[#0773BB] text-[#3BC0BB] hover:text-white transition-all"
-                              title="Start Stopwatch Timer"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+      {/* Smart Priority Toast Notification */}
+      {smartPriorityToast && (
+        <div className="p-3.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-200 text-xs font-medium flex items-center justify-between gap-3 shadow-xl animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{smartPriorityToast}</span>
           </div>
+          <button
+            onClick={() => setSmartPriorityToast(null)}
+            className="text-emerald-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
+      )}
 
-        {/* Task Inspector & Drawer Panel */}
-        {activeTask && (
-          <div className="p-6 rounded-2xl bg-[#16222F] border border-[#233549] space-y-6 shadow-2xl animate-in slide-in-from-right-4">
-            <div className="flex items-center justify-between border-b border-[#233549] pb-4">
-              <div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0773BB]/20 text-[#3BC0BB] font-bold">
-                  TASK INSPECTOR
+      {/* Timeline Recalculation Toast Notification */}
+      {timelineToast && (
+        <div className="p-3.5 rounded-xl bg-cyan-950/80 border border-cyan-500/50 text-cyan-200 text-xs font-medium flex items-center justify-between gap-3 shadow-xl animate-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>{timelineToast}</span>
+          </div>
+          <button
+            onClick={() => setTimelineToast(null)}
+            className="text-cyan-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* TASK LIST ACCORDIONS */}
+        <div className={`${selectedTaskId ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
+          
+          {/* GROUP 1: IN PROGRESS */}
+          <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
+            {/* Group Header Bar */}
+            <div
+              onClick={() => setInProgressOpen(!inProgressOpen)}
+              className="px-4 py-3 bg-[#7B68EE]/10 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-[#7B68EE]/20 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                {inProgressOpen ? <ChevronDown className="w-4 h-4 text-[#7B68EE]" /> : <ChevronRight className="w-4 h-4 text-[#7B68EE]" />}
+                <span className="px-2.5 py-0.5 rounded-full bg-[#7B68EE] text-white text-[10px] font-extrabold uppercase tracking-wider">
+                  IN PROGRESS
                 </span>
-                <h2 className="text-base font-bold text-white mt-1">{activeTask.title}</h2>
+                <span className="text-xs font-mono font-bold text-slate-400">
+                  {inProgressTasks.length}
+                </span>
               </div>
               <button
-                onClick={() => setSelectedTaskId(null)}
-                className="text-slate-400 hover:text-white p-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInlineAddGroup('In Progress');
+                }}
+                className="text-xs font-semibold text-[#7B68EE] hover:underline flex items-center gap-1"
               >
-                <X className="w-5 h-5" />
+                <Plus className="w-3.5 h-3.5" />
+                <span>Task</span>
               </button>
             </div>
 
-            {/* Quick Status & Priority Edit */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            {/* Task Table */}
+            {inProgressOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#0D1520]/40 text-slate-400 font-semibold uppercase tracking-wider border-b border-[#233549]/40 text-[10px]">
+                    <tr>
+                      <th className="p-3 pl-6">Name</th>
+                      <th className="p-3">Assignee</th>
+                      <th className="p-3 text-center">Priority Score</th>
+                      <th className="p-3">Due date</th>
+                      <th className="p-3 text-right">Logged/Est</th>
+                      <th className="p-3 text-center">Timer</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#233549]/40 font-medium">
+                    {inProgressTasks.map((t) => {
+                      const assignee = users.find((u) => t.assigneeIds.includes(u.id));
+                      const isTimerRunning = timer.active && timer.taskId === t.id;
+                      const isSelected = selectedTaskId === t.id;
+                      const pScore = calculatePriorityScore(t, dependencies, tasks);
+
+                      return (
+                        <tr
+                          key={t.id}
+                          onClick={() => setSelectedTaskId(t.id)}
+                          className={`hover:bg-[#16222F]/80 transition-colors cursor-pointer ${
+                            isSelected ? 'bg-[#7B68EE]/10 border-l-4 border-l-[#7B68EE]' : ''
+                          }`}
+                        >
+                          <td className="p-3 pl-6">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateTask(t.id, { status: 'Done' });
+                                }}
+                                className="w-4 h-4 rounded-full border-2 border-[#7B68EE] hover:bg-[#7B68EE] transition-all shrink-0"
+                                title="Click to complete task"
+                              />
+                              <span className="font-bold text-slate-100 hover:text-[#7B68EE] transition-colors">
+                                {t.title}
+                              </span>
+                              {t.recurrence && t.recurrence.type !== 'none' && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
+                                  title={`Recurring Schedule: Every ${t.recurrence.interval || 1} ${t.recurrence.type}`}
+                                >
+                                  <Repeat className="w-3 h-3 text-[#3BC0BB]" />
+                                  <span className="capitalize text-[9px]">{t.recurrence.type}</span>
+                                </span>
+                              )}
+                              {renderDependencyIndicators(t)}
+                            </div>
+                          </td>
+
+                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1.5">
+                              {assignee && (
+                                <img
+                                  src={assignee.avatar}
+                                  alt={assignee.name}
+                                  className="w-6 h-6 rounded-full object-cover ring-1 ring-[#7B68EE] shrink-0"
+                                />
+                              )}
+                              <select
+                                value={t.assigneeIds[0] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val) {
+                                    updateTask(t.id, { assigneeIds: [val] });
+                                  }
+                                }}
+                                className="bg-[#0D1520] border border-[#233549] text-xs text-slate-200 rounded-lg px-2 py-1 font-semibold focus:outline-none focus:border-[#7B68EE]"
+                              >
+                                <option value="">Unassigned</option>
+                                {users.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.name} ({u.department})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </td>
+
+                          {/* Priority Score Badge Cell */}
+                          <td className="p-3 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}
+                              title={pScore.reasons.join(' • ')}
+                            >
+                              {pScore.tier === 'CRITICAL' ? (
+                                <Flame className="w-3 h-3 text-rose-400" />
+                              ) : pScore.tier === 'HIGH' ? (
+                                <Zap className="w-3 h-3 text-amber-400" />
+                              ) : (
+                                <Activity className="w-3 h-3 text-blue-400" />
+                              )}
+                              <span>{pScore.score}</span>
+                              <span className="text-[9px] opacity-75 uppercase">{pScore.tier}</span>
+                            </span>
+                          </td>
+
+                          <td className="p-3 font-mono text-rose-400 font-bold">
+                            {t.dueDate}
+                          </td>
+
+                          <td className="p-3 text-right font-mono">
+                            <span className="text-[#3BC0BB] font-bold">{t.loggedHours}h</span> / {t.estimatedHours}h
+                          </td>
+
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            {isTimerRunning ? (
+                              <button
+                                onClick={() => stopTimer('Logged time')}
+                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
+                              >
+                                <Square className="w-3.5 h-3.5 fill-current animate-pulse" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => startTimer(t.id, t.title)}
+                                className="p-1.5 rounded-lg bg-[#7B68EE]/20 hover:bg-[#7B68EE] text-[#7B68EE] hover:text-white transition-all"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Inline Add Task Row */}
+                    {inlineAddGroup === 'In Progress' ? (
+                      <tr className="bg-[#16222F]/60">
+                        <td colSpan={5} className="p-3 pl-6">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="Task Name..."
+                              value={inlineTaskTitle}
+                              onChange={(e) => setInlineTaskTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleInlineAdd('In Progress');
+                                if (e.key === 'Escape') setInlineAddGroup(null);
+                              }}
+                              className="flex-1 bg-[#0D1520] border border-[#7B68EE] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                            <button
+                              onClick={() => handleInlineAdd('In Progress')}
+                              className="px-3 py-1.5 bg-[#7B68EE] text-white font-bold rounded-lg text-xs"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setInlineAddGroup(null)}
+                              className="p-1.5 text-slate-400 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        onClick={() => setInlineAddGroup('In Progress')}
+                        className="hover:bg-[#16222F]/40 cursor-pointer text-slate-400 hover:text-white"
+                      >
+                        <td colSpan={5} className="p-2.5 pl-6 text-xs font-medium flex items-center gap-1.5">
+                          <Plus className="w-3.5 h-3.5 text-[#7B68EE]" />
+                          <span>Add Task</span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* GROUP 2: TO DO */}
+          <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
+            {/* Group Header Bar */}
+            <div
+              onClick={() => setToDoOpen(!toDoOpen)}
+              className="px-4 py-3 bg-slate-800/20 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-slate-800/40 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                {toDoOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-700/60 text-slate-200 text-[10px] font-extrabold uppercase tracking-wider border border-slate-600/40 flex items-center gap-1">
+                  <Circle className="w-2.5 h-2.5 stroke-[3] text-slate-400" />
+                  TO DO
+                </span>
+                <span className="text-xs font-mono font-bold text-slate-400">
+                  {toDoTasks.length}
+                </span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInlineAddGroup('To Do');
+                }}
+                className="text-xs font-semibold text-slate-300 hover:text-white hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Task</span>
+              </button>
+            </div>
+
+            {/* Task Table */}
+            {toDoOpen && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className={`font-semibold uppercase tracking-wider border-b text-[10px] ${
+                    theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-[#0D1520]/40 text-slate-400 border-[#233549]/40'
+                  }`}>
+                    <tr>
+                      <th className="p-3 pl-6">Name</th>
+                      <th className="p-3">Assignee</th>
+                      <th className="p-3 text-center">Priority Score</th>
+                      <th className="p-3">Due date</th>
+                      <th className="p-3 text-right">Logged/Est</th>
+                      <th className="p-3 text-center">Timer</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y font-medium ${theme === 'light' ? 'divide-slate-200' : 'divide-[#233549]/40'}`}>
+                    {toDoTasks.map((t) => {
+                      const assignee = users.find((u) => t.assigneeIds.includes(u.id));
+                      const isTimerRunning = timer.active && timer.taskId === t.id;
+                      const isSelected = selectedTaskId === t.id;
+                      const pScore = calculatePriorityScore(t, dependencies, tasks);
+
+                      return (
+                        <tr
+                          key={t.id}
+                          onClick={() => setSelectedTaskId(t.id)}
+                          className={`transition-colors cursor-pointer ${
+                            theme === 'light'
+                              ? isSelected ? 'bg-teal-50/80 border-l-4 border-l-[#0D9488]' : 'hover:bg-slate-50'
+                              : isSelected ? 'bg-[#0773BB]/10 border-l-4 border-l-[#0773BB]' : 'hover:bg-[#16222F]/80'
+                          }`}
+                        >
+                          <td className="p-3 pl-6">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateTask(t.id, { status: 'In Progress' });
+                                }}
+                                className="w-4 h-4 rounded-full border-2 border-slate-400 hover:border-[#7B68EE] transition-all shrink-0"
+                                title="Click to set In Progress"
+                              />
+                              <span className={`font-medium transition-colors ${
+                                theme === 'light' ? 'text-slate-800 hover:text-teal-700' : 'text-slate-200 hover:text-white'
+                              }`}>
+                                {t.title}
+                              </span>
+                              {t.recurrence && t.recurrence.type !== 'none' && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
+                                  title={`Recurring Schedule: Every ${t.recurrence.interval || 1} ${t.recurrence.type}`}
+                                >
+                                  <Repeat className="w-3 h-3 text-[#3BC0BB]" />
+                                  <span className="capitalize text-[9px]">{t.recurrence.type}</span>
+                                </span>
+                              )}
+                              {renderDependencyIndicators(t)}
+                            </div>
+                          </td>
+
+                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1.5">
+                              {assignee ? (
+                                <img
+                                  src={assignee.avatar}
+                                  alt={assignee.name}
+                                  className="w-6 h-6 rounded-full object-cover ring-1 ring-[#0773BB]"
+                                  title={assignee.name}
+                                />
+                              ) : (
+                                <UserIcon className="w-5 h-5 text-slate-400" />
+                              )}
+                              <span className={`font-mono text-[11px] truncate max-w-[100px] ${
+                                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                              }`}>
+                                {assignee?.name || 'Unassigned'}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Priority Score Badge Cell */}
+                          <td className="p-3 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}
+                              title={pScore.reasons.join(' • ')}
+                            >
+                              {pScore.tier === 'CRITICAL' ? (
+                                <Flame className="w-3 h-3 text-rose-400" />
+                              ) : pScore.tier === 'HIGH' ? (
+                                <Zap className="w-3 h-3 text-amber-400" />
+                              ) : (
+                                <Activity className="w-3 h-3 text-blue-400" />
+                              )}
+                              <span>{pScore.score}</span>
+                              <span className="text-[9px] opacity-75 uppercase">{pScore.tier}</span>
+                            </span>
+                          </td>
+
+                          <td className="p-3 font-mono text-slate-400">
+                            {t.dueDate ? (
+                              <span className="text-rose-400 font-bold">{t.dueDate}</span>
+                            ) : (
+                              <CalendarIcon className="w-4 h-4 text-slate-500" />
+                            )}
+                          </td>
+
+                          <td className="p-3 text-right font-mono">
+                            <span className="text-slate-400">{t.loggedHours}h</span> / {t.estimatedHours}h
+                          </td>
+
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            {isTimerRunning ? (
+                              <button
+                                onClick={() => stopTimer('Logged time')}
+                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
+                              >
+                                <Square className="w-3.5 h-3.5 fill-current animate-pulse" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => startTimer(t.id, t.title)}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-[#0773BB] text-slate-400 hover:text-white transition-all"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Inline Add Task Row */}
+                    {inlineAddGroup === 'To Do' ? (
+                      <tr className="bg-[#16222F]/60">
+                        <td colSpan={5} className="p-3 pl-6">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="Task Name..."
+                              value={inlineTaskTitle}
+                              onChange={(e) => setInlineTaskTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleInlineAdd('To Do');
+                                if (e.key === 'Escape') setInlineAddGroup(null);
+                              }}
+                              className="flex-1 bg-[#0D1520] border border-[#0773BB] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                            <button
+                              onClick={() => handleInlineAdd('To Do')}
+                              className="px-3 py-1.5 bg-[#0773BB] text-white font-bold rounded-lg text-xs"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => setInlineAddGroup(null)}
+                              className="p-1.5 text-slate-400 hover:text-white"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr
+                        onClick={() => setInlineAddGroup('To Do')}
+                        className="hover:bg-[#16222F]/40 cursor-pointer text-slate-400 hover:text-white"
+                      >
+                        <td colSpan={5} className="p-2.5 pl-6 text-xs font-medium flex items-center gap-1.5">
+                          <Plus className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Add Task</span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* GROUP 3: COMPLETED */}
+          {doneTasks.length > 0 && (
+            <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
+              <div
+                onClick={() => setCompletedOpen(!completedOpen)}
+                className="px-4 py-3 bg-emerald-500/10 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-emerald-500/20 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  {completedOpen ? <ChevronDown className="w-4 h-4 text-emerald-400" /> : <ChevronRight className="w-4 h-4 text-emerald-400" />}
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/30">
+                    COMPLETE
+                  </span>
+                  <span className="text-xs font-mono font-bold text-slate-400">
+                    {doneTasks.length}
+                  </span>
+                </div>
+              </div>
+
+              {completedOpen && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <tbody className="divide-y divide-[#233549]/40 font-medium">
+                      {doneTasks.map((t) => (
+                        <tr
+                          key={t.id}
+                          onClick={() => setSelectedTaskId(t.id)}
+                          className="hover:bg-[#16222F]/80 transition-colors cursor-pointer opacity-75"
+                        >
+                          <td className="p-3 pl-6 text-slate-400 font-medium">
+                            <div className="flex items-center gap-2">
+                              <span className="line-through">{t.title}</span>
+                              {renderDependencyIndicators(t)}
+                            </div>
+                          </td>
+                          <td className="p-3 text-emerald-400 font-bold text-[10px]">
+                            COMPLETED
+                          </td>
+                          <td className="p-3 font-mono text-slate-500">{t.dueDate}</td>
+                          <td className="p-3 text-right font-mono text-emerald-400 font-bold">
+                            {t.loggedHours}h / {t.estimatedHours}h
+                          </td>
+                          <td className="p-3 text-center">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 inline-block" />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+        </div>
+
+        {/* CLICKUP TASK DETAIL DRAWER */}
+        {activeTask && (() => {
+          const activePScore = calculatePriorityScore(activeTask, dependencies, tasks);
+
+          return (
+            <div className="p-6 rounded-2xl bg-[#16222F] border border-[#233549] space-y-6 shadow-2xl animate-in slide-in-from-right-4">
+              <div className="flex items-center justify-between border-b border-[#233549] pb-4">
+                <div>
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#7B68EE]/20 text-[#7B68EE] font-bold">
+                    CLICKUP TASK INSPECTOR
+                  </span>
+                  <h2 className="text-base font-bold text-white mt-1">{activeTask.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSelectedTaskId(null)}
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Calculated Priority Score Gauge Card */}
+              <div className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {activePScore.tier === 'CRITICAL' ? (
+                      <Flame className="w-4 h-4 text-rose-400" />
+                    ) : activePScore.tier === 'HIGH' ? (
+                      <Zap className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Activity className="w-4 h-4 text-blue-400" />
+                    )}
+                    <span className="text-xs font-bold text-white">Calculated Priority Score</span>
+                  </div>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-extrabold border ${activePScore.bgColor} ${activePScore.color} ${activePScore.borderColor}`}
+                  >
+                    {activePScore.score} / 100 ({activePScore.tier})
+                  </span>
+                </div>
+
+                {/* Score Progress Bar */}
+                <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      activePScore.tier === 'CRITICAL'
+                        ? 'bg-rose-500'
+                        : activePScore.tier === 'HIGH'
+                        ? 'bg-amber-400'
+                        : activePScore.tier === 'MEDIUM'
+                        ? 'bg-blue-400'
+                        : 'bg-slate-500'
+                    }`}
+                    style={{ width: `${activePScore.score}%` }}
+                  />
+                </div>
+
+                {/* Factor Breakdown List */}
+                <div className="space-y-1 text-[11px] text-slate-400">
+                  <span className="font-semibold text-slate-300">Score Factors:</span>
+                  <ul className="list-disc pl-4 space-y-0.5 font-mono text-[10px]">
+                    {activePScore.reasons.map((r, idx) => (
+                      <li key={idx} className="text-slate-300">{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Status & Priority */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Status</label>
+                <label className="block text-slate-400 font-semibold mb-1">Status</label>
                 <select
                   value={activeTask.status}
                   onChange={(e) =>
                     updateTask(activeTask.id, { status: e.target.value as TaskStatus })
                   }
-                  className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#0773BB]"
+                  className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3 py-2 font-bold"
                 >
-                  <option value="Backlog">Backlog</option>
-                  <option value="To Do">To Do</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="In Review">In Review</option>
-                  <option value="Done">Done</option>
+                  <option value="To Do">TO DO</option>
+                  <option value="In Progress">IN PROGRESS</option>
+                  <option value="In Review">IN REVIEW</option>
+                  <option value="Done">COMPLETE</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-slate-400 font-medium mb-1">Priority</label>
+                <label className="block text-slate-400 font-semibold mb-1">Priority</label>
                 <select
                   value={activeTask.priority}
                   onChange={(e) =>
                     updateTask(activeTask.id, { priority: e.target.value as Priority })
                   }
-                  className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#0773BB]"
+                  className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3 py-2 font-bold"
                 >
                   <option value="Urgent">Urgent</option>
                   <option value="High">High</option>
@@ -348,18 +1094,349 @@ export const TasksView: React.FC = () => {
 
             {/* Description */}
             <div className="text-xs space-y-1">
-              <span className="text-slate-400 font-medium">Description</span>
+              <span className="text-slate-400 font-semibold">Description</span>
               <p className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] text-slate-300 leading-relaxed">
                 {activeTask.description}
               </p>
             </div>
 
-            {/* Subtasks Hierarchy Manager */}
-            <div className="space-y-3 pt-2 border-t border-[#233549]">
-              <div className="flex items-center justify-between text-xs font-bold text-white">
-                <span>Subtasks Breakdown ({activeTaskSubtasks.length})</span>
+            {/* Recurrence Settings in Drawer */}
+            <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-white">
+                  <Repeat className="w-4 h-4 text-[#3BC0BB]" />
+                  <span>Recurrence Schedule</span>
+                </div>
+                {activeTask.recurrence && activeTask.recurrence.type !== 'none' ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-bold">
+                    {activeTask.recurrence.type.toUpperCase()}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-500 italic">One-time Task</span>
+                )}
               </div>
 
+              {activeTask.recurrence && activeTask.recurrence.type !== 'none' ? (
+                <div className="space-y-1.5 text-[11px] text-slate-300 bg-[#16222F] p-2.5 rounded-lg border border-[#233549]">
+                  <div className="flex items-center justify-between">
+                    <span>Repeat Frequency:</span>
+                    <span className="font-mono text-[#3BC0BB] font-bold">Every {activeTask.recurrence.interval || 1} {activeTask.recurrence.type}(s)</span>
+                  </div>
+                  {activeTask.recurrence.daysOfWeek && (
+                    <div className="flex items-center justify-between">
+                      <span>Days:</span>
+                      <span className="font-mono text-slate-200">{activeTask.recurrence.daysOfWeek.join(', ')}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span>Auto-regenerate:</span>
+                    <span className="font-mono text-emerald-400 font-bold">
+                      {activeTask.recurrence.autoRegenerateOnComplete !== false ? 'On Completion' : 'Disabled'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateTask(activeTask.id, { recurrence: undefined })}
+                    className="w-full mt-1 pt-1.5 border-t border-[#233549] text-rose-400 hover:text-rose-300 text-[10px] text-center font-bold"
+                  >
+                    Remove Recurrence Schedule
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] text-slate-400">Add schedule:</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateTask(activeTask.id, {
+                          recurrence: { type: 'daily', interval: 1, autoRegenerateOnComplete: true }
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-[#16222F] hover:bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#233549] text-[10px] font-bold font-mono"
+                    >
+                      + Daily
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateTask(activeTask.id, {
+                          recurrence: { type: 'weekly', interval: 1, daysOfWeek: ['Mon'], autoRegenerateOnComplete: true }
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-[#16222F] hover:bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#233549] text-[10px] font-bold font-mono"
+                    >
+                      + Weekly
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateTask(activeTask.id, {
+                          recurrence: { type: 'monthly', interval: 1, dayOfMonth: 1, autoRegenerateOnComplete: true }
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-[#16222F] hover:bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#233549] text-[10px] font-bold font-mono"
+                    >
+                      + Monthly
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Task Dependencies Card (Predecessors & Successors) */}
+            {(() => {
+              const activePreds = getPredecessorTasks(activeTask);
+              const activeSuccs = getSuccessorTasks(activeTask);
+              const blocked = isTaskBlocked(activeTask);
+              const availableTasksForPred = tasks.filter(
+                (t) => t.id !== activeTask.id && !activePreds.some((p) => p.id === t.id)
+              );
+              const availableTasksForSucc = tasks.filter(
+                (t) => t.id !== activeTask.id && !activeSuccs.some((s) => s.id === t.id)
+              );
+
+              return (
+                <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3 text-xs">
+                  <div className="flex items-center justify-between border-b border-[#233549] pb-2">
+                    <div className="flex items-center gap-2 font-bold text-white">
+                      <GitCommit className="w-4 h-4 text-[#7B68EE]" />
+                      <span>Task Dependencies</span>
+                    </div>
+                    {blocked ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-amber-400" />
+                        <span>Blocked</span>
+                      </span>
+                    ) : activePreds.length > 0 ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1">
+                        <Unlock className="w-3 h-3 text-emerald-400" />
+                        <span>Ready</span>
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* Predecessors (Prerequisites) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-300 flex items-center gap-1">
+                        <ArrowRightCircle className="w-3.5 h-3.5 text-cyan-400" />
+                        Predecessors ({activePreds.length})
+                      </span>
+                      <span className="text-[10px] text-slate-400">Prerequisites for this task</span>
+                    </div>
+
+                    {activePreds.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {activePreds.map((pred) => {
+                          const isDone = pred.status === 'Done';
+                          const depLink = dependencies.find(
+                            (d) => d.taskId === activeTask.id && d.dependsOnTaskId === pred.id
+                          );
+
+                          return (
+                            <div
+                              key={pred.id}
+                              className={`p-2 rounded-lg border flex items-center justify-between gap-2 text-[11px] ${
+                                isDone
+                                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                                  : 'bg-[#16222F] border-[#233549] text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isDone ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                ) : (
+                                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                )}
+                                <span
+                                  onClick={() => setSelectedTaskId(pred.id)}
+                                  className="truncate hover:underline cursor-pointer font-medium"
+                                  title={pred.title}
+                                >
+                                  {pred.title}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+                                    isDone
+                                      ? 'bg-emerald-500/20 text-emerald-300'
+                                      : 'bg-amber-500/20 text-amber-300'
+                                  }`}
+                                >
+                                  {pred.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (depLink) {
+                                      removeDependency(depLink.id);
+                                    } else {
+                                      updateTask(activeTask.id, {
+                                        predecessors: (activeTask.predecessors || []).filter((id) => id !== pred.id),
+                                        dependencies: (activeTask.dependencies || []).filter((id) => id !== pred.id),
+                                      });
+                                    }
+                                  }}
+                                  className="text-slate-500 hover:text-rose-400 p-0.5"
+                                  title="Remove predecessor link"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-500 italic bg-[#16222F]/50 p-2 rounded-lg text-center border border-[#233549]/50">
+                        No predecessors defined (This task has no prerequisites).
+                      </div>
+                    )}
+
+                    {/* Add Predecessor selector */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <select
+                        value={newPredTaskId}
+                        onChange={(e) => setNewPredTaskId(e.target.value)}
+                        className="flex-1 bg-[#16222F] border border-[#233549] rounded-lg px-2 py-1 text-[11px] text-white focus:border-[#7B68EE]"
+                      >
+                        <option value="">+ Add Predecessor Task...</option>
+                        {availableTasksForPred.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title} ({t.status})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newPredTaskId) {
+                            addDependency(activeTask.id, newPredTaskId);
+                            setNewPredTaskId('');
+                            const res = recalculateProjectTimeline(activeTask.projectId);
+                            if (res.adjustedCount > 0) {
+                              setTimelineToast(`Linked Finish-to-Start dependency! Auto-adjusted ${res.adjustedCount} downstream task dates.`);
+                              setTimeout(() => setTimelineToast(null), 5000);
+                            }
+                          }
+                        }}
+                        disabled={!newPredTaskId}
+                        className="px-2.5 py-1 rounded-lg bg-[#7B68EE] disabled:opacity-40 text-white text-[11px] font-bold shrink-0 hover:bg-[#6854e4] transition-colors"
+                      >
+                        Link
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Successors (Dependent Tasks) */}
+                  <div className="space-y-2 pt-2 border-t border-[#233549]/60">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-slate-300 flex items-center gap-1">
+                        <ArrowUpRight className="w-3.5 h-3.5 text-purple-400" />
+                        Successors ({activeSuccs.length})
+                      </span>
+                      <span className="text-[10px] text-slate-400">Tasks unlocked by this task</span>
+                    </div>
+
+                    {activeSuccs.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {activeSuccs.map((succ) => {
+                          const depLink = dependencies.find(
+                            (d) => d.taskId === succ.id && d.dependsOnTaskId === activeTask.id
+                          );
+
+                          return (
+                            <div
+                              key={succ.id}
+                              className="p-2 rounded-lg border bg-[#16222F] border-[#233549] flex items-center justify-between gap-2 text-[11px] text-slate-200"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Workflow className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                                <span
+                                  onClick={() => setSelectedTaskId(succ.id)}
+                                  className="truncate hover:underline cursor-pointer font-medium"
+                                  title={succ.title}
+                                >
+                                  {succ.title}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-slate-800 text-slate-300">
+                                  {succ.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (depLink) {
+                                      removeDependency(depLink.id);
+                                    } else {
+                                      updateTask(succ.id, {
+                                        predecessors: (succ.predecessors || []).filter((id) => id !== activeTask.id),
+                                        dependencies: (succ.dependencies || []).filter((id) => id !== activeTask.id),
+                                      });
+                                    }
+                                  }}
+                                  className="text-slate-500 hover:text-rose-400 p-0.5"
+                                  title="Remove successor link"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-500 italic bg-[#16222F]/50 p-2 rounded-lg text-center border border-[#233549]/50">
+                        No successors defined (No other task depends on this one).
+                      </div>
+                    )}
+
+                    {/* Add Successor selector */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <select
+                        value={newSuccTaskId}
+                        onChange={(e) => setNewSuccTaskId(e.target.value)}
+                        className="flex-1 bg-[#16222F] border border-[#233549] rounded-lg px-2 py-1 text-[11px] text-white focus:border-[#7B68EE]"
+                      >
+                        <option value="">+ Add Successor Task...</option>
+                        {availableTasksForSucc.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title} ({t.status})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newSuccTaskId) {
+                            addDependency(newSuccTaskId, activeTask.id);
+                            setNewSuccTaskId('');
+                            const res = recalculateProjectTimeline(activeTask.projectId);
+                            if (res.adjustedCount > 0) {
+                              setTimelineToast(`Linked Finish-to-Start successor! Auto-adjusted ${res.adjustedCount} downstream task dates.`);
+                              setTimeout(() => setTimelineToast(null), 5000);
+                            }
+                          }
+                        }}
+                        disabled={!newSuccTaskId}
+                        className="px-2.5 py-1 rounded-lg bg-purple-600 disabled:opacity-40 text-white text-[11px] font-bold shrink-0 hover:bg-purple-500 transition-colors"
+                      >
+                        Link
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Subtasks */}
+            <div className="space-y-3 pt-2 border-t border-[#233549]">
+              <div className="flex items-center justify-between text-xs font-bold text-white">
+                <span>Subtasks ({activeTaskSubtasks.length})</span>
+              </div>
               <div className="space-y-2">
                 {activeTaskSubtasks.map((st) => (
                   <div
@@ -370,26 +1447,21 @@ export const TasksView: React.FC = () => {
                       type="checkbox"
                       checked={st.completed}
                       onChange={() => toggleSubtask(st.id)}
-                      className="w-4 h-4 rounded bg-[#16222F] border-[#233549] text-[#0773BB] focus:ring-0 cursor-pointer"
+                      className="w-4 h-4 rounded text-[#7B68EE] cursor-pointer"
                     />
-                    <span
-                      className={`flex-1 ${
-                        st.completed ? 'line-through text-slate-500' : 'text-slate-200'
-                      }`}
-                    >
+                    <span className={`flex-1 ${st.completed ? 'line-through text-slate-500' : 'text-slate-200'}`}>
                       {st.title}
                     </span>
                   </div>
                 ))}
               </div>
-
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  placeholder="Add subtask step..."
+                  placeholder="Add subtask..."
                   value={newSubtaskTitle}
                   onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                  className="flex-1 bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#0773BB]"
+                  className="flex-1 bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-white"
                 />
                 <button
                   onClick={() => {
@@ -398,87 +1470,26 @@ export const TasksView: React.FC = () => {
                       setNewSubtaskTitle('');
                     }
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#0773BB] text-white text-xs font-medium"
+                  className="px-3 py-1.5 rounded-xl bg-[#7B68EE] text-white font-bold text-xs"
                 >
                   Add
                 </button>
               </div>
             </div>
 
-            {/* Task Dependencies Manager */}
+            {/* Log Hours */}
             <div className="space-y-3 pt-2 border-t border-[#233549]">
-              <div className="flex items-center justify-between text-xs font-bold text-white">
-                <span className="flex items-center gap-1.5">
-                  <Link className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                  <span>Prerequisite Dependencies</span>
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {activeTaskDeps.map((dep) => {
-                  const reqTask = tasks.find((x) => x.id === dep.dependsOnTaskId);
-                  return (
-                    <div
-                      key={dep.id}
-                      className="flex items-center justify-between p-2 rounded-xl bg-[#0D1520] border border-[#233549] text-xs text-slate-300"
-                    >
-                      <span className="truncate max-w-[200px]">
-                        Blocked by: <span className="text-amber-400 font-bold">{reqTask?.title || dep.dependsOnTaskId}</span>
-                      </span>
-                      <button
-                        onClick={() => removeDependency(dep.id)}
-                        className="text-slate-500 hover:text-rose-400"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <select
-                  value={depTaskIdToLink}
-                  onChange={(e) => setDepTaskIdToLink(e.target.value)}
-                  className="flex-1 bg-[#0D1520] border border-[#233549] rounded-xl px-2 py-1.5 text-xs text-slate-200"
-                >
-                  <option value="">Select prerequisite task...</option>
-                  {tasks
-                    .filter((x) => x.id !== activeTask.id)
-                    .map((x) => (
-                      <option key={x.id} value={x.id}>
-                        {x.title}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  onClick={() => {
-                    if (depTaskIdToLink) {
-                      addDependency(activeTask.id, depTaskIdToLink);
-                      setDepTaskIdToLink('');
-                    }
-                  }}
-                  className="px-3 py-1.5 rounded-xl bg-[#233549] hover:bg-[#0773BB] text-white text-xs font-medium"
-                >
-                  Link
-                </button>
-              </div>
-            </div>
-
-            {/* Manual Time Logger */}
-            <div className="space-y-3 pt-2 border-t border-[#233549]">
-              <span className="text-xs font-bold text-white">Log Work Hours</span>
+              <span className="text-xs font-bold text-white">Log Hours</span>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  step="0.5"
                   value={manualHours}
                   onChange={(e) => setManualHours(Number(e.target.value))}
                   className="w-20 bg-[#0D1520] border border-[#233549] rounded-xl px-2 py-1.5 text-xs text-white font-mono"
                 />
                 <input
                   type="text"
-                  placeholder="Note (e.g., Welded joint couplings)..."
+                  placeholder="Note..."
                   value={manualNote}
                   onChange={(e) => setManualNote(e.target.value)}
                   className="flex-1 bg-[#0D1520] border border-[#233549] rounded-xl px-2 py-1.5 text-xs text-white"
@@ -490,69 +1501,101 @@ export const TasksView: React.FC = () => {
                       setManualNote('');
                     }
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/80 text-[#0D1520] font-bold text-xs"
+                  className="px-3 py-1.5 rounded-xl bg-[#3BC0BB] text-[#0D1520] font-bold text-xs"
                 >
                   Log
                 </button>
               </div>
             </div>
 
-            {/* Delete Task Button */}
-            <div className="pt-4 border-t border-[#233549]">
+            {/* Delete */}
+            <div className="pt-2 border-t border-[#233549]">
               <button
                 onClick={() => {
                   deleteTask(activeTask.id);
                   setSelectedTaskId(null);
                 }}
-                className="w-full py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 text-xs font-medium transition-all"
+                className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
               >
                 Delete Task
               </button>
             </div>
           </div>
-        )}
+        );
+      })()}
       </div>
 
       {/* Modal: Create Task */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#233549] pb-3">
-              <h2 className="text-base font-bold text-white">Create New Task Deliverable</h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-5 h-5 text-[#7B68EE]" />
+                <h2 className="text-base font-bold text-white">Create New ClickUp Task</h2>
+              </div>
+              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateTask} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateTask} className="space-y-4 text-xs">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Task Title *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g., Pressure test radiator matrix assembly"
+                  placeholder="e.g., Dolphin Catalogue (Light Duty & Heavy Duty)"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7B68EE]"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Project Scope</label>
+                <label className="block text-slate-300 font-semibold mb-1">Space / Project *</label>
                 <select
                   value={newProjectId}
                   onChange={(e) => setNewProjectId(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-medium"
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.code} — {p.title}
+                      [{p.code}] {p.title}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">Assign Team Members *</label>
+                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-[#0D1520] border border-[#233549] rounded-xl">
+                  {users.map((u) => {
+                    const isSelected = selectedAssigneeIds.includes(u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => toggleAssignee(u.id)}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-left transition-all ${
+                          isSelected
+                            ? 'bg-[#7B68EE]/20 border-[#7B68EE] text-white font-bold'
+                            : 'bg-[#16222F]/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#16222F]'
+                        }`}
+                      >
+                        <img
+                          src={u.avatar}
+                          alt={u.name}
+                          className="w-5 h-5 rounded-full object-cover shrink-0"
+                        />
+                        <div className="truncate min-w-0">
+                          <div className="text-[11px] truncate">{u.name}</div>
+                          <div className="text-[9px] text-slate-500 truncate">{u.department}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -561,7 +1604,7 @@ export const TasksView: React.FC = () => {
                   <select
                     value={newPriority}
                     onChange={(e) => setNewPriority(e.target.value as Priority)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-medium"
                   >
                     <option value="Urgent">Urgent</option>
                     <option value="High">High</option>
@@ -571,70 +1614,449 @@ export const TasksView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Assignee</label>
-                  <select
-                    value={newAssigneeId}
-                    onChange={(e) => setNewAssigneeId(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
-                  >
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.department})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Estimated Hours</label>
-                  <input
-                    type="number"
-                    value={newEstHours}
-                    onChange={(e) => setNewEstHours(Number(e.target.value))}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#0773BB]"
-                  />
-                </div>
-
-                <div>
                   <label className="block text-slate-300 font-semibold mb-1">Due Date</label>
                   <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">Tags (comma separated)</label>
-                <input
-                  type="text"
-                  placeholder="Testing, Welding, Quality"
-                  value={newTags}
-                  onChange={(e) => setNewTags(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
-                />
+              {/* Recurrence Configuration Option */}
+              <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-200 font-bold">
+                    <Repeat className="w-4 h-4 text-[#3BC0BB]" />
+                    <span>Recurrence Schedule</span>
+                  </div>
+                  {recurrenceType !== 'none' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-bold flex items-center gap-1">
+                      <RefreshCw className="w-3 h-3 animate-spin-slow" />
+                      <span>Recurring Active</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-medium mb-1">Frequency</label>
+                    <select
+                      value={recurrenceType}
+                      onChange={(e) => setRecurrenceType(e.target.value as RecurrenceType)}
+                      className="w-full bg-[#16222F] border border-[#233549] rounded-xl px-3 py-1.5 text-white font-medium focus:border-[#3BC0BB]"
+                    >
+                      <option value="none">Does Not Repeat</option>
+                      <option value="daily">Daily Schedule</option>
+                      <option value="weekly">Weekly Schedule</option>
+                      <option value="monthly">Monthly Schedule</option>
+                    </select>
+                  </div>
+
+                  {recurrenceType !== 'none' && (
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-medium mb-1">
+                        Repeat Interval
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 text-[11px]">Every</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={recurrenceInterval}
+                          onChange={(e) => setRecurrenceInterval(Math.max(1, Number(e.target.value)))}
+                          className="w-16 bg-[#16222F] border border-[#233549] rounded-xl px-2 py-1 text-white text-center font-mono font-bold"
+                        />
+                        <span className="text-slate-400 text-[11px]">
+                          {recurrenceType === 'daily' ? 'day(s)' : recurrenceType === 'weekly' ? 'week(s)' : 'month(s)'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {recurrenceType === 'weekly' && (
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-medium mb-1">Repeat On Days</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => {
+                        const isSelected = recurrenceDaysOfWeek.includes(day);
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                if (recurrenceDaysOfWeek.length > 1) {
+                                  setRecurrenceDaysOfWeek(recurrenceDaysOfWeek.filter((d) => d !== day));
+                                }
+                              } else {
+                                setRecurrenceDaysOfWeek([...recurrenceDaysOfWeek, day]);
+                              }
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold transition-all ${
+                              isSelected
+                                ? 'bg-[#3BC0BB] text-[#0D1520] shadow-sm'
+                                : 'bg-[#16222F] text-slate-400 hover:text-white border border-[#233549]'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {recurrenceType === 'monthly' && (
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-medium mb-1">Day of Month</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={recurrenceDayOfMonth}
+                        onChange={(e) => setRecurrenceDayOfMonth(Math.min(31, Math.max(1, Number(e.target.value))))}
+                        className="w-20 bg-[#16222F] border border-[#233549] rounded-xl px-3 py-1 text-white font-mono font-bold"
+                      />
+                      <span className="text-slate-400 text-[11px]">Day of each month</span>
+                    </div>
+                  </div>
+                )}
+
+                {recurrenceType !== 'none' && (
+                  <div className="space-y-2 pt-2 border-t border-[#233549]/60">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] font-medium mb-1">End Recurrence Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={recurrenceEndDate}
+                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                        className="w-full bg-[#16222F] border border-[#233549] rounded-xl px-3 py-1.5 text-white font-mono"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="checkbox"
+                        id="autoRegenCheck"
+                        checked={autoRegenerateOnComplete}
+                        onChange={(e) => setAutoRegenerateOnComplete(e.target.checked)}
+                        className="rounded bg-[#16222F] border-[#233549] text-[#3BC0BB] focus:ring-0 w-4 h-4 cursor-pointer"
+                      />
+                      <label htmlFor="autoRegenCheck" className="text-slate-300 text-[11px] cursor-pointer font-medium">
+                        Automatically regenerate next task on completion
+                      </label>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-[#16222F] border border-[#233549] text-[11px] text-[#3BC0BB] flex items-start gap-2">
+                      <RotateCw className="w-4 h-4 text-[#3BC0BB] mt-0.5 shrink-0" />
+                      <span>
+                        <strong>Regeneration Schedule:</strong> Task automatically creates the next instance every {recurrenceInterval} {recurrenceType === 'daily' ? 'day(s)' : recurrenceType === 'weekly' ? `week(s) on ${recurrenceDaysOfWeek.join(', ')}` : `month(s) on day ${recurrenceDayOfMonth}`}.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Task Dependencies (Predecessors & Successors) Selection */}
+              <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3">
+                <div className="flex items-center gap-2 text-slate-200 font-bold">
+                  <GitCommit className="w-4 h-4 text-[#7B68EE]" />
+                  <span>Task Dependencies (Predecessors & Successors)</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Predecessors selector */}
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-medium mb-1">
+                      Predecessors (Prerequisites)
+                    </label>
+                    <div className="max-h-28 overflow-y-auto p-2 bg-[#16222F] border border-[#233549] rounded-xl space-y-1">
+                      {tasks.length === 0 ? (
+                        <div className="text-[10px] text-slate-500 italic">No existing tasks</div>
+                      ) : (
+                        tasks.map((t) => {
+                          const isSelected = selectedPredecessorIds.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedPredecessorIds((prev) =>
+                                  prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                                );
+                              }}
+                              className={`w-full text-left p-1.5 rounded-lg text-[10px] truncate flex items-center justify-between gap-1 transition-all ${
+                                isSelected
+                                  ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30'
+                                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#0D1520]'
+                              }`}
+                            >
+                              <span className="truncate">{t.title}</span>
+                              <span className="text-[9px] opacity-75 shrink-0">{t.status}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Successors selector */}
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-medium mb-1">
+                      Successors (Tasks waiting on this)
+                    </label>
+                    <div className="max-h-28 overflow-y-auto p-2 bg-[#16222F] border border-[#233549] rounded-xl space-y-1">
+                      {tasks.length === 0 ? (
+                        <div className="text-[10px] text-slate-500 italic">No existing tasks</div>
+                      ) : (
+                        tasks.map((t) => {
+                          const isSelected = selectedSuccessorIds.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSuccessorIds((prev) =>
+                                  prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                                );
+                              }}
+                              className={`w-full text-left p-1.5 rounded-lg text-[10px] truncate flex items-center justify-between gap-1 transition-all ${
+                                isSelected
+                                  ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30'
+                                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#0D1520]'
+                              }`}
+                            >
+                              <span className="truncate">{t.title}</span>
+                              <span className="text-[9px] opacity-75 shrink-0">{t.status}</span>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300"
+                  className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 hover:text-white transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#0773BB] text-white font-medium"
+                  className="px-5 py-2 rounded-xl bg-[#7B68EE] hover:bg-[#6853E0] text-white font-bold transition-all shadow-md flex items-center gap-1.5"
                 >
-                  Create Task
+                  <Plus className="w-4 h-4" />
+                  <span>Create Task</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* GEMINI AI SMART PRIORITY OPTIMIZATION MODAL */}
+      {showSmartPriorityModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-4xl p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-[#233549] pb-4">
+              <div className="flex items-center gap-3 text-white font-bold">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] flex items-center justify-center text-white shadow-lg shadow-[#0773BB]/30">
+                  <Sparkles className="w-6 h-6 fill-current" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>AI Smart Priority Task Reordering Engine</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono">
+                      @google/genai v3.6
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Evaluates project scope, business impact, critical path blockers, and upcoming deadlines to suggest optimal task prioritization.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowSmartPriorityModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#233549]"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scope info bar */}
+            <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-[#3BC0BB]" />
+                <span className="text-slate-400">Active Scope Context:</span>
+                <span className="font-bold text-white">
+                  {projects.find((p) => p.id === selectedProjectId)?.title || 'All Projects Scope'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px] text-[#3BC0BB]">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Targeting {filteredTasks.length} Active Tasks</span>
+              </div>
+            </div>
+
+            {/* Content Body */}
+            {isAnalyzingPriority ? (
+              <div className="py-16 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full border-4 border-[#3BC0BB] border-t-transparent animate-spin mx-auto" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white flex items-center justify-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#3BC0BB] animate-pulse" />
+                    <span>Gemini AI Analyzing Business Impact & Critical Path...</span>
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">
+                    Calculating schedule risks, predecessor dependencies, client milestones, and revenue impact to generate optimal task ordering.
+                  </p>
+                </div>
+              </div>
+            ) : priorityRecommendations.length > 0 ? (
+              <div className="space-y-4">
+                {/* AI Rationale Summary Banner */}
+                <div className="p-4 rounded-xl bg-gradient-to-r from-[#0773BB]/20 to-[#3BC0BB]/20 border border-[#3BC0BB]/40 text-slate-200 text-xs flex items-start gap-3 shadow-md">
+                  <TrendingUp className="w-5 h-5 text-[#3BC0BB] shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="font-bold text-white block">
+                      AI Priority Optimization Complete
+                    </span>
+                    <p className="text-slate-300 text-[11px] leading-relaxed">
+                      Tasks have been ranked by calculated business impact, critical path bottlenecks, and deadline urgency. Tasks with active predecessor dependencies or upcoming audit dates are elevated.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recommendations Table */}
+                <div className="overflow-x-auto border border-[#233549] rounded-xl bg-[#0D1520]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#16222F] text-slate-400 font-semibold uppercase tracking-wider border-b border-[#233549] text-[10px]">
+                      <tr>
+                        <th className="p-3 pl-4">Suggested Rank</th>
+                        <th className="p-3">Task Deliverable</th>
+                        <th className="p-3 text-center">Impact Score</th>
+                        <th className="p-3 text-center">Priority Level</th>
+                        <th className="p-3">Risk Factor</th>
+                        <th className="p-3">AI Business Rationale</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#233549]">
+                      {priorityRecommendations.map((rec, idx) => {
+                        const originalTask = tasks.find((t) => t.id === rec.id);
+                        const isRank1 = idx === 0;
+
+                        return (
+                          <tr key={rec.id || idx} className={`hover:bg-[#16222F]/60 transition-colors ${isRank1 ? 'bg-[#0773BB]/10' : ''}`}>
+                            <td className="p-3 pl-4 font-mono font-bold">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                  idx === 0
+                                    ? 'bg-amber-500 text-slate-900 shadow-md'
+                                    : idx === 1
+                                    ? 'bg-slate-300 text-slate-900'
+                                    : idx === 2
+                                    ? 'bg-amber-700 text-white'
+                                    : 'bg-[#233549] text-slate-300'
+                                }`}>
+                                  #{idx + 1}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="p-3">
+                              <div className="font-bold text-white text-xs">{rec.title}</div>
+                              {originalTask?.dueDate && (
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                  Due: {originalTask.dueDate}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="p-3 text-center font-mono">
+                              <span className="px-2 py-0.5 rounded-full bg-[#0773BB]/30 text-[#3BC0BB] font-bold text-xs border border-[#0773BB]/50">
+                                {rec.impactScore || 85} / 100
+                              </span>
+                            </td>
+
+                            <td className="p-3 text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                                  rec.suggestedPriority === 'Urgent'
+                                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                    : rec.suggestedPriority === 'High'
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                }`}>
+                                  {rec.suggestedPriority}
+                                </span>
+                                {originalTask && originalTask.priority !== rec.suggestedPriority && (
+                                  <span className="text-[9px] text-slate-400 font-mono line-through">
+                                    Was {originalTask.priority}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
+                                <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
+                                <span>{rec.riskFactor || 'Schedule Bottleneck'}</span>
+                              </span>
+                            </td>
+
+                            <td className="p-3 text-slate-300 text-[11px] leading-relaxed max-w-xs">
+                              {rec.reasoning || 'Prioritized based on critical path dependencies and client delivery milestone.'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Master Action Footer */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#233549]">
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <CheckCircle2 className="w-4 h-4 text-[#3BC0BB]" />
+                    <span>Applying will automatically update task priorities & enable AI reordering in TasksView.</span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowSmartPriorityModal(false)}
+                      className="px-4 py-2 rounded-xl bg-[#233549] text-slate-300 hover:text-white font-bold text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplySmartPriorities}
+                      className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:brightness-110 transition-all"
+                    >
+                      <Sparkles className="w-4 h-4 fill-current" />
+                      <span>Apply AI Priority Reordering ({priorityRecommendations.length} Tasks)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="py-12 text-center text-slate-400 text-xs space-y-3">
+                <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+                <p>No tasks found in current scope for Smart Priority evaluation.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -3,18 +3,18 @@ import { Users, Clock, AlertTriangle, CheckCircle2, Zap } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const WorkloadView: React.FC = () => {
-  const { users, tasks, activeCompany } = useApp();
+  const { users, tasks, activeCompany, theme } = useApp();
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in">
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className={`text-2xl font-bold tracking-tight flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
             <Users className="w-6 h-6 text-[#0773BB]" />
             <span>Resource Workload & Capacity Management</span>
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
             Real-time capacity tracking, allocated hours vs availability, and overload prevention.
           </p>
         </div>

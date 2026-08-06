@@ -19,7 +19,10 @@ import {
 } from 'lucide-react';
 import { PWAInstallModal } from '../layout/PWAInstallModal';
 
+import { useApp } from '../../context/AppContext';
+
 export const ArchitectureView: React.FC = () => {
+  const { theme } = useApp();
   const [activeTab, setActiveTab] = useState<'google-pwa' | 'schema' | 'php' | 'structure' | 'security'>('google-pwa');
   const [showPwaModal, setShowPwaModal] = useState(false);
 
@@ -28,15 +31,15 @@ export const ArchitectureView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in">
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className={`text-2xl font-bold tracking-tight flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
             <Server className="w-6 h-6 text-[#0773BB]" />
             <span>Architecture, Deployment & Mobile App Hub</span>
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
             Google AI Studio prompt-driven zero-cost strategy, PWA Android app sync, and GoDaddy MySQL/PHP specifications.
           </p>
         </div>

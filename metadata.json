@@ -1,6 +1,6 @@
 {
   "name": "DOLPHIN GLOBAL HOLDINGS - Enterprise Project Management Platform",
   "description": "An enterprise multi-tenant project management platform with ClickUp/Monday/Asana capabilities, Dolphin BD dark aesthetic, Gantt/Kanban/Timeline/Workload views, domain-restricted auth, Gemini AI PDF task extractor, and GoDaddy PHP/MySQL deployment generator.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

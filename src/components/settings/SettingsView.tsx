@@ -17,19 +17,174 @@ import {
   RefreshCw,
   Terminal,
   HelpCircle,
-  FileCode
+  FileCode,
+  Sun,
+  Moon,
+  Palette,
+  ShieldAlert,
+  Search,
+  Filter,
+  Clock,
+  UserCheck,
+  FileText,
+  Lock,
+  AlertTriangle,
+  CheckCircle2,
+  Trash2,
+  Plus,
+  Key,
+  Shield,
+  Activity,
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { ActivityLog } from '../../types';
 
 export const SettingsView: React.FC = () => {
-  const { projects, tasks, users, companies, activeCompany, activityLogs, automations, files, firebaseConnected, firebaseProjectId, firebaseUser, signInWithGoogle, signOutFirebase } = useApp();
+  const {
+    projects,
+    tasks,
+    users,
+    companies,
+    activeCompany,
+    activityLogs,
+    logActivity,
+    automations,
+    files,
+    firebaseConnected,
+    firebaseProjectId,
+    firebaseUser,
+    signInWithGoogle,
+    signOutFirebase,
+    theme,
+    setTheme,
+    dolphinTheme,
+    setDolphinTheme,
+    currentUser
+  } = useApp();
+
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'export' | 'platform' | 'firebase' | 'godaddy' | 'sql'>('firebase');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'appearance' | 'firebase' | 'export' | 'platform' | 'godaddy' | 'sql'>('audit');
+
+  // Audit Log Filtering State
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditCategory, setAuditCategory] = useState<'all' | 'auth' | 'permission' | 'document' | 'task' | 'system'>('all');
+  const [auditSeverity, setAuditSeverity] = useState<'all' | 'info' | 'warning' | 'critical'>('all');
 
   const copyToClipboard = (text: string, section: string) => {
     navigator.clipboard.writeText(text);
     setCopiedSection(section);
     setTimeout(() => setCopiedSection(null), 2000);
+  };
+
+  // Filtered Audit Logs
+  const filteredAuditLogs = activityLogs.filter((log) => {
+    const query = auditSearch.toLowerCase();
+    const matchesSearch =
+      !query ||
+      log.action.toLowerCase().includes(query) ||
+      log.target.toLowerCase().includes(query) ||
+      log.userName.toLowerCase().includes(query) ||
+      (log.details && log.details.toLowerCase().includes(query)) ||
+      (log.ipAddress && log.ipAddress.toLowerCase().includes(query));
+
+    let matchesCategory = true;
+    if (auditCategory === 'auth') {
+      matchesCategory = log.type === 'auth' || log.type === 'security';
+    } else if (auditCategory === 'permission') {
+      matchesCategory = log.type === 'permission' || log.action.toLowerCase().includes('permission') || log.action.toLowerCase().includes('role');
+    } else if (auditCategory === 'document') {
+      matchesCategory = log.type === 'document' || log.action.toLowerCase().includes('document') || log.action.toLowerCase().includes('file');
+    } else if (auditCategory === 'task') {
+      matchesCategory = log.type === 'task' || log.type === 'project';
+    } else if (auditCategory === 'system') {
+      matchesCategory = log.type === 'system' || log.type === 'automation' || log.type === 'ai';
+    }
+
+    let matchesSeverity = true;
+    if (auditSeverity !== 'all') {
+      matchesSeverity = (log.severity || 'info') === auditSeverity;
+    }
+
+    return matchesSearch && matchesCategory && matchesSeverity;
+  });
+
+  // Export Audit Trail CSV
+  const handleExportAuditLogsCSV = () => {
+    const headers = ['Log ID', 'Timestamp', 'User Name', 'User ID', 'Category Type', 'Severity', 'Action Executed', 'Target / Resource', 'IP Address', 'Details'];
+    const rows = filteredAuditLogs.map((log) => [
+      log.id,
+      `"${log.timestamp}"`,
+      `"${(log.userName || '').replace(/"/g, '""')}"`,
+      log.userId,
+      log.type,
+      log.severity || 'info',
+      `"${(log.action || '').replace(/"/g, '""')}"`,
+      `"${(log.target || '').replace(/"/g, '""')}"`,
+      `"${log.ipAddress || '194.170.42.12'}"`,
+      `"${(log.details || '').replace(/"/g, '""')}"`
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit_trail_dgh_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // Simulate Security Audit Actions in Real Time
+  const handleSimulateSecurityAuditLog = (category: 'auth' | 'permission' | 'document' | 'security') => {
+    if (category === 'auth') {
+      logActivity(
+        'SSO authentication attempt validated',
+        `User session created for ${firebaseUser?.email || currentUser?.email || 'admin@dolphingroup.ae'}`,
+        'auth',
+        undefined,
+        undefined,
+        'Validated OAuth 2.0 token & corporate SSL certificate',
+        'info',
+        '194.170.42.12 (Dubai, UAE)'
+      );
+    } else if (category === 'permission') {
+      logActivity(
+        'modified user role & permissions',
+        'Updated role policy for Project Manager user',
+        'permission',
+        undefined,
+        undefined,
+        'Granted write privileges and budget authorization scope',
+        'warning',
+        '194.170.42.12 (Dubai, UAE)'
+      );
+    } else if (category === 'document') {
+      logActivity(
+        'updated sensitive document',
+        'HVAC_Contract_Specification_v4.pdf',
+        'document',
+        undefined,
+        undefined,
+        'Uploaded new document revision & updated hash checksum',
+        'info',
+        '86.96.14.88 (Abu Dhabi, UAE)'
+      );
+    } else {
+      logActivity(
+        'dispatched security password reset link',
+        `Password reset token dispatched to ${currentUser?.email || 'user@dolphingroup.ae'}`,
+        'security',
+        undefined,
+        undefined,
+        'Initiated high-priority password complexity workflow',
+        'warning',
+        '194.170.42.12 (Dubai, UAE)'
+      );
+    }
   };
 
   // Generate JSON Export
@@ -160,18 +315,22 @@ SET FOREIGN_KEY_CHECKS = 1;
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className={`p-6 max-w-7xl mx-auto space-y-6 ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       {/* View Title */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#233549]">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b ${
+        theme === 'light' ? 'border-slate-200' : 'border-[#233549]'
+      }`}>
         <div>
           <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-2xl bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/40">
+            <div className={`p-2.5 rounded-2xl border ${
+              theme === 'light' ? 'bg-teal-50 text-[#0D9488] border-teal-200' : 'bg-[#0773BB]/20 text-[#3BC0BB] border-[#0773BB]/40'
+            }`}>
               <Settings className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">System Settings & Project Exporter</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Export source code, backup database tables, or download data files for <span className="text-[#3BC0BB] font-mono">pm.dghanalytics.com</span>
+              <h1 className={`text-2xl font-bold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>System Settings & Project Exporter</h1>
+              <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                Export source code, backup database tables, or download data files for <span className="text-[#0D9488] font-mono">pm.dghanalytics.com</span>
               </p>
             </div>
           </div>
@@ -190,67 +349,668 @@ SET FOREIGN_KEY_CHECKS = 1;
       </div>
 
       {/* Sub-tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-[#233549] pb-3">
+      <div className="flex items-center gap-2 border-b border-[#233549] pb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveSubTab('audit')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeSubTab === 'audit'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-amber-400" />
+          <span>Audit Logs & Security</span>
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+            {activityLogs.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('appearance')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeSubTab === 'appearance'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Palette className="w-4 h-4 text-[#3BC0BB]" />
+          <span>Theme & Appearance</span>
+        </button>
+
         <button
           onClick={() => setActiveSubTab('firebase')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeSubTab === 'firebase'
               ? 'bg-[#0773BB] text-white shadow-md'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Database className="w-4 h-4 text-[#3BC0BB]" />
-          <span>Firebase Backend & Auth (Europe-West2)</span>
+          <span>Firebase Backend & Auth</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('export')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeSubTab === 'export'
               ? 'bg-[#0773BB] text-white shadow-md'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Download className="w-4 h-4" />
-          <span>In-App Data & Code Export</span>
+          <span>Data & Code Export</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('platform')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeSubTab === 'platform'
               ? 'bg-[#0773BB] text-white shadow-md'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Github className="w-4 h-4" />
-          <span>AI Studio Platform Export (GitHub / ZIP)</span>
+          <span>AI Studio Platform</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('godaddy')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeSubTab === 'godaddy'
               ? 'bg-[#0773BB] text-white shadow-md'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Globe className="w-4 h-4" />
-          <span>GoDaddy Domain (pm.dghanalytics.com)</span>
+          <span>GoDaddy Domain</span>
         </button>
 
         <button
           onClick={() => setActiveSubTab('sql')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeSubTab === 'sql'
               ? 'bg-[#0773BB] text-white shadow-md'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>MySQL Database Dump (.SQL)</span>
+          <span>MySQL Dump</span>
         </button>
       </div>
+
+      {/* Tab Content: Enterprise Audit Logs & Security */}
+      {activeSubTab === 'audit' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Header & Metrics Header */}
+          <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-6 space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#233549]">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span>Enterprise Audit Trail & Security Ledger</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold">
+                      ISO 27001 / SOX READY
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Immutable activity recording for sensitive user actions: authentication, role privileges, document modifications & session security.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportAuditLogsCSV}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold transition-all shadow-md"
+                  title="Export Audit Trail to CSV"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export Audit Trail (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics Overview Bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                  <span>Total Audit Events</span>
+                  <Activity className="w-4 h-4 text-[#3BC0BB]" />
+                </div>
+                <div className="text-2xl font-bold text-white font-mono">{activityLogs.length}</div>
+                <div className="text-[11px] text-slate-500 mt-1">Logged across session history</div>
+              </div>
+
+              <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                  <span>Auth & Login Events</span>
+                  <Key className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="text-2xl font-bold text-indigo-300 font-mono">
+                  {activityLogs.filter((l) => l.type === 'auth' || l.type === 'security').length}
+                </div>
+                <div className="text-[11px] text-indigo-400/70 mt-1">SSO & MFA checks</div>
+              </div>
+
+              <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                  <span>Permission Changes</span>
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-2xl font-bold text-amber-300 font-mono">
+                  {activityLogs.filter((l) => l.type === 'permission' || (l.action && l.action.toLowerCase().includes('permission'))).length}
+                </div>
+                <div className="text-[11px] text-amber-400/70 mt-1">Role & privilege updates</div>
+              </div>
+
+              <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl">
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                  <span>Document Modifies</span>
+                  <FileText className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-bold text-emerald-300 font-mono">
+                  {activityLogs.filter((l) => l.type === 'document' || (l.action && l.action.toLowerCase().includes('document'))).length}
+                </div>
+                <div className="text-[11px] text-emerald-400/70 mt-1">File & spec revisions</div>
+              </div>
+            </div>
+
+            {/* Quick Test Security Simulation Actions */}
+            <div className="p-4 bg-[#0D1520]/80 border border-[#233549] rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <span>Simulate Live Security Events</span>
+                </div>
+                <span className="text-[11px] text-slate-400">Click to append simulated audit log for testing</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleSimulateSecurityAuditLog('auth')}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition-all"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Simulate SSO Auth Log</span>
+                </button>
+                <button
+                  onClick={() => handleSimulateSecurityAuditLog('permission')}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-medium flex items-center gap-1.5 transition-all"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Simulate Permission Update Log</span>
+                </button>
+                <button
+                  onClick={() => handleSimulateSecurityAuditLog('document')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-medium flex items-center gap-1.5 transition-all"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Simulate Document Edit Log</span>
+                </button>
+                <button
+                  onClick={() => handleSimulateSecurityAuditLog('security')}
+                  className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium flex items-center gap-1.5 transition-all"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Simulate Password Reset Log</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Search, Filter & Controls */}
+          <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-5 space-y-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              {/* Search Bar */}
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder="Search user, action, target, IP address..."
+                  className="w-full pl-10 pr-4 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#0773BB] transition-all"
+                />
+                {auditSearch && (
+                  <button
+                    onClick={() => setAuditSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {/* Severity Filter */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-slate-400 font-semibold flex items-center gap-1">
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>Severity:</span>
+                </span>
+                <select
+                  value={auditSeverity}
+                  onChange={(e) => setAuditSeverity(e.target.value as any)}
+                  className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+                >
+                  <option value="all">All Severities</option>
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+              <button
+                onClick={() => setAuditCategory('all')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                  auditCategory === 'all'
+                    ? 'bg-[#0773BB] text-white shadow-sm'
+                    : 'bg-[#0D1520] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+                }`}
+              >
+                All Categories ({activityLogs.length})
+              </button>
+              <button
+                onClick={() => setAuditCategory('auth')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  auditCategory === 'auth'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-[#0D1520] text-indigo-400 hover:bg-[#1C2C3D]'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>Auth & Security</span>
+              </button>
+              <button
+                onClick={() => setAuditCategory('permission')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  auditCategory === 'permission'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-[#0D1520] text-amber-400 hover:bg-[#1C2C3D]'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Permission Changes</span>
+              </button>
+              <button
+                onClick={() => setAuditCategory('document')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  auditCategory === 'document'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-[#0D1520] text-emerald-400 hover:bg-[#1C2C3D]'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>Document Edits</span>
+              </button>
+              <button
+                onClick={() => setAuditCategory('task')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  auditCategory === 'task'
+                    ? 'bg-sky-600 text-white shadow-sm'
+                    : 'bg-[#0D1520] text-sky-400 hover:bg-[#1C2C3D]'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Tasks & Projects</span>
+              </button>
+              <button
+                onClick={() => setAuditCategory('system')}
+                className={`px-3 py-1.5 rounded-lg font-medium transition-all flex items-center gap-1.5 ${
+                  auditCategory === 'system'
+                    ? 'bg-slate-700 text-white shadow-sm'
+                    : 'bg-[#0D1520] text-slate-400 hover:bg-[#1C2C3D]'
+                }`}
+              >
+                <Server className="w-3.5 h-3.5" />
+                <span>System & AI</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Audit Logs Data Table */}
+          <div className="bg-[#16222F] border border-[#233549] rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#0D1520] border-b border-[#233549] text-slate-400 font-mono uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4">Timestamp & ID</th>
+                    <th className="py-3 px-4">User / Actor</th>
+                    <th className="py-3 px-4">Category</th>
+                    <th className="py-3 px-4">Action Executed</th>
+                    <th className="py-3 px-4">Target & Metadata / IP Signature</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#233549]">
+                  {filteredAuditLogs.length > 0 ? (
+                    filteredAuditLogs.map((log) => {
+                      const dateObj = new Date(log.timestamp);
+                      const formattedTime = isNaN(dateObj.getTime())
+                        ? log.timestamp
+                        : `${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+
+                      // Badge styles for category
+                      let categoryBadge = 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+                      if (log.type === 'auth' || log.type === 'security') {
+                        categoryBadge = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40';
+                      } else if (log.type === 'permission') {
+                        categoryBadge = 'bg-amber-500/15 text-amber-300 border-amber-500/40';
+                      } else if (log.type === 'document') {
+                        categoryBadge = 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40';
+                      } else if (log.type === 'task' || log.type === 'project') {
+                        categoryBadge = 'bg-sky-500/15 text-sky-300 border-sky-500/40';
+                      } else if (log.type === 'ai') {
+                        categoryBadge = 'bg-teal-500/15 text-teal-300 border-teal-500/40';
+                      }
+
+                      // Badge styles for severity
+                      let severityBadge = 'bg-slate-500/10 text-slate-400';
+                      if (log.severity === 'warning') severityBadge = 'bg-amber-500/20 text-amber-300 font-bold';
+                      if (log.severity === 'critical') severityBadge = 'bg-red-500/20 text-red-300 font-bold';
+
+                      return (
+                        <tr key={log.id} className="hover:bg-[#1C2C3D]/60 transition-colors">
+                          {/* Timestamp */}
+                          <td className="py-3.5 px-4 align-top font-mono text-slate-400 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 text-slate-300">
+                              <Clock className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                              <span>{formattedTime}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 block mt-0.5">{log.id}</span>
+                          </td>
+
+                          {/* User */}
+                          <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                            <div className="flex items-center gap-2.5">
+                              <img
+                                src={log.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                                alt="User Avatar"
+                                className="w-7 h-7 rounded-full border border-slate-700 object-cover"
+                              />
+                              <div>
+                                <div className="font-semibold text-white text-xs">{log.userName || 'System User'}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">ID: {log.userId}</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Category & Severity */}
+                          <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-mono font-bold uppercase tracking-wider ${categoryBadge}`}>
+                                {log.type}
+                              </span>
+                              {log.severity && (
+                                <span className={`px-2 py-0.2 rounded text-[9px] uppercase font-mono ${severityBadge}`}>
+                                  {log.severity}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Action */}
+                          <td className="py-3.5 px-4 align-top max-w-xs">
+                            <div className="font-semibold text-slate-100 capitalize text-xs">
+                              {log.action}
+                            </div>
+                            {log.details && (
+                              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                                {log.details}
+                              </p>
+                            )}
+                          </td>
+
+                          {/* Target & IP Signature */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="text-xs font-mono text-[#3BC0BB] font-medium truncate max-w-xs">
+                              {log.target}
+                            </div>
+                            <div className="mt-1 flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-400">
+                                <Globe className="w-3 h-3 text-slate-500" />
+                                <span>{log.ipAddress || '194.170.42.12 (Dubai, UAE)'}</span>
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        <div className="max-w-sm mx-auto space-y-2">
+                          <ShieldAlert className="w-8 h-8 text-slate-500 mx-auto" />
+                          <p className="font-bold text-white text-sm">No Audit Logs Found</p>
+                          <p className="text-xs text-slate-500">
+                            No security audit logs match search query <span className="text-white">"{auditSearch}"</span> or selected filter.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setAuditSearch('');
+                              setAuditCategory('all');
+                              setAuditSeverity('all');
+                            }}
+                            className="mt-2 text-xs text-[#3BC0BB] hover:underline font-semibold"
+                          >
+                            Reset Search Filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer */}
+            <div className="p-3 bg-[#0D1520] border-t border-[#233549] flex items-center justify-between text-xs text-slate-400 font-mono">
+              <div>
+                Showing <strong className="text-white">{filteredAuditLogs.length}</strong> of <strong className="text-white">{activityLogs.length}</strong> recorded audit events
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Audit Ledger Encrypted & Preserved</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab Content 0: Appearance & Theme Switcher */}
+      {activeSubTab === 'appearance' && (
+        <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-6 space-y-6 animate-in fade-in">
+          <div className="flex items-center justify-between pb-4 border-b border-[#233549]">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/40">
+                <Palette className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>Dolphin Theme & Visual Contrast Selector</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-mono">
+                    PERSISTED TO LOCAL STORAGE
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Toggle between high-contrast dark mode variations or bright daylight mode. Preferences are saved automatically to your profile.
+                </p>
+              </div>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549] text-xs font-mono text-slate-300">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Current Mode: <strong className="text-[#3BC0BB] uppercase">{dolphinTheme}</strong></span>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-[#3BC0BB]" />
+              <span>High-Contrast Dark Mode Variations</span>
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Variation 1: Ocean Deep (Navy - Default) */}
+              <div
+                onClick={() => setDolphinTheme('ocean-deep')}
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                  dolphinTheme === 'ocean-deep'
+                    ? 'bg-[#0D1520] border-[#3BC0BB] ring-2 ring-[#3BC0BB]/30 shadow-xl'
+                    : 'bg-[#0D1520]/60 border-[#233549] hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 flex items-center justify-center">
+                      <Moon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Ocean Deep</h4>
+                      <p className="text-[11px] text-cyan-400 font-mono">Deep Corporate Navy</p>
+                    </div>
+                  </div>
+                  {dolphinTheme === 'ocean-deep' && (
+                    <span className="px-2 py-0.5 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/40 text-[10px] font-bold font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  Signature corporate dark navy interface optimized for civil, MEP & engineering project management. Reduced eye strain.
+                </p>
+                <div className="p-2.5 rounded-xl bg-[#16222F] border border-[#233549] flex items-center justify-between text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#0D1520] border border-slate-700" title="Canvas #0D1520"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#16222F] border border-slate-600" title="Surface #16222F"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#3BC0BB]" title="Accent Teal"></span>
+                  </div>
+                  <span className="text-slate-400">#0D1520 Navy</span>
+                </div>
+              </div>
+
+              {/* Variation 2: Abyssal (Charcoal Pitch Obsidian) */}
+              <div
+                onClick={() => setDolphinTheme('abyssal')}
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                  dolphinTheme === 'abyssal'
+                    ? 'bg-[#090A0F] border-teal-400 ring-2 ring-teal-400/30 shadow-xl'
+                    : 'bg-[#090A0F]/60 border-[#233549] hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/30 text-teal-300 flex items-center justify-center">
+                      <Moon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Abyssal</h4>
+                      <p className="text-[11px] text-teal-300 font-mono">Pitch Charcoal Obsidian</p>
+                    </div>
+                  </div>
+                  {dolphinTheme === 'abyssal' && (
+                    <span className="px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-bold font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  Ultra high-contrast charcoal black with electric emerald & violet highlights. Built for OLED screens & dark environments.
+                </p>
+                <div className="p-2.5 rounded-xl bg-[#12131A] border border-[#2D2F3E] flex items-center justify-between text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#090A0F] border border-slate-800" title="Canvas #090A0F"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#12131A] border border-slate-700" title="Surface #12131A"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#2DD4BF]" title="Electric Emerald"></span>
+                  </div>
+                  <span className="text-slate-400">#090A0F Charcoal</span>
+                </div>
+              </div>
+
+              {/* Variation 3: Midnight Teal (Deep Maritime Aqua) */}
+              <div
+                onClick={() => setDolphinTheme('midnight-teal')}
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                  dolphinTheme === 'midnight-teal'
+                    ? 'bg-[#061318] border-cyan-400 ring-2 ring-cyan-400/30 shadow-xl'
+                    : 'bg-[#061318]/60 border-[#233549] hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center">
+                      <Moon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Midnight Teal</h4>
+                      <p className="text-[11px] text-emerald-400 font-mono">Deep Maritime Aqua</p>
+                    </div>
+                  </div>
+                  {dolphinTheme === 'midnight-teal' && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-bold font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  Deep maritime oceanic teal canvas with luminous aqua sea green indicators. Tailored for offshore & marine operations.
+                </p>
+                <div className="p-2.5 rounded-xl bg-[#0E1E24] border border-[#1E3A45] flex items-center justify-between text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#061318] border border-emerald-950" title="Canvas #061318"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#0E1E24] border border-emerald-900" title="Surface #0E1E24"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#14B8A6]" title="Maritime Aqua"></span>
+                  </div>
+                  <span className="text-slate-400">#061318 Teal</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Variation 4: System Light Mode Card */}
+            <div className="pt-2">
+              <div
+                onClick={() => setDolphinTheme('light')}
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                  dolphinTheme === 'light'
+                    ? 'bg-slate-100 border-[#3BC0BB] ring-2 ring-[#3BC0BB]/30 shadow-xl text-slate-900'
+                    : 'bg-[#0D1520]/60 border-[#233549] hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                      <Sun className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className={`font-bold text-sm ${dolphinTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                        System Light (Daylight Mode)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">High-contrast bright mode</p>
+                    </div>
+                  </div>
+                  {dolphinTheme === 'light' && (
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-700 border border-emerald-500/40 text-xs font-bold font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  Crisp daylight white & slate canvas for office environments, client presentations, and outdoor field inspections. Maximum legibility.
+                </p>
+                <div className="p-3 rounded-xl bg-white border border-slate-300 flex items-center gap-2">
+                  <div className="w-3.5 h-3.5 rounded-full bg-emerald-500" />
+                  <div className="w-3.5 h-3.5 rounded-full bg-blue-500" />
+                  <div className="w-3.5 h-3.5 rounded-full bg-amber-500" />
+                  <span className="text-[10px] text-slate-500 font-mono ml-auto">#F8FAFC Daylight</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab Content 0: Firebase Backend Status */}
       {activeSubTab === 'firebase' && (
@@ -489,41 +1249,60 @@ SET FOREIGN_KEY_CHECKS = 1;
       {/* Tab Content 3: GoDaddy & Subdomain Settings */}
       {activeSubTab === 'godaddy' && (
         <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-6 space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-[#233549]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#233549]">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                 <Globe className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-white">Active Custom Subdomain Setup</h3>
-                <p className="text-xs text-slate-400 font-mono">pm.dghanalytics.com</p>
+                <h3 className="text-base font-bold text-white">Custom Domain & Subdomain Setup</h3>
+                <p className="text-xs text-slate-300 font-mono">p.dghanalytics.com</p>
               </div>
             </div>
-            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono font-bold flex items-center gap-1.5 self-start sm:self-auto">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              Live Forwarding Configured
+              Subdomain Authorization Active
             </span>
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">GoDaddy Forwarding Parameters</h4>
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">DNS & Domain Forwarding Configuration</h4>
             <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl space-y-3 font-mono text-xs">
               <div className="flex justify-between items-center py-1 border-b border-[#233549]">
-                <span className="text-slate-400">Subdomain Prefix:</span>
-                <span className="text-white font-bold">pm</span>
+                <span className="text-slate-400">Target Subdomain:</span>
+                <span className="text-white font-bold text-sm">p.dghanalytics.com</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-[#233549]">
                 <span className="text-slate-400">Base Domain:</span>
                 <span className="text-[#3BC0BB]">dghanalytics.com</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-[#233549]">
-                <span className="text-slate-400">Forward Destination:</span>
+                <span className="text-slate-400">Subdomain Host Prefix:</span>
+                <span className="text-amber-300 font-bold">p</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-[#233549]">
+                <span className="text-slate-400">App Deployment Endpoint:</span>
                 <span className="text-emerald-400 truncate max-w-md">https://ais-pre-bk5aje2l7mtgn7oatyth37-109910493552.europe-west2.run.app</span>
               </div>
               <div className="flex justify-between items-center py-1">
-                <span className="text-slate-400">Redirect Type:</span>
-                <span className="text-amber-400 font-bold">301 Permanent</span>
+                <span className="text-slate-400">GoDaddy / DNS Setup Option:</span>
+                <span className="text-cyan-400 font-bold">Subdomain Forwarding (301) or CNAME</span>
               </div>
+            </div>
+
+            {/* Step-by-Step Instructions */}
+            <div className="p-4 bg-[#0D1520] border border-[#233549] rounded-xl space-y-3 text-xs">
+              <h5 className="font-bold text-white flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>GoDaddy DNS Control Panel Instructions:</span>
+              </h5>
+              <ol className="list-decimal list-inside space-y-2 text-slate-300 leading-relaxed pl-1">
+                <li>Log in to your <strong>GoDaddy Domain Portfolio</strong> at <code className="text-[#3BC0BB] font-mono">dghanalytics.com</code>.</li>
+                <li>Go to <strong>DNS Management</strong> &rarr; <strong>Forwarding</strong>.</li>
+                <li>Click <strong>Add Subdomain Forwarding</strong>. Set Subdomain to <code className="text-amber-300 font-mono font-bold">p</code>.</li>
+                <li>Set Destination URL to: <code className="text-emerald-400 font-mono">https://ais-pre-bk5aje2l7mtgn7oatyth37-109910493552.europe-west2.run.app</code></li>
+                <li>Select <strong>301 (Permanent)</strong> forwarding and click <strong>Save</strong>.</li>
+              </ol>
             </div>
           </div>
         </div>

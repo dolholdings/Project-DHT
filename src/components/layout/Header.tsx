@@ -1,30 +1,27 @@
 import React, { useState } from 'react';
 import {
-  Building2,
   Bell,
   Search,
   Clock,
-  Play,
   Square,
   ShieldCheck,
-  ChevronDown,
   UserCheck,
-  Sparkles,
-  Zap,
-  Globe,
   Smartphone,
-  Download
+  Download,
+  Sun,
+  Moon,
+  CheckCircle2,
+  Lock,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { NotificationsDrawer } from '../notifications/NotificationsDrawer';
 import { LoginModal } from '../auth/LoginModal';
 import { PWAInstallModal } from './PWAInstallModal';
+import { ExcelImportModal } from '../common/ExcelImportModal';
 
 export const Header: React.FC = () => {
   const {
-    activeCompany,
-    setActiveCompany,
-    companies,
     currentUser,
     timer,
     stopTimer,
@@ -32,12 +29,14 @@ export const Header: React.FC = () => {
     searchQuery,
     setSearchQuery,
     setCommandPaletteOpen,
+    theme,
+    toggleTheme,
   } = useApp();
 
-  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showPwaModal, setShowPwaModal] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -50,63 +49,32 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="h-16 bg-[#16222F]/90 backdrop-blur-md border-b border-[#233549] px-6 flex items-center justify-between sticky top-0 z-30 shadow-md">
-        {/* Left: Company Selector & Domain Indicator */}
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <button
-              onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
-              className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] text-white transition-all shadow-inner group"
-            >
-              <span className="text-xl">{activeCompany.logo}</span>
-              <div className="text-left">
-                <div className="text-xs font-semibold text-[#3BC0BB] uppercase tracking-wider flex items-center gap-1">
-                  <span>{activeCompany.code}</span>
-                  <span className="text-[10px] text-slate-400 font-mono">({activeCompany.domain})</span>
-                </div>
-                <div className="text-sm font-medium text-slate-100 max-w-[180px] sm:max-w-[240px] truncate">
-                  {activeCompany.name}
-                </div>
+      <header className="h-16 bg-[#16222F]/90 backdrop-blur-md border-b border-[#233549] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-md">
+        {/* Left: ClickUp Style Workspace Title & Email Access Control Indicator */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549]">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#6366F1] to-[#7B68EE] flex items-center justify-center text-white font-extrabold text-sm shadow-sm">
+              DP
+            </div>
+            <div className="text-left">
+              <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
+                <span>Dolphin Project Management</span>
               </div>
-              <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-white transition-transform" />
-            </button>
-
-            {showCompanyDropdown && (
-              <div className="absolute top-full left-0 mt-2 w-80 bg-[#16222F] border border-[#233549] rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
-                <div className="px-3 py-2 border-b border-[#233549] text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Dolphin Global Holdings Entities</span>
-                  <Globe className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                </div>
-                <div className="py-1 max-h-80 overflow-y-auto space-y-1">
-                  {companies.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        setActiveCompany(c);
-                        setShowCompanyDropdown(false);
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center gap-3 ${
-                        activeCompany.id === c.id
-                          ? 'bg-[#0773BB]/20 border border-[#0773BB] text-white'
-                          : 'hover:bg-[#0D1520] text-slate-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{c.logo}</span>
-                      <div className="overflow-hidden">
-                        <div className="text-xs font-semibold text-[#3BC0BB]">{c.name}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">@{c.domain}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+              <div className="text-[10px] text-[#3BC0BB] font-mono flex items-center gap-1">
+                <Lock className="w-3 h-3 text-[#3BC0BB]" />
+                <span>Email Domain Controlled</span>
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#3BC0BB]/10 border border-[#3BC0BB]/30 text-[#3BC0BB] text-xs font-mono">
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#3BC0BB]/10 border border-[#3BC0BB]/30 text-[#3BC0BB] hover:bg-[#3BC0BB]/20 text-xs font-mono transition-all"
+            title="Manage Authorized Email Domains & Accounts"
+          >
             <ShieldCheck className="w-3.5 h-3.5 text-[#3BC0BB]" />
-            <span>Authorized Corporate Domain</span>
-          </div>
+            <span>Email Access Rules</span>
+          </button>
         </div>
 
         {/* Center: Command Palette Trigger Search Bar & Timer */}
@@ -148,8 +116,37 @@ export const Header: React.FC = () => {
           )}
         </div>
 
-        {/* Right: Export ZIP, Android App Install, Notifications, User Profile */}
+        {/* Right: Theme Toggle, Export ZIP, Android App Install, Notifications, User Profile */}
         <div className="flex items-center gap-2.5">
+          {/* Global Theme Switcher Toggle (Dolphin Dark / System Light) */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] text-slate-300 hover:text-white transition-all shadow-sm hover:scale-105 active:scale-95 text-xs font-semibold"
+            title={`Active Theme: ${theme === 'dark' ? 'Dolphin Dark' : 'System Light'}. Click to switch to ${theme === 'dark' ? 'System Light' : 'Dolphin Dark'}.`}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span className="hidden xl:inline text-slate-300">Dolphin Dark</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-500" />
+                <span className="hidden xl:inline text-slate-700 font-bold">System Light</span>
+              </>
+            )}
+          </button>
+
+          {/* Import Excel / CSV Button */}
+          <button
+            onClick={() => setShowExcelModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-500/40 text-teal-300 hover:text-white text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
+            title="Import Projects and Tasks from Excel (.xlsx / .csv)"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-teal-400" />
+            <span className="hidden sm:inline">Import Excel</span>
+          </button>
+
           {/* Download Source Code ZIP Button */}
           <a
             href="/api/download-source"
@@ -193,19 +190,19 @@ export const Header: React.FC = () => {
             className="flex items-center gap-2.5 p-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] transition-all group"
           >
             <img
-              src={currentUser.avatar}
-              alt={currentUser.name}
+              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
+              alt={currentUser?.name || 'User'}
               className="w-8 h-8 rounded-lg object-cover ring-2 ring-[#0773BB]/50"
             />
             <div className="hidden md:block text-left">
               <div className="text-xs font-semibold text-white flex items-center gap-1">
-                <span>{currentUser.name}</span>
+                <span>{currentUser?.name || 'User'}</span>
                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#0773BB]/30 text-[#3BC0BB]">
-                  {currentUser.role}
+                  {currentUser?.role || 'Member'}
                 </span>
               </div>
               <div className="text-[11px] text-slate-400 font-mono truncate max-w-[150px]">
-                {currentUser.email}
+                {currentUser?.email || ''}
               </div>
             </div>
             <UserCheck className="w-4 h-4 text-[#3BC0BB] hidden sm:block" />
@@ -226,6 +223,11 @@ export const Header: React.FC = () => {
       {/* PWA Mobile App Installation Modal */}
       {showPwaModal && (
         <PWAInstallModal onClose={() => setShowPwaModal(false)} />
+      )}
+
+      {/* Excel / CSV Data Import Modal */}
+      {showExcelModal && (
+        <ExcelImportModal onClose={() => setShowExcelModal(false)} />
       )}
     </>
   );

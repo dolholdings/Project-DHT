@@ -1,15 +1,225 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
 @layer base {
-  body {
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-    background-color: #0D1520;
-    color: #F1F5F9;
+  :root {
+    --bg-primary: #0D1520;
+    --bg-surface: #16222F;
+    --bg-card: #1A2838;
+    --text-primary: #F8FAFC;
+    --text-secondary: #94A3B8;
+    --border-color: #233549;
+    --accent-primary: #7B68EE;
+    --accent-blue: #0773BB;
+    --accent-teal: #3BC0BB;
   }
 
-  code, pre, .font-mono, .data-mono {
-    font-family: 'JetBrains Mono', monospace;
+  html.light-theme, [data-theme="light"] {
+    --bg-primary: #F8FAFC;
+    --bg-surface: #FFFFFF;
+    --bg-card: #F1F5F9;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --border-color: #E2E8F0;
+    --accent-primary: #6366F1;
+    --accent-blue: #0284C7;
+    --accent-teal: #0D9488;
   }
+
+  html {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  h1, h2, h3, h4, h5, h6, p, span, div, button, input, select, textarea, label, table, th, td, a, li, blockquote, form, legend, fieldset, optgroup, option {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  code, pre, .font-mono, .data-mono, [class*="font-mono"], kbd, samp {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  }
+}
+
+/* Light Mode Overrides for Hardcoded Dark Containers and Elements across all subpages */
+html.light-theme, [data-theme="light"] {
+  color-scheme: light;
+}
+
+html.light-theme body, [data-theme="light"] body {
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
+}
+
+/* Background overrides for hardcoded dark colors */
+html.light-theme .bg-\[\#0D1520\],
+html.light-theme .bg-\[\#0d1520\],
+html.light-theme .bg-\[\#070D14\],
+html.light-theme .bg-\[\#080D14\],
+[data-theme="light"] .bg-\[\#0D1520\],
+[data-theme="light"] .bg-\[\#0d1520\] {
+  background-color: #F8FAFC !important;
+}
+
+html.light-theme .bg-\[\#16222F\],
+html.light-theme .bg-\[\#16222f\],
+html.light-theme .bg-\[\#121B26\],
+html.light-theme .bg-\[\#121b26\],
+[data-theme="light"] .bg-\[\#16222F\],
+[data-theme="light"] .bg-\[\#121B26\] {
+  background-color: #FFFFFF !important;
+}
+
+html.light-theme .bg-\[\#1A2838\],
+html.light-theme .bg-\[\#1a2838\],
+html.light-theme .bg-\[\#121C28\],
+html.light-theme .bg-\[\#121c28\],
+html.light-theme .bg-\[\#182332\],
+[data-theme="light"] .bg-\[\#1A2838\],
+[data-theme="light"] .bg-\[\#121C28\] {
+  background-color: #F1F5F9 !important;
+}
+
+/* Semi-transparent Dark Backgrounds */
+html.light-theme [class*="bg-[#0D1520]"],
+html.light-theme [class*="bg-[#0d1520]"],
+html.light-theme [class*="bg-[#16222F]"],
+html.light-theme [class*="bg-[#16222f]"],
+html.light-theme [class*="bg-[#121B26]"],
+html.light-theme [class*="bg-[#121b26]"] {
+  background-color: #FFFFFF !important;
+}
+
+/* Slate Dark Background Overrides */
+html.light-theme .bg-slate-900,
+html.light-theme .bg-slate-950,
+html.light-theme [class*="bg-slate-900"],
+html.light-theme [class*="bg-slate-950"] {
+  background-color: #FFFFFF !important;
+}
+
+html.light-theme .bg-slate-800,
+html.light-theme [class*="bg-slate-800"] {
+  background-color: #F1F5F9 !important;
+}
+
+/* Gradient overrides for banners and cards */
+html.light-theme .from-\[\#16222F\],
+html.light-theme .from-\[\#1A2838\],
+html.light-theme .from-\[\#0D1520\],
+html.light-theme .from-\[\#121B26\] {
+  --tw-gradient-from: #FFFFFF !important;
+  --tw-gradient-to: #F8FAFC !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+html.light-theme .via-\[\#1A2838\],
+html.light-theme .via-\[\#1A2634\] {
+  --tw-gradient-via: #F1F5F9 !important;
+}
+
+html.light-theme .to-\[\#0D1520\],
+html.light-theme .to-\[\#16222F\],
+html.light-theme .to-\[\#121B26\] {
+  --tw-gradient-to: #F8FAFC !important;
+}
+
+/* Border Overrides */
+html.light-theme .border-\[\#233549\],
+html.light-theme [class*="border-[#233549]"],
+html.light-theme .border-slate-800,
+html.light-theme .border-slate-700,
+html.light-theme [class*="border-slate-800"],
+html.light-theme [class*="border-slate-700"] {
+  border-color: #E2E8F0 !important;
+}
+
+html.light-theme .divide-\[\#233549\],
+html.light-theme [class*="divide-[#233549]"],
+html.light-theme .divide-slate-800,
+html.light-theme .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #E2E8F0 !important;
+}
+
+/* Typography Text Colors for Light Theme */
+html.light-theme .text-slate-100 {
+  color: #0F172A !important;
+}
+
+html.light-theme .text-slate-200 {
+  color: #1E293B !important;
+}
+
+html.light-theme .text-slate-300 {
+  color: #334155 !important;
+}
+
+html.light-theme .text-slate-400 {
+  color: #475569 !important;
+}
+
+/* Preserve White Text inside Buttons / Badges / Pills */
+html.light-theme .bg-\[\#7B68EE\],
+html.light-theme .bg-\[\#7B68EE\] *,
+html.light-theme .bg-\[\#0773BB\],
+html.light-theme .bg-\[\#0773BB\] *,
+html.light-theme .bg-indigo-600,
+html.light-theme .bg-indigo-600 *,
+html.light-theme .bg-emerald-500,
+html.light-theme .bg-emerald-500 *,
+html.light-theme .bg-emerald-600,
+html.light-theme .bg-emerald-600 *,
+html.light-theme .bg-rose-500,
+html.light-theme .bg-rose-500 *,
+html.light-theme .bg-amber-500,
+html.light-theme .bg-amber-500 * {
+  color: #FFFFFF !important;
+}
+
+/* Form Controls: Inputs, Selects, Textareas */
+html.light-theme input:not([type="checkbox"]):not([type="radio"]),
+html.light-theme select,
+html.light-theme textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.light-theme input::placeholder,
+html.light-theme textarea::placeholder {
+  color: #94A3B8 !important;
+}
+
+/* Modal Backdrops */
+html.light-theme .fixed.inset-0.bg-black\/70,
+html.light-theme .fixed.inset-0.bg-black\/80,
+html.light-theme .fixed.inset-0.bg-[#070D14]\/80 {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+}
+
+/* Table Headers and Row Hover */
+html.light-theme table thead,
+html.light-theme .bg-\[\#0D1520\]\/40 {
+  background-color: #F1F5F9 !important;
+  color: #475569 !important;
+}
+
+html.light-theme tr:hover,
+html.light-theme .hover\:bg-\[\#16222F\]:hover,
+html.light-theme .hover\:bg-\[\#16222F\]\/80:hover,
+html.light-theme .hover\:bg-\[\#1A2838\]:hover {
+  background-color: #F8FAFC !important;
 }
 
 /* Technical Data Grid Patterns & Backgrounds */
@@ -18,6 +228,12 @@
   background-image: 
     linear-gradient(to right, rgba(30, 45, 61, 0.4) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(30, 45, 61, 0.4) 1px, transparent 1px);
+}
+
+html.light-theme .bg-tech-grid {
+  background-image: 
+    linear-gradient(to right, rgba(200, 210, 225, 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(200, 210, 225, 0.5) 1px, transparent 1px);
 }
 
 .bg-tech-dots {
@@ -32,24 +248,23 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0D1520;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1E2D3D;
+  background: var(--border-color);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #0773BB;
+  background: var(--accent-primary);
 }
 
-/* Glassmorphism technical cards */
+/* ClickUp style cards */
 .tech-card {
-  background: rgba(22, 34, 47, 0.95);
-  backdrop-filter: blur(8px);
-  border: 1px solid #1E2D3D;
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
 }
 
 .tech-card-hover {
@@ -57,25 +272,155 @@
 }
 
 .tech-card-hover:hover {
-  border-color: rgba(59, 192, 187, 0.4);
-  box-shadow: 0 0 15px -3px rgba(59, 192, 187, 0.15);
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 16px -2px rgba(123, 104, 238, 0.2);
 }
 
 /* Technical Data Table cell styling */
 .tech-table th {
-  background-color: #121C28;
-  border-bottom: 1px solid #1E2D3D;
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #94A3B8;
+  color: var(--text-secondary);
 }
 
 .tech-table td {
-  border-bottom: 1px solid rgba(30, 45, 61, 0.6);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .tech-table tr:hover td {
-  background-color: rgba(7, 115, 187, 0.08);
+  background-color: rgba(123, 104, 238, 0.06);
 }
+
+/* Print Stylesheet for Executive PDF Exports */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm 10mm;
+  }
+
+  /* Hide interactive non-printable UI elements */
+  header, nav, footer, .no-print, button, select, .clickup-banner, .task-alert-toast, [role="dialog"] {
+    display: none !important;
+  }
+
+  body, html, #root, main {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Preserve exact print color graphics and background fills */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .print-report-container {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
+  }
+}
+
+/* HIGH-CONTRAST DOLPHIN DARK THEME VARIATIONS */
+
+/* 1. Abyssal (Pitch Charcoal Obsidian) */
+[data-theme="abyssal"] {
+  --bg-primary: #090A0F;
+  --bg-surface: #12131A;
+  --bg-card: #1A1B24;
+  --text-primary: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --border-color: #2D2F3E;
+  --accent-teal: #2DD4BF;
+  --accent-blue: #6366F1;
+}
+
+[data-theme="abyssal"] body {
+  background-color: #090A0F !important;
+  color: #FAFAFA !important;
+}
+
+[data-theme="abyssal"] .bg-\[\#0D1520\],
+[data-theme="abyssal"] .bg-\[\#0d1520\],
+[data-theme="abyssal"] .bg-\[\#070D14\],
+[data-theme="abyssal"] .bg-\[\#080D14\],
+[data-theme="abyssal"] .bg-\[\#0B121C\] {
+  background-color: #090A0F !important;
+}
+
+[data-theme="abyssal"] .bg-\[\#16222F\],
+[data-theme="abyssal"] .bg-\[\#16222f\],
+[data-theme="abyssal"] .bg-\[\#121B26\],
+[data-theme="abyssal"] .bg-\[\#121b26\],
+[data-theme="abyssal"] .bg-\[\#0E1723\] {
+  background-color: #12131A !important;
+}
+
+[data-theme="abyssal"] .bg-\[\#1A2838\],
+[data-theme="abyssal"] .bg-\[\#121C28\],
+[data-theme="abyssal"] .bg-\[\#1F2F42\] {
+  background-color: #1A1B24 !important;
+}
+
+[data-theme="abyssal"] .border-\[\#233549\] {
+  border-color: #2D2F3E !important;
+}
+
+/* 2. Midnight Teal (Deep Oceanic Slate & Aqua) */
+[data-theme="midnight-teal"] {
+  --bg-primary: #061318;
+  --bg-surface: #0E1E24;
+  --bg-card: #142830;
+  --text-primary: #F0FDF4;
+  --text-secondary: #94A3B8;
+  --border-color: #1E3A45;
+  --accent-teal: #14B8A6;
+  --accent-blue: #06B6D4;
+}
+
+[data-theme="midnight-teal"] body {
+  background-color: #061318 !important;
+  color: #F0FDF4 !important;
+}
+
+[data-theme="midnight-teal"] .bg-\[\#0D1520\],
+[data-theme="midnight-teal"] .bg-\[\#0d1520\],
+[data-theme="midnight-teal"] .bg-\[\#070D14\],
+[data-theme="midnight-teal"] .bg-\[\#080D14\],
+[data-theme="midnight-teal"] .bg-\[\#0B121C\] {
+  background-color: #061318 !important;
+}
+
+[data-theme="midnight-teal"] .bg-\[\#16222F\],
+[data-theme="midnight-teal"] .bg-\[\#16222f\],
+[data-theme="midnight-teal"] .bg-\[\#121B26\],
+[data-theme="midnight-teal"] .bg-\[\#121b26\],
+[data-theme="midnight-teal"] .bg-\[\#0E1723\] {
+  background-color: #0E1E24 !important;
+}
+
+[data-theme="midnight-teal"] .bg-\[\#1A2838\],
+[data-theme="midnight-teal"] .bg-\[\#121C28\],
+[data-theme="midnight-teal"] .bg-\[\#1F2F42\] {
+  background-color: #142830 !important;
+}
+
+[data-theme="midnight-teal"] .border-\[\#233549\] {
+  border-color: #1E3A45 !important;
+}
+

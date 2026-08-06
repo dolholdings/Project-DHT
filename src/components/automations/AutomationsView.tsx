@@ -3,7 +3,7 @@ import { Bot, Plus, Zap, CheckCircle2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const AutomationsView: React.FC = () => {
-  const { automations, toggleAutomation, addAutomation, activeCompany } = useApp();
+  const { automations, toggleAutomation, addAutomation, activeCompany, theme } = useApp();
 
   const [showModal, setShowModal] = useState(false);
   const [ruleName, setRuleName] = useState('');
@@ -31,14 +31,14 @@ export const AutomationsView: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-[1600px] mx-auto animate-in fade-in">
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+          <h1 className={`text-2xl font-bold tracking-tight flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
             <Bot className="w-6 h-6 text-[#3BC0BB]" />
             <span>Workflow Automation Engine</span>
           </h1>
-          <p className="text-xs text-slate-400">
+          <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
             Configure automated IF-THEN triggers for emails, escalation rules, and task assignment.
           </p>
         </div>
