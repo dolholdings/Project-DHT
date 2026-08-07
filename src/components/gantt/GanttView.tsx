@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   GanttChart,
   Calendar,
@@ -12,7 +12,7 @@ import {
   Workflow,
   CheckCircle2,
   X,
-  Link,
+  Link as LinkIcon,
   ArrowRight,
   Lock,
   MousePointer,
@@ -20,7 +20,13 @@ import {
   Diamond,
   Flame,
   Tag,
-  ShieldAlert
+  ShieldAlert,
+  GitFork,
+  Sliders,
+  Trash2,
+  Eye,
+  Zap,
+  HelpCircle
 } from 'lucide-react';
 import * as d3 from 'd3';
 import { useApp } from '../../context/AppContext';
@@ -58,6 +64,13 @@ export const GanttView: React.FC = () => {
   const [highlightCriticalPath, setHighlightCriticalPath] = useState(true);
   const [showOnlyMilestones, setShowOnlyMilestones] = useState(false);
 
+  // Task Dependency Visualization Tool States
+  const [isDrawModeActive, setIsDrawModeActive] = useState<boolean>(false);
+  const [selectedSourceTaskId, setSelectedSourceTaskId] = useState<string | null>(null);
+  const [lineRoutingStyle, setLineRoutingStyle] = useState<'curved' | 'orthogonal' | 'straight'>('curved');
+  const [showBlockerInspector, setShowBlockerInspector] = useState<boolean>(false);
+  const [filterActiveBlockersOnly, setFilterActiveBlockersOnly] = useState<boolean>(false);
+
   // Interactive D3 Graph State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
@@ -70,6 +83,21 @@ export const GanttView: React.FC = () => {
   const [hoveredDropTaskId, setHoveredDropTaskId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Listen for Escape key to exit draw mode or clear source selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedSourceTaskId) {
+          setSelectedSourceTaskId(null);
+        } else if (isDrawModeActive) {
+          setIsDrawModeActive(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedSourceTaskId, isDrawModeActive]);
 
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
   const projectTasks = tasks.filter((t) => t.projectId === activeProject?.id);
@@ -171,6 +199,52 @@ export const GanttView: React.FC = () => {
     removeDependency(taskId, dependsOnTaskId);
     setToastMsg('Dependency link removed.');
     setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  const handleTaskClickForDependency = (targetTask: Task) => {
+    if (!isDrawModeActive) {
+      setSelectedTaskId(selectedTaskId === targetTask.id ? null : targetTask.id);
+      return;
+    }
+
+    if (!selectedSourceTaskId) {
+      setSelectedSourceTaskId(targetTask.id);
+      setToastMsg(`Selected "${targetTask.title}" as Prerequisite (Blocker). Now click the Dependent task to complete the link.`);
+    } else if (selectedSourceTaskId === targetTask.id) {
+      setSelectedSourceTaskId(null);
+      setToastMsg('Prerequisite selection cleared.');
+      setTimeout(() => setToastMsg(null), 3000);
+    } else {
+      const sourceTask = projectTasks.find((t) => t.id === selectedSourceTaskId);
+      const success = addDependency(targetTask.id, selectedSourceTaskId);
+      if (success) {
+        const res = recalculateProjectTimeline(selectedProjectId);
+        setToastMsg(
+          `Dependency Linked! "${targetTask.title}" now depends on "${sourceTask?.title || 'Prerequisite'}". ${
+            res.adjustedCount > 0 ? `Auto-adjusted ${res.adjustedCount} dependent schedules.` : ''
+          }`
+        );
+        setTimeout(() => setToastMsg(null), 5000);
+      } else {
+        setToastMsg('Could not add dependency (link already exists or creates a circular dependency loop).');
+        setTimeout(() => setToastMsg(null), 4000);
+      }
+      setSelectedSourceTaskId(null);
+    }
+  };
+
+  // SVG Connector Path Generator supporting Bezier Curved, Orthogonal Step, and Straight lines
+  const generateConnectorPath = (x1: number, y1: number, x2: number, y2: number) => {
+    if (lineRoutingStyle === 'orthogonal') {
+      const midX = (x1 + x2) / 2;
+      return `M ${x1}% ${y1} H ${midX}% V ${y2} H ${x2}%`;
+    } else if (lineRoutingStyle === 'straight') {
+      return `M ${x1}% ${y1} L ${x2}% ${y2}`;
+    } else {
+      // Curved Bezier
+      const curveOffset = Math.max(2, Math.min(8, Math.abs(x2 - x1) / 2));
+      return `M ${x1}% ${y1} C ${x1 + curveOffset}% ${y1}, ${x2 - curveOffset}% ${y2}, ${x2}% ${y2}`;
+    }
   };
 
   // Timeline dates range calculation
@@ -429,14 +503,61 @@ export const GanttView: React.FC = () => {
             <span>Auto-Schedule (FS)</span>
           </button>
 
-          {/* Add Dependency Button */}
+          {/* Interactive Task Dependency Connector Tool Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsDrawModeActive((prev) => !prev);
+              if (isDrawModeActive) setSelectedSourceTaskId(null);
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md active:scale-95 border ${
+              isDrawModeActive
+                ? 'bg-emerald-500/30 border-emerald-400 text-emerald-200 shadow-emerald-950/80 ring-2 ring-emerald-500/50'
+                : 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-600/50 text-emerald-300'
+            }`}
+            title="Toggle interactive Task Dependency drawing mode to connect blockers and prerequisites"
+          >
+            <Workflow className={`w-4 h-4 ${isDrawModeActive ? 'text-emerald-300 animate-spin' : 'text-emerald-400'}`} />
+            <span>{isDrawModeActive ? 'Drawing Tool Active' : 'Draw Dependency Lines'}</span>
+          </button>
+
+          {/* Line Routing Style Switcher */}
+          <div className="flex items-center bg-[#0D1520] border border-[#233549] rounded-xl px-2.5 py-1.5 text-xs">
+            <span className="text-slate-400 text-[10px] uppercase font-mono mr-1.5 hidden sm:inline">Line Style:</span>
+            <select
+              value={lineRoutingStyle}
+              onChange={(e) => setLineRoutingStyle(e.target.value as any)}
+              className="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer text-xs"
+            >
+              <option value="curved">Bezier Curved</option>
+              <option value="orthogonal">Orthogonal Step</option>
+              <option value="straight">Straight Direct</option>
+            </select>
+          </div>
+
+          {/* Blocker Inspector Matrix Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowBlockerInspector((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
+              showBlockerInspector
+                ? 'bg-amber-500/30 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/40'
+                : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white'
+            }`}
+            title="Inspect all task blockers, prerequisite links, and dependency status matrix"
+          >
+            <ShieldAlert className={`w-3.5 h-3.5 ${showBlockerInspector ? 'text-amber-400' : 'text-slate-400'}`} />
+            <span>Blocker Matrix</span>
+          </button>
+
+          {/* Add Dependency Modal Trigger Button */}
           <button
             type="button"
             onClick={() => setShowAddDepModal(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 text-xs font-bold transition-all shadow-md active:scale-95"
           >
             <Workflow className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Add Dependency Link</span>
+            <span>Link Modal</span>
           </button>
 
           {/* Project Selector */}
@@ -480,6 +601,184 @@ export const GanttView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Task Dependency Connector Active Draw Mode Banner */}
+      {isDrawModeActive && (
+        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-[#0D1520] to-emerald-950 border-2 border-emerald-500/70 shadow-2xl shadow-emerald-950/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-200 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0">
+              <Workflow className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-white text-xs uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-500/30 border border-emerald-500/50 text-emerald-200">
+                  DRAW DEPENDENCIES MODE ACTIVE
+                </span>
+                {selectedSourceTaskId ? (
+                  <span className="text-amber-300 font-bold">
+                    Step 2: Choose Dependent Task to Block
+                  </span>
+                ) : (
+                  <span className="text-emerald-300 font-bold">
+                    Step 1: Choose Prerequisite / Blocker Task
+                  </span>
+                )}
+              </div>
+              <p className="text-slate-300 text-[11px] mt-0.5">
+                {selectedSourceTaskId ? (
+                  <>
+                    Prerequisite selected:{' '}
+                    <strong className="text-amber-300 font-semibold underline">
+                      {projectTasks.find((t) => t.id === selectedSourceTaskId)?.title}
+                    </strong>
+                    . Click any target task (or drag handle) to establish Finish-to-Start dependency link.
+                  </>
+                ) : (
+                  <>
+                    Click any task row or output port handle <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mx-0.5"></span> to select it as a <strong>Prerequisite (Blocker)</strong>. Press <kbd className="px-1.5 py-0.5 bg-black/60 rounded text-[10px] font-mono">Esc</kbd> to exit.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {selectedSourceTaskId && (
+              <button
+                type="button"
+                onClick={() => setSelectedSourceTaskId(null)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
+              >
+                Clear Source
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setIsDrawModeActive(false);
+                setSelectedSourceTaskId(null);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 text-xs font-bold transition-all"
+            >
+              Exit Tool
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Blocker & Prerequisite Inspector Matrix Panel */}
+      {showBlockerInspector && (
+        <div className="p-5 rounded-2xl bg-[#0D1520] border border-[#233549] space-y-4 shadow-xl animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#233549] pb-3">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-400" />
+              <h3 className="text-sm font-bold text-white">Project Dependency & Blocker Inspector Matrix</h3>
+              <span className="text-xs font-mono text-slate-400">({activeProject?.code})</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filterActiveBlockersOnly}
+                  onChange={(e) => setFilterActiveBlockersOnly(e.target.checked)}
+                  className="rounded border-[#233549] bg-[#16222F] text-[#3BC0BB] focus:ring-0"
+                />
+                <span>Show Active Blockers Only</span>
+              </label>
+
+              <button
+                onClick={() => setShowBlockerInspector(false)}
+                className="text-slate-400 hover:text-white text-xs font-bold p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[#233549] text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="p-2.5">Prerequisite Task (Blocker)</th>
+                  <th className="p-2.5 text-center">Relation Type</th>
+                  <th className="p-2.5">Dependent Task (Blocked)</th>
+                  <th className="p-2.5">Prerequisite Status</th>
+                  <th className="p-2.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#233549]/60">
+                {projectTasks.flatMap((targetTask) => {
+                  const prereqIds = [
+                    ...(targetTask.dependencies || []),
+                    ...dependencies.filter((d) => d.taskId === targetTask.id).map((d) => d.dependsOnTaskId)
+                  ];
+
+                  return prereqIds.map((prereqId) => {
+                    const prereqTask = projectTasks.find((t) => t.id === prereqId);
+                    if (!prereqTask) return null;
+
+                    const isPrereqDone = prereqTask.status === 'Done';
+                    if (filterActiveBlockersOnly && isPrereqDone) return null;
+
+                    return (
+                      <tr key={`matrix_${prereqId}_${targetTask.id}`} className="hover:bg-[#16222F]/60 transition-colors">
+                        <td className="p-2.5">
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                            <span>{prereqTask.title}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            Due: {prereqTask.dueDate} | Status: {prereqTask.status}
+                          </div>
+                        </td>
+
+                        <td className="p-2.5 text-center">
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] border border-amber-500/40 font-bold">
+                            Finish-to-Start (FS)
+                          </span>
+                        </td>
+
+                        <td className="p-2.5">
+                          <div className="font-bold text-white flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-[#3BC0BB] shrink-0" />
+                            <span>{targetTask.title}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            Start: {targetTask.startDate} | Status: {targetTask.status}
+                          </div>
+                        </td>
+
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 w-fit border ${
+                            isPrereqDone
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                          }`}>
+                            {isPrereqDone ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                            <span>{isPrereqDone ? 'Resolved' : 'Active Blocker'}</span>
+                          </span>
+                        </td>
+
+                        <td className="p-2.5 text-right">
+                          <button
+                            onClick={() => handleRemoveLink(targetTask.id, prereqId)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-[11px] font-bold transition-all flex items-center gap-1 ml-auto"
+                            title="Remove dependency connector link"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove Link</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }).filter(Boolean);
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Toast Alert Banner */}
       {toastMsg && (
@@ -808,7 +1107,7 @@ export const GanttView: React.FC = () => {
                 return (
                   <g key={`d3_dep_${prereqId}_${targetTask.id}`}>
                     <path
-                      d={`M ${x1Percent}% ${sourceY} C ${x1Percent + 3}% ${sourceY}, ${x2Percent - 3}% ${targetY}, ${x2Percent}% ${targetY}`}
+                      d={generateConnectorPath(x1Percent, sourceY, x2Percent, targetY)}
                       fill="none"
                       stroke={strokeColor}
                       strokeWidth={strokeWidth}
@@ -878,11 +1177,13 @@ export const GanttView: React.FC = () => {
 
             const isSelected = selectedTaskId === t.id;
             const isHoveredTarget = hoveredDropTaskId === t.id;
+            const isDrawSource = isDrawModeActive && selectedSourceTaskId === t.id;
+            const isDrawTargetCandidate = isDrawModeActive && selectedSourceTaskId && selectedSourceTaskId !== t.id;
 
             return (
               <div
                 key={t.id}
-                onClick={() => setSelectedTaskId(isSelected ? null : t.id)}
+                onClick={() => handleTaskClickForDependency(t)}
                 onMouseEnter={() => {
                   setHoveredTaskId(t.id);
                   if (dragState.isDragging && dragState.sourceTaskId !== t.id) {
@@ -896,13 +1197,17 @@ export const GanttView: React.FC = () => {
                   }
                 }}
                 className={`grid grid-cols-12 items-center p-2 rounded-xl transition-all cursor-pointer relative z-0 gantt-print-row group ${
-                  isSelected
+                  isDrawSource
+                    ? 'bg-amber-950/60 border-2 border-amber-400 ring-4 ring-amber-500/30 shadow-xl'
+                    : isDrawTargetCandidate && hoveredTaskId === t.id
+                    ? 'bg-emerald-950/60 border-2 border-emerald-400 ring-4 ring-emerald-500/30 shadow-xl'
+                    : isSelected
                     ? 'bg-[#0773BB]/20 border-2 border-[#3BC0BB] shadow-lg shadow-[#0773BB]/20'
                     : isHoveredTarget
                     ? 'bg-emerald-950/40 border-2 border-emerald-400'
                     : isHighlighted
                     ? 'bg-rose-950/20 border-2 border-rose-500/60 shadow-lg shadow-rose-950/50'
-                    : 'bg-[#0D1520] border border-[#233549] hover:border-[#0773BB]'
+                    : (theme === 'light' ? 'bg-white border-slate-200 hover:border-[#0773BB] shadow-xs' : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]')
                 }`}
               >
                 {/* Left Task Title Column */}
@@ -928,7 +1233,7 @@ export const GanttView: React.FC = () => {
 
                     <span
                       className={`text-xs font-bold truncate gantt-row-title-print ${
-                        isSelected ? 'text-[#3BC0BB]' : isHighlighted ? 'text-rose-200' : 'text-white'
+                        isSelected ? 'text-[#3BC0BB]' : isHighlighted ? 'text-rose-500' : (theme === 'light' ? 'text-slate-900' : 'text-white')
                       }`}
                     >
                       {t.title}

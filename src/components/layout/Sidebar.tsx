@@ -29,10 +29,12 @@ import {
   Mail,
   X,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -54,12 +56,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     selectedProjectId,
     setSelectedProjectId,
     deleteProject,
-    theme
+    theme,
+    logout,
+    logActivity
   } = useApp();
 
   const isMobile = useIsMobile();
   const [spacesOpen, setSpacesOpen] = useState(true);
   const [isSecondaryCollapsed, setIsSecondaryCollapsed] = useState(false);
+  const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // Automatically collapse secondary drawer when switching to mobile viewport
   useEffect(() => {
@@ -124,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     ? 'bg-gradient-to-tr from-[#2DD4BF] to-[#0D9488] shadow-[#0D9488]/40'
                     : 'bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] shadow-[#0773BB]/40'
                 }`}
-                title="Dolphin ClickUp Home"
+                title="Dolphin Home"
               >
                 <Zap className="w-5 h-5 fill-current" />
               </div>
@@ -194,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/40 shadow-md'
                     : 'text-white/70 hover:text-white hover:bg-white/10'
                 }`}
-                title="ClickUp AI & Automations"
+                title="AI Automations"
               >
                 <Sparkles className="w-5 h-5 text-amber-300" />
               </button>
@@ -270,13 +276,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse border-2 border-slate-900"></span>
               </button>
 
-              <button
-                onClick={() => handleTabClick('reports')}
-                className="p-2.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-                title="More Options"
-              >
-                <MoreHorizontal className="w-5 h-5" />
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="p-2.5 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
+                  title="More Navigation Options"
+                >
+                  <MoreHorizontal className="w-5 h-5" />
+                </button>
+
+                {showMoreMenu && (
+                  <div className="absolute left-14 bottom-0 z-50 w-48 py-2 rounded-xl bg-[#16222F] border border-[#233549] shadow-2xl text-xs space-y-1">
+                    <button
+                      onClick={() => {
+                        handleTabClick('reports');
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-[#3BC0BB]" />
+                      <span>Reports & Analytics</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleTabClick('architecture');
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
+                    >
+                      <Zap className="w-4 h-4 text-amber-400" />
+                      <span>Architecture Spec</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleTabClick('automations');
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <span>ClickUp Automations</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleTabClick('settings');
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Workspace Settings</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleTabClick('admin');
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-amber-300 hover:text-amber-200 flex items-center gap-2"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-amber-400" />
+                      <span>Admin Governance</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        logActivity('user signed out', currentUser?.email || 'user', 'auth', undefined, undefined, `User ${currentUser?.name} signed out`, 'info');
+                        logout();
+                        setShowMoreMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 flex items-center gap-2 font-bold border-t border-[#233549]"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-400" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -304,13 +378,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="text-[9px] font-sans mt-0.5">Invite</span>
             </button>
 
-            <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-              alt={currentUser?.name || 'User'}
-              className={`w-8 h-8 rounded-full object-cover ring-2 ${
-                theme === 'light' ? 'ring-[#2DD4BF]' : 'ring-[#3BC0BB]'
-              }`}
-            />
+            <div className="flex flex-col items-center gap-1.5 pt-1">
+              <img
+                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
+                alt={currentUser?.name || 'User'}
+                className={`w-8 h-8 rounded-full object-cover ring-2 ${
+                  theme === 'light' ? 'ring-[#2DD4BF]' : 'ring-[#3BC0BB]'
+                }`}
+                title={`Signed in as ${currentUser?.name} (${currentUser?.role})`}
+              />
+              <button
+                onClick={() => {
+                  logActivity('user signed out', currentUser?.email || 'user', 'auth', undefined, undefined, `User ${currentUser?.name} signed out`, 'info');
+                  logout();
+                }}
+                className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition-all cursor-pointer"
+                title="Sign Out (Log Out)"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -434,14 +521,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {spacesOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     <span>Spaces</span>
                   </button>
-                  <button
-                    onClick={() => handleTabClick('workspace')}
-                    className="text-slate-400 hover:text-white p-0.5 text-[10px] font-bold flex items-center gap-1 bg-[#233549]/60 px-1.5 py-0.5 rounded"
-                    title="Manage Workspaces & Spaces"
-                  >
-                    <Settings className="w-3 h-3 text-[#3BC0BB]" />
-                    <span>Manager</span>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setShowCreateSpaceModal(true)}
+                      className="px-2 py-0.5 rounded bg-[#0773BB] hover:bg-[#0773BB]/80 text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all"
+                      title="Create New Space"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Space</span>
+                    </button>
+                    <button
+                      onClick={() => handleTabClick('workspace')}
+                      className="text-slate-400 hover:text-white p-0.5 text-[10px] font-bold flex items-center gap-1 bg-[#233549]/60 px-1.5 py-0.5 rounded"
+                      title="Manage Workspaces & Spaces"
+                    >
+                      <Settings className="w-3 h-3 text-[#3BC0BB]" />
+                    </button>
+                  </div>
                 </div>
 
                 {spacesOpen && (
@@ -463,7 +559,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <div className="p-3 text-center space-y-2 border border-dashed border-[#233549] rounded-xl my-1 bg-[#16222F]/40">
                           <p className="text-[11px] text-slate-400">No projects or spaces yet.</p>
                           <button
-                            onClick={() => handleTabClick('projects')}
+                            onClick={() => setShowCreateSpaceModal(true)}
                             className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
                               theme === 'light'
                                 ? 'bg-[#0D9488] text-white hover:bg-[#0F766E]'
@@ -474,52 +570,62 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           </button>
                         </div>
                       ) : (
-                        projects.map((p) => {
-                          const isSelected = selectedProjectId === p.id;
-                          const taskCount = tasks.filter((t) => t.projectId === p.id).length;
-                          return (
-                            <div
-                              key={p.id}
-                              className={`group w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                                isSelected
-                                  ? theme === 'light'
-                                    ? 'bg-[#0D9488]/15 text-[#0D9488] font-bold border-l-2 border-l-[#0D9488]'
-                                    : 'bg-[#3BC0BB]/20 text-[#3BC0BB] font-bold border-l-2 border-l-[#3BC0BB]'
-                                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-                              }`}
-                              onClick={() => handleProjectSelect(p.id)}
-                            >
-                              <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-500/20 text-[#3BC0BB] shrink-0">
-                                  {p.code}
-                                </span>
-                                <span className="truncate">{p.title}</span>
-                              </div>
+                        <>
+                          {projects.map((p) => {
+                            const isSelected = selectedProjectId === p.id;
+                            const taskCount = tasks.filter((t) => t.projectId === p.id).length;
+                            return (
+                              <div
+                                key={p.id}
+                                className={`group w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                                  isSelected
+                                    ? theme === 'light'
+                                      ? 'bg-[#0D9488]/15 text-[#0D9488] font-bold border-l-2 border-l-[#0D9488]'
+                                      : 'bg-[#3BC0BB]/20 text-[#3BC0BB] font-bold border-l-2 border-l-[#3BC0BB]'
+                                    : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                                }`}
+                                onClick={() => handleProjectSelect(p.id)}
+                              >
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                  <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-500/20 text-[#3BC0BB] shrink-0">
+                                    {p.code}
+                                  </span>
+                                  <span className="truncate">{p.title}</span>
+                                </div>
 
-                              <div className="flex items-center gap-1 shrink-0 ml-1">
-                                <span className="text-[10px] text-slate-500 font-mono group-hover:hidden">
-                                  {taskCount}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (window.confirm(`Are you sure you want to delete Space/Project "${p.title}"? All associated tasks will be removed.`)) {
-                                      deleteProject(p.id);
-                                      if (selectedProjectId === p.id) {
-                                        setSelectedProjectId(null);
+                                <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  <span className="text-[10px] text-slate-500 font-mono group-hover:hidden">
+                                    {taskCount}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (window.confirm(`Are you sure you want to delete Space/Project "${p.title}"? All associated tasks will be removed.`)) {
+                                        deleteProject(p.id);
+                                        if (selectedProjectId === p.id) {
+                                          setSelectedProjectId(null);
+                                        }
                                       }
-                                    }
-                                  }}
-                                  className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-all"
-                                  title="Delete Space / Project"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                    }}
+                                    className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-all"
+                                    title="Delete Space / Project"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })
+                            );
+                          })}
+
+                          <button
+                            onClick={() => setShowCreateSpaceModal(true)}
+                            className="w-full mt-2 py-1.5 px-2.5 rounded-lg text-xs font-bold border border-dashed border-[#233549] text-[#3BC0BB] hover:bg-[#3BC0BB]/10 flex items-center justify-center gap-1.5 transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ Add New Space</span>
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -531,13 +637,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Footer Info Box */}
             <div className="p-3 border-t border-[#233549]/60 bg-[#16222F]/40 text-xs">
               <div className="flex items-center justify-between text-[#3BC0BB] font-mono text-[10px] font-bold">
-                <span>Dolphin ClickUp Cloud</span>
+                <span>Dolphin Cloud</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               </div>
             </div>
           </aside>
         )}
       </div>
+
+      {/* Global Space Creation Modal */}
+      <CreateSpaceModal
+        isOpen={showCreateSpaceModal}
+        onClose={() => setShowCreateSpaceModal(false)}
+      />
     </>
   );
 };

@@ -277,7 +277,7 @@ export interface EmailThread {
 
 export interface EmailConfig {
   email: string;
-  protocol: 'IMAP/SMTP' | 'Gmail Workspace API' | 'Outlook Graph API' | 'Exchange Server';
+  protocol: 'IMAP/SMTP' | 'Gmail Workspace API' | 'Outlook Graph API' | 'Exchange Server' | 'Microsoft Office 365 (IMAP/OAuth2)';
   incomingHost: string;
   incomingPort: number;
   outgoingHost: string;
@@ -289,7 +289,7 @@ export interface EmailConfig {
   lastSyncedAt?: string;
 }
 
-export type DolphinTheme = 'ocean-deep' | 'abyssal' | 'midnight-teal' | 'light';
+export type DolphinTheme = 'ocean-deep' | 'abyssal' | 'midnight-teal' | 'deep-sea' | 'light';
 
 export interface TemplateTask {
   tempId: string;

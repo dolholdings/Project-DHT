@@ -24,7 +24,8 @@ import {
   Moon,
   Clock,
   Menu,
-  Mail
+  Mail,
+  LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { HeaderSearchInput } from './HeaderSearchInput';
@@ -35,9 +36,10 @@ export const ClickUpHeaderBanners: React.FC<{
   onOpenCreateTaskModal: () => void;
   onToggleMobileSidebar?: () => void;
   onOpenEmailGateway?: () => void;
+  onOpenLoginModal?: () => void;
   isMobile?: boolean;
-}> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, isMobile }) => {
-  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission } = useApp();
+}> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, onOpenLoginModal, isMobile }) => {
+  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout } = useApp();
   
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
@@ -167,22 +169,20 @@ export const ClickUpHeaderBanners: React.FC<{
             </button>
           )}
 
-          <button
-            onClick={() => {
-              if ((window as any).triggerSessionTimeoutTest) {
-                (window as any).triggerSessionTimeoutTest();
-              }
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold text-xs transition-all ${
-              theme === 'light'
-                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-700'
-                : 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-400'
-            }`}
-            title="Simulate Inactivity Session Timeout Warning"
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Timeout Test</span>
-          </button>
+          {onOpenLoginModal && (
+            <button
+              onClick={onOpenLoginModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold text-xs transition-all ${
+                theme === 'light'
+                  ? 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 border-[#0773BB]/30 text-[#0773BB]'
+                  : 'bg-[#0773BB]/20 hover:bg-[#0773BB]/30 border-[#0773BB]/40 text-[#3BC0BB]'
+              }`}
+              title="Sign In with user created from Admin Panel"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-[#3BC0BB]" />
+              <span className="hidden sm:inline">Sign In / Switch User</span>
+            </button>
+          )}
 
           <button className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border font-bold transition-all ${
             theme === 'light'
@@ -196,11 +196,25 @@ export const ClickUpHeaderBanners: React.FC<{
           <img
             src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
             alt={currentUser?.name || 'User'}
-            className={`w-7 h-7 rounded-full object-cover ring-2 cursor-pointer ${
+            onClick={onOpenLoginModal}
+            className={`w-7 h-7 rounded-full object-cover ring-2 cursor-pointer hover:opacity-80 transition-opacity ${
               theme === 'light' ? 'ring-[#0D9488]' : 'ring-[#3BC0BB]'
             }`}
-            title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'})`}
+            title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'}) — Click to Switch User / Sign In`}
           />
+
+          <button
+            onClick={logout}
+            className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 font-bold text-xs ${
+              theme === 'light'
+                ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+            }`}
+            title="Sign Out / Lock Workspace"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Sign Out</span>
+          </button>
         </div>
       </div>
 

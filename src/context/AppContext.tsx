@@ -31,6 +31,12 @@ import {
 
 import { INITIAL_TEMPLATES } from '../data/initialTemplates';
 import {
+  getUserInboxConfig,
+  saveUserInboxConfig,
+  initializeUserInboxOnSignup,
+  UserInboxConfig
+} from '../services/inboxConfigService';
+import {
   INITIAL_COMPANIES,
   INITIAL_USERS,
   INITIAL_PROJECTS,
@@ -79,6 +85,9 @@ interface AppContextType {
   setDolphinTheme: (theme: DolphinTheme) => void;
 
   // Auth & Workspace
+  isAuthenticated: boolean;
+  setIsAuthenticated: (auth: boolean) => void;
+  logout: () => void;
   currentUser: User;
   setCurrentUser: (user: User) => void;
   activeCompany: Company;
@@ -109,7 +118,7 @@ interface AppContextType {
 
   // Projects & Templates
   projects: Project[];
-  addProject: (project: Omit<Project, 'id' | 'progress' | 'spentBudget'>) => void;
+  addProject: (project: Omit<Project, 'id' | 'progress' | 'spentBudget'> | Project) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   projectTemplates: ProjectTemplate[];
@@ -124,6 +133,7 @@ interface AppContextType {
   dependencies: TaskDependency[];
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'>) => Task;
   updateTask: (id: string, updates: Partial<Task>) => void;
+  reorderTasks: (newTasks: Task[]) => void;
   deleteTask: (id: string) => void;
   addSubtask: (taskId: string, title: string, assignedTo?: string) => void;
   toggleSubtask: (subtaskId: string) => void;
@@ -150,6 +160,9 @@ interface AppContextType {
   // Logs & Notifications & Rules
   activityLogs: ActivityLog[];
   logActivity: (action: string, target: string, type?: ActivityLog['type'], projectId?: string, taskId?: string) => void;
+  clearActivityLogs: () => void;
+  isActivityDrawerOpen: boolean;
+  setIsActivityDrawerOpen: (open: boolean) => void;
   notifications: Notification[];
   snoozedTasks: Record<string, SnoozeRecord>;
   notificationSettings: NotificationSettings;
@@ -171,7 +184,10 @@ interface AppContextType {
   // Email Inbox & Task Linking
   emailThreads: EmailThread[];
   emailConfig: EmailConfig;
+  userInboxConfig: UserInboxConfig;
   updateEmailConfig: (updates: Partial<EmailConfig>) => void;
+  updateUserInboxConfig: (updates: Partial<UserInboxConfig>) => void;
+  initializeUserInboxForUser: (user: { id: string; email: string; name: string }) => UserInboxConfig;
   linkEmailToTask: (emailId: string, taskId: string, projectId?: string) => void;
   unlinkEmailFromTask: (emailId: string) => void;
   convertEmailToTask: (emailId: string, projectId: string, customTitle?: string, customPriority?: Priority) => Task;
@@ -286,7 +302,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const hasDrcs = stored.some((c) => c.domain === 'dolcool.ae');
     const hasDml = stored.some((c) => c.domain === 'dolrad.ae');
     const hasDht = stored.some((c) => c.domain === 'dolheat.ae');
-    if (!hasCorp || !hasDrcs || !hasDml || !hasDht || stored.length > 4) {
+    const hasDgha = stored.some((c) => c.domain === 'p.dghanalytics.com' || c.domain === 'dghanalytics.com');
+    if (!hasCorp || !hasDrcs || !hasDml || !hasDht || !hasDgha) {
       return INITIAL_COMPANIES;
     }
     return stored;
@@ -298,6 +315,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [users, setUsers] = useState<User[]>(() => loadFromStorage('dolphin_users', INITIAL_USERS));
   const [currentUser, setCurrentUser] = useState<User>(() => loadFromStorage('dolphin_current_user', INITIAL_USERS[0]));
+  const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
+    try {
+      const sessionAuth = sessionStorage.getItem('dolphin_is_authenticated');
+      if (sessionAuth !== null) {
+        return JSON.parse(sessionAuth);
+      }
+    } catch (e) {
+      // Fallback
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const host = window.location.hostname.toLowerCase();
+      const matchedComp = companies.find(
+        (c) => host.includes(c.domain.toLowerCase()) || c.domain.toLowerCase().includes(host) || (host.includes('dghanalytics') && c.code === 'DGHA')
+      );
+      if (matchedComp) {
+        setActiveCompany(matchedComp);
+      }
+    }
+  }, [companies]);
+
+  const setIsAuthenticated = (authStatus: boolean) => {
+    setIsAuthenticatedState(authStatus);
+    try {
+      sessionStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
+      localStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
+    } catch (e) {
+      console.warn('Failed to save auth state to storage', e);
+    }
+  };
+
+  const logout = () => {
+    try {
+      sessionStorage.removeItem('dolphin_is_authenticated');
+      localStorage.removeItem('dolphin_is_authenticated');
+      localStorage.setItem('dolphin_is_authenticated', 'false');
+    } catch (e) {
+      console.warn('Logout error', e);
+    }
+    setIsAuthenticatedState(false);
+  };
 
   const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('dolphin_projects', INITIAL_PROJECTS));
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
@@ -332,7 +393,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Company Email Inbox & Integration State
   const [emailThreads, setEmailThreads] = useState<EmailThread[]>(() => loadFromStorage('dolphin_emails', INITIAL_EMAIL_THREADS));
-  const [emailConfig, setEmailConfig] = useState<EmailConfig>(() => loadFromStorage('dolphin_email_config', INITIAL_EMAIL_CONFIG));
+  const [userInboxConfig, setUserInboxConfig] = useState<UserInboxConfig>(() =>
+    getUserInboxConfig(currentUser?.id || 'usr_pk', currentUser?.email || 'pawan.kumar@dolphingroup.ae', currentUser?.name || 'Pawan Kumar')
+  );
+  const [emailConfig, setEmailConfig] = useState<EmailConfig>(() => userInboxConfig.emailConfig);
+
+  // Sync userInboxConfig whenever currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      const cfg = getUserInboxConfig(currentUser.id, currentUser.email, currentUser.name);
+      setUserInboxConfig(cfg);
+      setEmailConfig(cfg.emailConfig);
+    }
+  }, [currentUser?.id, currentUser?.email, currentUser?.name]);
 
   // Firebase Auth & Firestore Connection State
   const [firebaseConnected, setFirebaseConnected] = useState<boolean>(true);
@@ -380,16 +453,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const signInWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
-      console.error('Firebase Auth Error:', err);
+    } catch (err: any) {
+      console.warn('Firebase Auth Note:', err?.message || err);
     }
   };
 
   const signOutFirebase = async () => {
     try {
-      await signOut(auth);
-    } catch (err) {
-      console.error('Firebase Signout Error:', err);
+      if (auth.currentUser) {
+        await signOut(auth);
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.warn('Firebase Signout Note:', msg);
     }
   };
 
@@ -592,6 +668,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveToStorage('dolphin_logs', [newLog, ...activityLogs]);
   }, [activeCompany, currentUser, activityLogs]);
 
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
+
+  const clearActivityLogs = useCallback(() => {
+    setActivityLogs([]);
+    saveToStorage('dolphin_logs', []);
+  }, []);
+
   // Automated Email Notification Dispatcher
   const dispatchEmailNotification = useCallback(({
     toEmail,
@@ -735,6 +818,15 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     };
 
     setUsers((prev) => [...prev, newUser]);
+    
+    // Auto-initialize new user's corporate inbox config & welcome email threads
+    const { welcomeThreads } = initializeUserInboxOnSignup({
+      id: newUser.id,
+      email: newUser.email,
+      name: newUser.name
+    });
+    setEmailThreads((prev) => [...welcomeThreads, ...prev]);
+
     logActivity('invited user', `${name} (${email}) to ${targetComp?.name || activeCompany?.name || 'Workspace'}`, 'user');
     
     // Trigger in-app notification
@@ -800,16 +892,17 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   };
 
   // Projects
-  const addProject = (projectData: Omit<Project, 'id' | 'progress' | 'spentBudget'>) => {
+  const addProject = (projectData: Omit<Project, 'id' | 'progress' | 'spentBudget'> | Project): Project => {
     const newProj: Project = {
       ...projectData,
-      id: `proj_${Date.now()}`,
-      progress: 0,
-      spentBudget: 0
+      id: ('id' in projectData && projectData.id) ? projectData.id : `proj_${Date.now()}`,
+      progress: ('progress' in projectData && typeof projectData.progress === 'number') ? projectData.progress : 0,
+      spentBudget: ('spentBudget' in projectData && typeof projectData.spentBudget === 'number') ? projectData.spentBudget : 0
     };
     setProjects((prev) => [newProj, ...prev]);
     logActivity('created project', newProj.title, 'project', newProj.id);
     createProjectInFirestore(newProj);
+    return newProj;
   };
 
   const updateProject = (id: string, updates: Partial<Project>) => {
@@ -1228,6 +1321,11 @@ Log into your Dolphin workspace dashboard to review the task.`,
         );
       }, 50);
     }
+  };
+
+  const reorderTasks = (newTasks: Task[]) => {
+    setTasks(newTasks);
+    logActivity('reordered tasks in Kanban view', 'Updated task priority sequence', 'task');
   };
 
   const deleteTask = (id: string) => {
@@ -1919,8 +2017,45 @@ Log into your Dolphin workspace dashboard to review the task.`,
   };
 
   // Company Email Functions
+  const initializeUserInboxForUser = useCallback((user: { id: string; email: string; name: string }) => {
+    const { inboxConfig, welcomeThreads } = initializeUserInboxOnSignup(user);
+    setUserInboxConfig(inboxConfig);
+    setEmailConfig(inboxConfig.emailConfig);
+    saveUserInboxConfig(inboxConfig);
+
+    setEmailThreads((prev) => {
+      const existingIds = new Set(prev.map((e) => e.id));
+      const newWelcome = welcomeThreads.filter((wt) => !existingIds.has(wt.id));
+      if (newWelcome.length > 0) {
+        return [...newWelcome, ...prev];
+      }
+      return prev;
+    });
+
+    return inboxConfig;
+  }, []);
+
+  const updateUserInboxConfig = (updates: Partial<UserInboxConfig>) => {
+    setUserInboxConfig((prev) => {
+      const next = { ...prev, ...updates };
+      saveUserInboxConfig(next);
+      if (updates.emailConfig) {
+        setEmailConfig(updates.emailConfig);
+      }
+      return next;
+    });
+  };
+
   const updateEmailConfig = (updates: Partial<EmailConfig>) => {
-    setEmailConfig((prev) => ({ ...prev, ...updates }));
+    setEmailConfig((prev) => {
+      const next = { ...prev, ...updates };
+      setUserInboxConfig((uPrev) => {
+        const uNext = { ...uPrev, emailConfig: next };
+        saveUserInboxConfig(uNext);
+        return uNext;
+      });
+      return next;
+    });
     logActivity('updated company email integration settings', updates.email || 'Email config', 'system');
   };
 
@@ -2130,6 +2265,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         dependencies,
         addTask,
         updateTask,
+        reorderTasks,
         deleteTask,
         addSubtask,
         toggleSubtask,
@@ -2149,6 +2285,9 @@ Log into your Dolphin workspace dashboard to review the task.`,
         importTasksFromAI,
         activityLogs,
         logActivity,
+        clearActivityLogs,
+        isActivityDrawerOpen,
+        setIsActivityDrawerOpen,
         notifications,
         snoozedTasks,
         notificationSettings,
@@ -2165,7 +2304,10 @@ Log into your Dolphin workspace dashboard to review the task.`,
         addAutomation,
         emailThreads,
         emailConfig,
+        userInboxConfig,
         updateEmailConfig,
+        updateUserInboxConfig,
+        initializeUserInboxForUser,
         linkEmailToTask,
         unlinkEmailFromTask,
         convertEmailToTask,
@@ -2183,6 +2325,9 @@ Log into your Dolphin workspace dashboard to review the task.`,
         isCommandPaletteOpen,
         setCommandPaletteOpen,
         toggleCommandPalette,
+        isAuthenticated,
+        setIsAuthenticated,
+        logout,
         firebaseConnected,
         firebaseProjectId,
         firebaseUser,

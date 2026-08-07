@@ -37,6 +37,7 @@ export const LiveActivityStream: React.FC = () => {
     logActivity,
     setActiveTab,
     setSelectedProjectId,
+    setIsActivityDrawerOpen,
     theme
   } = useApp();
 
@@ -289,6 +290,16 @@ export const LiveActivityStream: React.FC = () => {
               <span>+Status</span>
             </button>
           </div>
+
+          {/* Open Activity Log Drawer */}
+          <button
+            onClick={() => setIsActivityDrawerOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#32a8a4] text-[#020712] text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-md"
+            title="Open Full Real-Time Activity Log Drawer"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Open Drawer</span>
+          </button>
         </div>
       </div>
 

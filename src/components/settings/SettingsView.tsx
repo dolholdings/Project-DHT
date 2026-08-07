@@ -39,7 +39,7 @@ import {
   Layers
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ActivityLog } from '../../types';
+import { ActivityLog, DolphinTheme } from '../../types';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -822,45 +822,164 @@ SET FOREIGN_KEY_CHECKS = 1;
 
       {/* Tab Content 0: Appearance & Theme Switcher */}
       {activeSubTab === 'appearance' && (
-        <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-6 space-y-6 animate-in fade-in">
-          <div className="flex items-center justify-between pb-4 border-b border-[#233549]">
+        <div className={`border rounded-2xl p-6 space-y-6 animate-in fade-in ${
+          theme === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#16222F] border-[#233549] text-slate-100'
+        }`}>
+          {/* Header & Preset Switcher Controls */}
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b ${
+            theme === 'light' ? 'border-slate-200' : 'border-[#233549]'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/40">
+              <div className={`p-3 rounded-2xl border ${
+                theme === 'light' ? 'bg-teal-50 text-[#0D9488] border-teal-200' : 'bg-[#0773BB]/20 text-[#3BC0BB] border-[#0773BB]/40'
+              }`}>
                 <Palette className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span>Dolphin Theme & Visual Contrast Selector</span>
+                <h2 className={`text-lg font-bold flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  <span>Dolphin Aesthetic Theme Switcher</span>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-mono">
-                    PERSISTED TO LOCAL STORAGE
+                    PERSISTED
                   </span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Toggle between high-contrast dark mode variations or bright daylight mode. Preferences are saved automatically to your profile.
+                <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Toggle between Default Dark and Light mode or choose from custom visual presets. Saved automatically to local storage.
                 </p>
               </div>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549] text-xs font-mono text-slate-300">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Current Mode: <strong className="text-[#3BC0BB] uppercase">{dolphinTheme}</strong></span>
+            {/* Cycle Preset Button */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const presets: DolphinTheme[] = ['ocean-deep', 'abyssal', 'midnight-teal', 'deep-sea'];
+                  const curIdx = presets.indexOf(dolphinTheme as DolphinTheme);
+                  const nextIdx = (curIdx + 1) % presets.length;
+                  setDolphinTheme(presets[nextIdx]);
+                }}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:from-[#06619e] hover:to-[#32a8a4] text-[#020712] font-mono text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-[#0773BB]/20 cursor-pointer"
+                title="Cycle through aesthetic presets: Dolphin Dark -> Abyssal -> Midnight Teal -> Deep Sea"
+              >
+                <RefreshCw className="w-4 h-4 animate-spin-slow" />
+                <span>Cycle Dark Preset</span>
+              </button>
+
+              <div className={`hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-mono ${
+                theme === 'light' ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-300'
+              }`}>
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Active Mode: <strong className="text-[#0773BB] uppercase">{
+                  theme === 'light' ? 'System Light Mode' :
+                  dolphinTheme === 'ocean-deep' ? 'Dolphin Dark' :
+                  dolphinTheme === 'abyssal' ? 'Abyssal' :
+                  dolphinTheme === 'midnight-teal' ? 'Midnight Teal' :
+                  dolphinTheme === 'deep-sea' ? 'Deep Sea' : 'Daylight Light'
+                }</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Persistent Dark / Light Switcher Box */}
+          <div className={`p-5 rounded-2xl border space-y-4 ${
+            theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className={`text-sm font-bold flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  <Sun className="w-4 h-4 text-amber-500" />
+                  <span>Persistent Theme Mode Switcher</span>
+                </h3>
+                <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Select your preferred workspace theme. Preference is saved to your browser local storage.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 font-mono text-[11px] font-bold shrink-0">
+                <Check className="w-3.5 h-3.5" />
+                <span>Saved in LocalStorage</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              {/* Dark Mode Option */}
+              <button
+                type="button"
+                onClick={() => setTheme('dark')}
+                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3.5 relative ${
+                  theme === 'dark'
+                    ? 'bg-[#16222F] border-[#3BC0BB] ring-2 ring-[#3BC0BB]/30 text-white shadow-lg'
+                    : theme === 'light'
+                    ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-400'
+                    : 'bg-[#16222F]/60 border-[#233549] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                <div className="p-2.5 rounded-lg bg-[#0773BB]/20 border border-[#0773BB]/40 text-[#3BC0BB] shrink-0 mt-0.5">
+                  <Moon className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm">Default Dark Dolphin Aesthetic</span>
+                    {theme === 'dark' && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/40 text-[10px] font-bold font-mono">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Deep navy & corporate cyan dark theme optimized for eye comfort and engineering focus.
+                  </p>
+                </div>
+              </button>
+
+              {/* Light Mode Option */}
+              <button
+                type="button"
+                onClick={() => setTheme('light')}
+                className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-start gap-3.5 relative ${
+                  theme === 'light'
+                    ? 'bg-white border-[#0773BB] ring-2 ring-[#0773BB]/30 text-slate-900 shadow-lg'
+                    : 'bg-[#0D1520]/60 border-[#233549] text-slate-300 hover:border-slate-500'
+                }`}
+              >
+                <div className="p-2.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-500 shrink-0 mt-0.5">
+                  <Sun className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-sm">System Light Mode Version</span>
+                    {theme === 'light' && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 border border-amber-500/40 text-[10px] font-bold font-mono">
+                        ACTIVE
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                    Crisp daylight white & slate canvas optimized for bright office settings and client reviews.
+                  </p>
+                </div>
+              </button>
             </div>
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-[#3BC0BB]" />
-              <span>High-Contrast Dark Mode Variations</span>
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Layers className="w-4 h-4 text-[#3BC0BB]" />
+                <span>Aesthetic Presets Selector</span>
+              </h3>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Click any preset card below to apply immediately
+              </span>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Variation 1: Ocean Deep (Navy - Default) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Preset 1: Dolphin Dark (Ocean Deep / Navy) */}
               <div
                 onClick={() => setDolphinTheme('ocean-deep')}
-                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden group ${
                   dolphinTheme === 'ocean-deep'
                     ? 'bg-[#0D1520] border-[#3BC0BB] ring-2 ring-[#3BC0BB]/30 shadow-xl'
-                    : 'bg-[#0D1520]/60 border-[#233549] hover:border-slate-600'
+                    : 'bg-[#0D1520]/60 border-[#233549] hover:border-cyan-500/50 hover:bg-[#0D1520]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -869,8 +988,8 @@ SET FOREIGN_KEY_CHECKS = 1;
                       <Moon className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-sm">Ocean Deep</h4>
-                      <p className="text-[11px] text-cyan-400 font-mono">Deep Corporate Navy</p>
+                      <h4 className="font-bold text-white text-sm">Dolphin Dark</h4>
+                      <p className="text-[11px] text-cyan-400 font-mono font-bold">Deep Corporate Navy</p>
                     </div>
                   </div>
                   {dolphinTheme === 'ocean-deep' && (
@@ -880,7 +999,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                   )}
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  Signature corporate dark navy interface optimized for civil, MEP & engineering project management. Reduced eye strain.
+                  Signature corporate dark navy interface optimized for engineering project management and balanced eye comfort.
                 </p>
                 <div className="p-2.5 rounded-xl bg-[#16222F] border border-[#233549] flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1.5">
@@ -888,17 +1007,17 @@ SET FOREIGN_KEY_CHECKS = 1;
                     <span className="w-3.5 h-3.5 rounded-full bg-[#16222F] border border-slate-600" title="Surface #16222F"></span>
                     <span className="w-3.5 h-3.5 rounded-full bg-[#3BC0BB]" title="Accent Teal"></span>
                   </div>
-                  <span className="text-slate-400">#0D1520 Navy</span>
+                  <span className="text-slate-300 font-bold">#0D1520 Navy</span>
                 </div>
               </div>
 
-              {/* Variation 2: Abyssal (Charcoal Pitch Obsidian) */}
+              {/* Preset 2: Abyssal (Charcoal Pitch Obsidian) */}
               <div
                 onClick={() => setDolphinTheme('abyssal')}
-                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden group ${
                   dolphinTheme === 'abyssal'
                     ? 'bg-[#090A0F] border-teal-400 ring-2 ring-teal-400/30 shadow-xl'
-                    : 'bg-[#090A0F]/60 border-[#233549] hover:border-slate-600'
+                    : 'bg-[#090A0F]/60 border-[#233549] hover:border-teal-400/50 hover:bg-[#090A0F]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -908,7 +1027,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                     </div>
                     <div>
                       <h4 className="font-bold text-white text-sm">Abyssal</h4>
-                      <p className="text-[11px] text-teal-300 font-mono">Pitch Charcoal Obsidian</p>
+                      <p className="text-[11px] text-teal-300 font-mono font-bold">Charcoal Pitch Obsidian</p>
                     </div>
                   </div>
                   {dolphinTheme === 'abyssal' && (
@@ -918,7 +1037,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                   )}
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  Ultra high-contrast charcoal black with electric emerald & violet highlights. Built for OLED screens & dark environments.
+                  Ultra high-contrast charcoal pitch black with electric emerald & violet highlights for OLED screens and dark rooms.
                 </p>
                 <div className="p-2.5 rounded-xl bg-[#12131A] border border-[#2D2F3E] flex items-center justify-between text-[10px] font-mono">
                   <div className="flex items-center gap-1.5">
@@ -926,17 +1045,17 @@ SET FOREIGN_KEY_CHECKS = 1;
                     <span className="w-3.5 h-3.5 rounded-full bg-[#12131A] border border-slate-700" title="Surface #12131A"></span>
                     <span className="w-3.5 h-3.5 rounded-full bg-[#2DD4BF]" title="Electric Emerald"></span>
                   </div>
-                  <span className="text-slate-400">#090A0F Charcoal</span>
+                  <span className="text-slate-300 font-bold">#090A0F Charcoal</span>
                 </div>
               </div>
 
-              {/* Variation 3: Midnight Teal (Deep Maritime Aqua) */}
+              {/* Preset 3: Midnight Teal (Deep Maritime Aqua) */}
               <div
                 onClick={() => setDolphinTheme('midnight-teal')}
-                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden ${
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden group ${
                   dolphinTheme === 'midnight-teal'
                     ? 'bg-[#061318] border-cyan-400 ring-2 ring-cyan-400/30 shadow-xl'
-                    : 'bg-[#061318]/60 border-[#233549] hover:border-slate-600'
+                    : 'bg-[#061318]/60 border-[#233549] hover:border-emerald-400/50 hover:bg-[#061318]'
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -946,7 +1065,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                     </div>
                     <div>
                       <h4 className="font-bold text-white text-sm">Midnight Teal</h4>
-                      <p className="text-[11px] text-emerald-400 font-mono">Deep Maritime Aqua</p>
+                      <p className="text-[11px] text-emerald-400 font-mono font-bold">Deep Maritime Aqua</p>
                     </div>
                   </div>
                   {dolphinTheme === 'midnight-teal' && (
@@ -964,13 +1083,52 @@ SET FOREIGN_KEY_CHECKS = 1;
                     <span className="w-3.5 h-3.5 rounded-full bg-[#0E1E24] border border-emerald-900" title="Surface #0E1E24"></span>
                     <span className="w-3.5 h-3.5 rounded-full bg-[#14B8A6]" title="Maritime Aqua"></span>
                   </div>
-                  <span className="text-slate-400">#061318 Teal</span>
+                  <span className="text-slate-300 font-bold">#061318 Teal</span>
+                </div>
+              </div>
+
+              {/* Preset 4: Deep Sea (Obsidian & Bioluminescent Teal) */}
+              <div
+                onClick={() => setDolphinTheme('deep-sea')}
+                className={`p-5 rounded-2xl border-2 cursor-pointer transition-all relative overflow-hidden group ${
+                  dolphinTheme === 'deep-sea'
+                    ? 'bg-[#020712] border-[#00F5D4] ring-2 ring-[#00F5D4]/30 shadow-2xl shadow-[#00F5D4]/10'
+                    : 'bg-[#020712]/60 border-[#1A2E40] hover:border-teal-500/50 hover:bg-[#020712]'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-teal-400/20 border border-teal-400/40 text-[#00F5D4] flex items-center justify-center shadow-lg shadow-[#00F5D4]/10">
+                      <Sparkles className="w-5 h-5 text-[#00F5D4]" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-sm">Deep Sea</h4>
+                      <p className="text-[11px] text-[#00F5D4] font-mono font-bold">Bioluminescent Teal</p>
+                    </div>
+                  </div>
+                  {dolphinTheme === 'deep-sea' && (
+                    <span className="px-2 py-0.5 rounded-full bg-[#00F5D4]/20 text-[#00F5D4] border border-[#00F5D4]/40 text-[10px] font-bold font-mono">
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                  Ultra-dark obsidian canvas paired with glowing bioluminescent teal highlights & cyan accents for high contrast visibility.
+                </p>
+                <div className="p-2.5 rounded-xl bg-[#081120] border border-[#1A2E40] flex items-center justify-between text-[10px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#020712] border border-slate-800" title="Canvas #020712"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#081120] border border-slate-700" title="Surface #081120"></span>
+                    <span className="w-3.5 h-3.5 rounded-full bg-[#00F5D4] shadow-sm shadow-[#00F5D4]" title="Bioluminescent Teal"></span>
+                  </div>
+                  <span className="text-[#00F5D4] font-bold">#020712 Obsidian</span>
                 </div>
               </div>
             </div>
 
-            {/* Variation 4: System Light Mode Card */}
-            <div className="pt-2">
+            {/* System Light Mode & Live Interactive Theme Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {/* Daylight Light Card Option */}
               <div
                 onClick={() => setDolphinTheme('light')}
                 className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
@@ -986,9 +1144,9 @@ SET FOREIGN_KEY_CHECKS = 1;
                     </div>
                     <div>
                       <h4 className={`font-bold text-sm ${dolphinTheme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                        System Light (Daylight Mode)
+                        System Daylight (Light Mode)
                       </h4>
-                      <p className="text-[11px] text-slate-400">High-contrast bright mode</p>
+                      <p className="text-[11px] text-slate-400 font-mono">High-contrast bright mode</p>
                     </div>
                   </div>
                   {dolphinTheme === 'light' && (
@@ -998,13 +1156,46 @@ SET FOREIGN_KEY_CHECKS = 1;
                   )}
                 </div>
                 <p className="text-xs text-slate-400 leading-relaxed mb-4">
-                  Crisp daylight white & slate canvas for office environments, client presentations, and outdoor field inspections. Maximum legibility.
+                  Crisp daylight white & slate canvas for bright office environments, client presentations, and outdoor field inspections.
                 </p>
                 <div className="p-3 rounded-xl bg-white border border-slate-300 flex items-center gap-2">
                   <div className="w-3.5 h-3.5 rounded-full bg-emerald-500" />
                   <div className="w-3.5 h-3.5 rounded-full bg-blue-500" />
                   <div className="w-3.5 h-3.5 rounded-full bg-amber-500" />
                   <span className="text-[10px] text-slate-500 font-mono ml-auto">#F8FAFC Daylight</span>
+                </div>
+              </div>
+
+              {/* Live UI Theme Sample Preview Box */}
+              <div className="p-5 rounded-2xl bg-[#0D1520] border border-[#233549] flex flex-col justify-between space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                    <span>Live Theme Element Preview</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-[#3BC0BB] px-2 py-0.5 rounded bg-[#3BC0BB]/10 border border-[#3BC0BB]/30">
+                    Theme: {dolphinTheme}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#16222F] border border-[#233549] space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-white">Project Delta Task #204</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                      In Progress
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-300">
+                    <span>Assigned to Technical Director</span>
+                    <button type="button" className="px-2.5 py-1 rounded bg-[#0773BB] text-white text-[10px] font-bold">
+                      View Details
+                    </button>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-400 flex items-center justify-between font-mono pt-1 border-t border-[#233549]">
+                  <span>Status: Operational</span>
+                  <span className="text-emerald-400 font-bold">✓ Contrast Passed</span>
                 </div>
               </div>
             </div>

@@ -2,7 +2,7 @@ import { Task, Project, User, Company } from '../types';
 
 export interface SearchResultItem {
   id: string;
-  type: 'task' | 'project';
+  type: 'task' | 'project' | 'user';
   title: string;
   code?: string;
   description: string;
@@ -13,9 +13,10 @@ export interface SearchResultItem {
   manager?: User;
   projectTitle?: string;
   score: number;
-  matchedFields: string[]; // e.g., ['title', 'assignee', 'description']
+  matchedFields: string[]; // e.g., ['title', 'assignee', 'description', 'name']
   task?: Task;
   project?: Project;
+  user?: User;
 }
 
 export class FullTextSearchIndex {
@@ -36,13 +37,13 @@ export class FullTextSearchIndex {
   }
 
   /**
-   * Performs full-text search over indexed tasks and projects
+   * Performs full-text search over indexed tasks, projects, and team members
    * @param query Raw search query string
-   * @param filterType Optional filter for 'all', 'task', or 'project'
+   * @param filterType Optional filter for 'all', 'task', 'project', or 'user'
    * @param selectedProjectId Optional scope by active project ID
    * @returns Array of sorted search result items with relevance score
    */
-  public search(query: string, filterType: 'all' | 'task' | 'project' = 'all', selectedProjectId?: string | null): SearchResultItem[] {
+  public search(query: string, filterType: 'all' | 'task' | 'project' | 'user' = 'all', selectedProjectId?: string | null): SearchResultItem[] {
     const cleanQuery = query.trim().toLowerCase();
     if (!cleanQuery) return [];
 
@@ -202,6 +203,49 @@ export class FullTextSearchIndex {
             score,
             matchedFields,
             project: proj,
+          });
+        }
+      }
+    }
+
+    // 3. Search Team Members (Users)
+    if (filterType === 'all' || filterType === 'user') {
+      for (const u of this.users) {
+        let score = 0;
+        const matchedFields: string[] = [];
+
+        const nameLower = u.name.toLowerCase();
+        const emailLower = (u.email || '').toLowerCase();
+        const roleLower = (u.role || '').toLowerCase();
+        const deptLower = (u.department || '').toLowerCase();
+
+        for (const token of queryTokens) {
+          if (nameLower.includes(token)) {
+            score += nameLower.startsWith(token) ? 30 : 18;
+            if (!matchedFields.includes('name')) matchedFields.push('name');
+          }
+          if (emailLower.includes(token)) {
+            score += 15;
+            if (!matchedFields.includes('email')) matchedFields.push('email');
+          }
+          if (roleLower.includes(token) || deptLower.includes(token)) {
+            score += 10;
+            if (!matchedFields.includes('role/department')) matchedFields.push('role/department');
+          }
+        }
+
+        if (score > 0) {
+          results.push({
+            id: u.id,
+            type: 'user',
+            title: u.name,
+            code: u.department,
+            description: `${u.role || 'Team Member'} • ${u.email}`,
+            status: u.status || 'Active',
+            assignees: [u],
+            score,
+            matchedFields,
+            user: u,
           });
         }
       }

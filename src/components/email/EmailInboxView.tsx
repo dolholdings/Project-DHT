@@ -41,6 +41,7 @@ export const EmailInboxView: React.FC = () => {
   const {
     emailThreads,
     emailConfig,
+    userInboxConfig,
     updateEmailConfig,
     dispatchEmailNotification,
     linkEmailToTask,
@@ -459,12 +460,17 @@ Your corporate email dispatch pipeline is fully operational!`,
                 <Server className="w-3.5 h-3.5 text-[#3BC0BB]" />
                 <span>{emailConfig.protocol}</span>
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                Auto-Configured
+              </span>
             </div>
             <div className="truncate font-mono text-[10px] text-slate-400">{emailConfig.email}</div>
+            <div className="text-[9px] text-slate-500 font-mono truncate">
+              User ID: <span className="text-slate-300">{currentUser.id}</span>
+            </div>
             <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-[#233549]/40">
               <span>Port: {emailConfig.incomingPort} (SSL)</span>
-              <span>100% Encrypted</span>
+              <span className="text-emerald-400 font-semibold">Active Mapping</span>
             </div>
           </div>
         </div>

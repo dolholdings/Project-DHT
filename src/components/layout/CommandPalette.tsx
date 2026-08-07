@@ -57,7 +57,10 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
     activeCompany,
     companies,
     setActiveCompany,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
@@ -430,36 +433,48 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-[#16222F] border border-[#233549] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] border-t-2 border-t-[#0773BB]"
+        className={`w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] border-t-2 border-t-[#0773BB] ${
+          isLight
+            ? 'bg-white border border-slate-300 text-slate-900'
+            : 'bg-[#16222F] border border-[#233549] text-white'
+        }`}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
         {/* Top Search Input & Header */}
-        <div className="p-4 border-b border-[#233549] bg-[#0D1520] flex items-center gap-3">
-          <Command className="w-5 h-5 text-[#3BC0BB]" />
+        <div className={`p-4 border-b flex items-center gap-3 ${
+          isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+        }`}>
+          <Command className="w-5 h-5 text-[#0773BB]" />
           <input
             ref={inputRef}
             type="text"
             placeholder="Type a command or search tasks, projects, files..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 bg-transparent text-slate-100 text-base placeholder-slate-500 focus:outline-none"
+            className={`flex-1 bg-transparent text-base focus:outline-none ${
+              isLight ? 'text-slate-900 placeholder:text-slate-400 font-medium' : 'text-slate-100 placeholder:text-slate-500'
+            }`}
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded-lg hover:bg-[#16222F] text-slate-400 hover:text-white"
+              className={`p-1 rounded-lg ${isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-[#16222F] text-slate-400 hover:text-white'}`}
             >
               <X className="w-4 h-4" />
             </button>
           )}
-          <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-semibold text-slate-400 bg-[#16222F] border border-[#233549] rounded-md shadow-inner">
+          <kbd className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-semibold rounded-md shadow-inner ${
+            isLight ? 'bg-slate-200 border border-slate-300 text-slate-700' : 'text-slate-400 bg-[#16222F] border border-[#233549]'
+          }`}>
             ESC
           </kbd>
         </div>
 
         {/* Category Filter Pills */}
-        <div className="px-4 py-2 border-b border-[#233549] bg-[#121C28] flex items-center gap-2 overflow-x-auto text-xs">
+        <div className={`px-4 py-2 border-b flex items-center gap-2 overflow-x-auto text-xs ${
+          isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#121C28] border-[#233549]'
+        }`}>
           {(['all', 'tasks', 'projects', 'files', 'actions'] as CategoryFilter[]).map((cat) => (
             <button
               key={cat}
@@ -467,13 +482,15 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
               className={`px-3 py-1 rounded-lg font-medium transition-all capitalize whitespace-nowrap ${
                 activeCategory === cat
                   ? 'bg-[#0773BB] text-white shadow'
+                  : isLight
+                  ? 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-200 border border-slate-300'
                   : 'bg-[#0D1520] text-slate-400 hover:text-slate-200 hover:bg-[#1B2939]'
               }`}
             >
               {cat}
             </button>
           ))}
-          <span className="ml-auto text-[11px] font-mono text-slate-500 hidden sm:inline">
+          <span className={`ml-auto text-[11px] font-mono hidden sm:inline ${isLight ? 'text-slate-600' : 'text-slate-500'}`}>
             {filteredItems.length} result{filteredItems.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -493,27 +510,35 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={`w-full text-left px-3.5 py-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between group ${
                     isSelected
-                      ? 'bg-[#0773BB]/25 border border-[#0773BB] text-white shadow-lg'
+                      ? isLight
+                        ? 'bg-[#0773BB]/10 border border-[#0773BB] text-slate-900 shadow-sm'
+                        : 'bg-[#0773BB]/25 border border-[#0773BB] text-white shadow-lg'
+                      : isLight
+                      ? 'hover:bg-slate-100 text-slate-800 border border-transparent'
                       : 'hover:bg-[#0D1520] text-slate-300 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`p-2 rounded-lg bg-[#0D1520] border border-[#233549] group-hover:border-[#3BC0BB]/40 transition-colors`}>
+                    <div className={`p-2 rounded-lg transition-colors ${
+                      isLight ? 'bg-slate-100 border border-slate-300 text-[#0773BB]' : 'bg-[#0D1520] border border-[#233549] text-[#3BC0BB]'
+                    }`}>
                       {item.icon}
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-slate-100 truncate">
+                        <span className={`font-semibold text-sm truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
                           {item.title}
                         </span>
                         {item.badge && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-semibold ${item.badgeColor || 'bg-slate-700 text-slate-300'}`}>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-semibold ${
+                            item.badgeColor || (isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-700 text-slate-300')
+                          }`}>
                             {item.badge}
                           </span>
                         )}
                       </div>
                       {item.subtitle && (
-                        <div className="text-xs text-slate-400 truncate mt-0.5 font-sans">
+                        <div className={`text-xs truncate mt-0.5 font-sans ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                           {item.subtitle}
                         </div>
                       )}
@@ -521,19 +546,23 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
                   </div>
 
                   <div className="flex items-center gap-2 pl-3 shrink-0">
-                    <span className="text-[11px] text-slate-500 font-mono hidden md:inline">
+                    <span className={`text-[11px] font-mono hidden md:inline ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                       {item.category}
                     </span>
-                    <CornerDownLeft className={`w-4 h-4 text-slate-400 transition-opacity ${isSelected ? 'opacity-100 text-[#3BC0BB]' : 'opacity-0 group-hover:opacity-100'}`} />
+                    <CornerDownLeft className={`w-4 h-4 transition-opacity ${
+                      isSelected
+                        ? 'opacity-100 text-[#0773BB]'
+                        : 'opacity-0 group-hover:opacity-100 text-slate-400'
+                    }`} />
                   </div>
                 </div>
               );
             })
           ) : (
-            <div className="py-12 text-center text-slate-400">
-              <Search className="w-8 h-8 mx-auto text-slate-600 mb-2" />
+            <div className={`py-12 text-center ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+              <Search className="w-8 h-8 mx-auto text-slate-400 mb-2" />
               <p className="text-sm font-medium">No results found for "{query}"</p>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className={`text-xs mt-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                 Try searching for tasks, projects, file names, or navigation actions.
               </p>
             </div>
@@ -541,7 +570,9 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         </div>
 
         {/* Keyboard Navigation Footer */}
-        <div className="px-4 py-2.5 bg-[#0D1520] border-t border-[#233549] text-xs text-slate-400 flex flex-wrap items-center justify-between gap-3 font-mono">
+        <div className={`px-4 py-2.5 border-t text-xs flex flex-wrap items-center justify-between gap-3 font-mono ${
+          isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+        }`}>
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
               <kbd className="px-1.5 py-0.5 bg-[#16222F] border border-[#233549] rounded text-[10px]">↑</kbd>

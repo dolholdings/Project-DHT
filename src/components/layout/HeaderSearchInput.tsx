@@ -34,7 +34,7 @@ export const HeaderSearchInput: React.FC = () => {
 
   const [inputVal, setInputVal] = useState(searchQuery || '');
   const [isOpen, setIsOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'task' | 'project'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'task' | 'project' | 'user'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,6 +126,8 @@ export const HeaderSearchInput: React.FC = () => {
         setSelectedProjectId(item.project.id);
       }
       setActiveTab('projects');
+    } else if (item.type === 'user') {
+      setActiveTab('workload');
     }
   };
 
@@ -163,8 +165,10 @@ export const HeaderSearchInput: React.FC = () => {
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleInputKeyDown}
-          placeholder="Full-text search title, description, assigned user..."
-          className="w-full bg-transparent text-xs text-white placeholder-slate-400 focus:outline-none"
+          placeholder="Search tasks, projects, or team members across all workspaces..."
+          className={`w-full bg-transparent text-xs focus:outline-none ${
+            theme === 'light' ? 'text-slate-900 placeholder:text-slate-500 font-medium' : 'text-white placeholder:text-slate-400'
+          }`}
         />
 
         {isDebouncing ? (
@@ -233,6 +237,16 @@ export const HeaderSearchInput: React.FC = () => {
               >
                 Projects
               </button>
+              <button
+                onClick={() => setActiveFilter('user')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                  activeFilter === 'user'
+                    ? 'bg-[#0D9488] text-white shadow'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                Members
+              </button>
             </div>
           </div>
 
@@ -255,6 +269,7 @@ export const HeaderSearchInput: React.FC = () => {
               searchResults.map((item, index) => {
                 const isSelected = index === selectedIndex;
                 const isTask = item.type === 'task';
+                const isUser = item.type === 'user';
 
                 return (
                   <div
@@ -277,10 +292,22 @@ export const HeaderSearchInput: React.FC = () => {
                           className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
                             isTask
                               ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                              : isUser
+                              ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
                               : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                           }`}
                         >
-                          {isTask ? <CheckSquare className="w-3.5 h-3.5" /> : <FolderKanban className="w-3.5 h-3.5" />}
+                          {isTask ? (
+                            <CheckSquare className="w-3.5 h-3.5" />
+                          ) : isUser ? (
+                            item.user?.avatar ? (
+                              <img src={item.user.avatar} alt={item.title} className="w-6 h-6 rounded-md object-cover" />
+                            ) : (
+                              <UserIcon className="w-3.5 h-3.5" />
+                            )
+                          ) : (
+                            <FolderKanban className="w-3.5 h-3.5" />
+                          )}
                         </div>
 
                         <div className="flex-1 min-w-0">

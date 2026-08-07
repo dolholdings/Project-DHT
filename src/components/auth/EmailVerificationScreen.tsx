@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import {
   ShieldCheck,
   Mail,
@@ -121,11 +122,23 @@ export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ 
   };
 
   return (
-    <div className="min-h-screen bg-[#0D1520] text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-[#0773BB] selection:text-white relative overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      className="min-h-screen bg-[#0D1520] text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-[#0773BB] selection:text-white relative overflow-hidden"
+    >
       {/* Background Subtle Gradient Blobs */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-[#0773BB]/20 via-[#3BC0BB]/10 to-transparent blur-3xl pointer-events-none rounded-full" />
 
-      <div className="w-full max-w-xl bg-[#16222F] border border-[#233549] rounded-3xl p-6 sm:p-10 space-y-6 shadow-2xl relative z-10 animate-in fade-in zoom-in-95">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.94, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: -20 }}
+        transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-xl bg-[#16222F] border border-[#233549] rounded-3xl p-6 sm:p-10 space-y-6 shadow-2xl relative z-10"
+      >
         
         {/* Brand Header */}
         <div className="text-center space-y-3">
@@ -313,7 +326,7 @@ export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ 
           </button>
         </div>
 
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

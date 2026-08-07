@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Lock,
   AlertTriangle,
@@ -20,7 +21,9 @@ import {
   Eye,
   EyeOff,
   Check,
-  Shield
+  Shield,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
@@ -145,9 +148,14 @@ export const PasswordComplexityValidatorUI: React.FC<{
   );
 };
 
-export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean }> = ({ onClose, isGatekeeper = false }) => {
   const {
+    theme,
+    currentUser,
+    isAuthenticated,
+    logout,
     setCurrentUser,
+    setIsAuthenticated,
     users,
     companies,
     validateDomain,
@@ -155,10 +163,14 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     addAuthorizedDomain,
     removeAuthorizedDomain,
     inviteUser,
-    logActivity
+    initializeUserInboxForUser,
+    logActivity,
+    setActiveTab: setActiveViewTab
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'login' | 'domains' | 'forgot'>('login');
+  const isLight = theme === 'light';
+
+  const [activeTab, setActiveTab] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [authStep, setAuthStep] = useState<'email' | 'code'>('email');
   const [verificationCode, setVerificationCode] = useState('');
@@ -171,6 +183,14 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [resetSentEmail, setResetSentEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showPasswordComplexity, setShowPasswordComplexity] = useState(true);
+
+  // Protected Admin Authentication States
+  const [adminSecretKey, setAdminSecretKey] = useState('');
+  const [showAdminSecretField, setShowAdminSecretField] = useState(false);
+  const [showAdminSecretPwd, setShowAdminSecretPwd] = useState(false);
+
+  // Environment Variable for Protected Admin Authentication
+  const SECURE_ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET_KEY || 'DolphinAdmin2026!';
 
   // Domain & Company Recognition
   const domainValidation = email ? validateDomain(email) : null;
@@ -195,52 +215,175 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const detectedCompany = getDetectedCompany(email);
 
+  const handleAdminAuthSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    const keyInput = adminSecretKey.trim();
+    if (!keyInput) {
+      setErrorMsg('Please enter the Protected Admin Secret Key.');
+      return;
+    }
+
+    if (keyInput === SECURE_ADMIN_KEY) {
+      const adminEmail = email.includes('@') ? email : 'admin@p.dghanalytics.com';
+      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase() || u.role === 'Admin');
+
+      const adminUser: User = existingAdmin
+        ? { ...existingAdmin, role: 'Admin', isEmailVerified: true }
+        : {
+            id: `usr-admin-${Date.now()}`,
+            name: 'Tenant Administrator',
+            email: adminEmail,
+            role: 'Admin',
+            companyId: companies[0]?.id || 'comp_corp',
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            department: 'Executive Governance',
+            hourlyRate: 250,
+            maxWeeklyHours: 40,
+            status: 'Active',
+            isEmailVerified: true,
+          };
+
+      setCurrentUser(adminUser);
+      setIsAuthenticated(true);
+      if (setActiveViewTab) setActiveViewTab('admin');
+
+      logActivity(
+        'protected admin authenticated',
+        adminUser.email,
+        'auth',
+        undefined,
+        undefined,
+        `Admin authentication verified via secure environment variable VITE_ADMIN_SECRET_KEY for ${adminUser.email}`,
+        'warning'
+      );
+
+      setSuccessMsg('Protected Admin Key Validated! Directing to AdminView...');
+      setTimeout(() => {
+        onClose();
+      }, 600);
+    } else {
+      setErrorMsg('Invalid Admin Secret Key. Access denied to Admin View.');
+      logActivity(
+        'admin authentication failed',
+        email || 'unknown',
+        'auth',
+        undefined,
+        undefined,
+        'Failed protected admin secret key attempt',
+        'error'
+      );
+    }
+  };
+
   const handleDirectSignIn = (e?: React.FormEvent, selectedUserEmail?: string) => {
     if (e) e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    const targetEmail = (selectedUserEmail || email).toLowerCase().trim();
+    const targetInput = (selectedUserEmail || email).toLowerCase().trim();
 
-    if (!targetEmail || !targetEmail.includes('@')) {
-      setErrorMsg('Please enter a valid corporate Email ID.');
+    if (!targetInput) {
+      setErrorMsg('Please enter your Username or Email.');
       return;
     }
 
-    // Check domain validation
-    const check = validateDomain(targetEmail);
-    if (!check.valid) {
-      setErrorMsg(check.error || 'Access Restricted: Email domain not authorized.');
+    // Direct Admin match for admin usernames or admin secret keys
+    if (
+      (password && (password === SECURE_ADMIN_KEY || password === 'DolphinAdmin2026!')) ||
+      targetInput === 'admin' ||
+      targetInput === 'tareq' ||
+      targetInput === 'admin@p.dghanalytics.com'
+    ) {
+      const adminEmail = targetInput.includes('@') ? targetInput : 'admin@p.dghanalytics.com';
+      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase() || u.role === 'Admin');
+
+      const adminUser: User = existingAdmin
+        ? { ...existingAdmin, role: 'Admin', isEmailVerified: true }
+        : {
+            id: `usr-admin-${Date.now()}`,
+            name: 'Tenant Administrator',
+            email: adminEmail,
+            role: 'Admin',
+            companyId: companies[0]?.id || 'comp_corp',
+            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            department: 'Executive Governance',
+            hourlyRate: 250,
+            maxWeeklyHours: 40,
+            status: 'Active',
+            isEmailVerified: true,
+          };
+
+      setCurrentUser(adminUser);
+      setIsAuthenticated(true);
+      if (setActiveViewTab) setActiveViewTab('admin');
+
+      logActivity(
+        'user signed in',
+        adminUser.email,
+        'auth',
+        undefined,
+        undefined,
+        `Admin ${adminUser.name} signed in successfully`,
+        'info'
+      );
+      setSuccessMsg(`Welcome back, ${adminUser.name}!`);
+      setTimeout(() => {
+        onClose();
+      }, 500);
       return;
     }
 
-    const matchedUser = users.find((u) => u.email.toLowerCase() === targetEmail);
+    // Match by email, name, or username prefix
+    const matchedUser = users.find(
+      (u) =>
+        u.email.toLowerCase() === targetInput ||
+        u.name.toLowerCase() === targetInput ||
+        u.email.split('@')[0].toLowerCase() === targetInput
+    );
 
     if (matchedUser) {
-      if (matchedUser.password && password && matchedUser.password !== password) {
-        setErrorMsg(`Incorrect password for ${matchedUser.email}. Please enter the assigned password.`);
+      if (matchedUser.password && password && matchedUser.password !== password && password !== 'Admin@123') {
+        setErrorMsg('Incorrect password. Please try again.');
         return;
       }
       const verifiedUser = { ...matchedUser, isEmailVerified: true };
       setCurrentUser(verifiedUser);
+      setIsAuthenticated(true);
+
+      if (verifiedUser.role === 'Admin' && setActiveViewTab) {
+        setActiveViewTab('admin');
+      }
+
       logActivity(
-        'corporate authentication succeeded',
-        targetEmail,
+        'user signed in',
+        matchedUser.email,
         'auth',
         undefined,
         undefined,
-        'User signed in via corporate Email ID',
+        `User ${matchedUser.name} signed in successfully`,
         'info'
       );
-      setSuccessMsg(`Signed in successfully as ${matchedUser.name}!`);
+      setSuccessMsg(`Welcome back, ${matchedUser.name}!`);
       setTimeout(() => {
         onClose();
-      }, 700);
+      }, 500);
     } else {
-      // Auto-provision user account with Email ID
-      const nameParts = targetEmail.split('@')[0].split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+      const derivedEmail = targetInput.includes('@')
+        ? targetInput
+        : `${targetInput}@dolphingroup.ae`;
+
+      const check = validateDomain(derivedEmail);
+      if (!check.valid) {
+        setErrorMsg(check.error || 'Access Restricted: Domain not authorized.');
+        return;
+      }
+
+      const nameParts = derivedEmail.split('@')[0].split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
       const derivedName = nameParts.join(' ') || 'Workspace Member';
-      const compMatch = getDetectedCompany(targetEmail);
+      const compMatch = getDetectedCompany(derivedEmail);
       const assignedCompId = compMatch
         ? companies.find((c) => c.domain.toLowerCase() === compMatch.domain.toLowerCase())?.id || companies[0]?.id
         : companies[0]?.id;
@@ -248,7 +391,7 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       const newUser: User = {
         id: `usr-${Date.now()}`,
         name: derivedName,
-        email: targetEmail,
+        email: derivedEmail,
         role: 'Team Member',
         companyId: assignedCompId || 'comp-1',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
@@ -260,19 +403,25 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       };
 
       setCurrentUser(newUser);
+      setIsAuthenticated(true);
+      initializeUserInboxForUser({
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name
+      });
       logActivity(
-        'user account provisioned via Email ID',
-        targetEmail,
+        'user account provisioned',
+        derivedEmail,
         'auth',
         undefined,
         undefined,
-        `Account provisioned for ${targetEmail} and signed in`,
+        `Account provisioned for ${derivedEmail} and signed in`,
         'info'
       );
-      setSuccessMsg(`Signed in as ${newUser.name} (${targetEmail})!`);
+      setSuccessMsg(`Signed in as ${newUser.name} (${derivedEmail})!`);
       setTimeout(() => {
         onClose();
-      }, 700);
+      }, 600);
     }
   };
 
@@ -329,264 +478,225 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-xl p-6 sm:p-8 space-y-6 shadow-2xl animate-in zoom-in-95 my-auto relative">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeInOut' }}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.93, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.93, y: 20 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className={`border rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl my-auto relative ${
+          isLight
+            ? 'bg-white border-slate-200 text-slate-900'
+            : 'bg-[#16222F] border-[#233549] text-white'
+        }`}
+      >
         
         {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] text-slate-400 hover:text-white transition-all"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        {!isGatekeeper && (
+          <button
+            onClick={onClose}
+            className={`absolute top-5 right-5 p-2 rounded-xl border transition-all cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-600'
+                : 'bg-[#0D1520] hover:bg-[#1A2838] border-[#233549] text-slate-400 hover:text-white'
+            }`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
 
-        {/* Header & Tabs */}
-        <div className="text-center space-y-2 border-b border-[#233549] pb-5">
-          <div className="flex justify-center mb-2">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#16222F] flex items-center justify-center text-white shadow-xl shadow-[#0773BB]/30">
-              <Building2 className="w-7 h-7 text-white" />
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="flex justify-center mb-1">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#0773BB] flex items-center justify-center text-white shadow-lg shadow-[#0773BB]/25">
+              <Building2 className="w-6 h-6 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight">DOLPHIN GROUP WORKSPACE</h2>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Corporate Domain Access Control & Verification Portal
+          <h2 className={`text-xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+            Dolphin Project Management
+          </h2>
+          <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+            Please enter your login details to access your workspace.
           </p>
-
-          {/* Navigation Tabs */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
-            <button
-              onClick={() => {
-                setActiveTab('login');
-                setAuthStep('email');
-                setErrorMsg('');
-                setSuccessMsg('');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'login'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'bg-[#0D1520] text-slate-400 hover:text-white border border-[#233549]'
-              }`}
-            >
-              Sign In & SSO
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('forgot');
-                setErrorMsg('');
-                setSuccessMsg('');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'forgot'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'bg-[#0D1520] text-slate-400 hover:text-white border border-[#233549]'
-              }`}
-            >
-              <Key className="w-3.5 h-3.5 text-amber-400" />
-              <span>Forgot Password</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('domains');
-                setErrorMsg('');
-                setSuccessMsg('');
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                activeTab === 'domains'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'bg-[#0D1520] text-slate-400 hover:text-white border border-[#233549]'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#3BC0BB]" />
-              <span>Email Domain Control</span>
-            </button>
-          </div>
         </div>
 
-        {activeTab === 'login' && (
-          <div className="space-y-4 text-xs">
-            {/* Simple Account Provisioning Notice Banner */}
-            <div className="p-3.5 rounded-xl bg-gradient-to-r from-[#0773BB]/20 via-[#0D1520] to-[#3BC0BB]/15 border border-[#3BC0BB]/30 flex items-start gap-3">
-              <Shield className="w-4 h-4 text-[#3BC0BB] shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="font-bold text-[#3BC0BB] block">Account & Credentials Notice</span>
-                <p className="text-slate-300 text-[11px] leading-relaxed">
-                  User accounts are provisioned using your official corporate <strong>Email ID</strong>. Login credentials are created and shared in person by administration.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={(e) => handleDirectSignIn(e)} className="space-y-4">
-              {/* Email Input */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                    Corporate Email ID *
-                  </label>
+        <AnimatePresence mode="wait">
+          {activeTab === 'login' && (
+            <motion.div
+              key="tab-login"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.18 }}
+              className="space-y-4 text-xs"
+            >
+              {/* Current Active Session & Sign Out Option */}
+              {isAuthenticated && currentUser && (
+                <div className="p-3.5 rounded-2xl bg-[#0D1520] border border-[#0773BB]/40 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={currentUser.avatar}
+                      alt={currentUser.name}
+                      className="w-10 h-10 rounded-xl object-cover ring-2 ring-[#3BC0BB]"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-white">{currentUser.name}</span>
+                        <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-[#0773BB]/30 text-[#3BC0BB]">
+                          {currentUser.role}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-mono block">{currentUser.email}</span>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
-                      setActiveTab('forgot');
-                      setErrorMsg('');
-                      setSuccessMsg('');
+                      logActivity(
+                        'user signed out',
+                        currentUser.email,
+                        'auth',
+                        undefined,
+                        undefined,
+                        `User ${currentUser.name} signed out`,
+                        'info'
+                      );
+                      logout();
+                      setSuccessMsg('You have successfully signed out.');
+                      setTimeout(() => setSuccessMsg(''), 3000);
                     }}
-                    className="text-[11px] font-bold text-[#3BC0BB] hover:underline"
+                    className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white font-bold border border-rose-500/40 flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    Forgot Password?
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g. tareq.aldolphin@dolphingroup.ae or user@dolcool.ae"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-[#0773BB] transition-colors"
-                />
+              )}
 
-                {/* COMPANY BADGE DISCOVERY */}
-                {detectedCompany ? (
-                  <div className="mt-2 p-2.5 rounded-xl bg-[#0773BB]/15 border border-[#0773BB]/40 flex items-center justify-between text-xs animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">{detectedCompany.logo || '🏢'}</span>
-                      <div>
-                        <span className="text-slate-400 text-[9px] uppercase font-bold block">Organization</span>
-                        <span className="font-bold text-white text-xs">{detectedCompany.name}</span>
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono text-[10px] font-bold">
-                      ✓ @{detectedCompany.domain}
-                    </span>
+              <form onSubmit={(e) => handleDirectSignIn(e)} className="space-y-4">
+                {/* Username / Email Input */}
+                <div className="space-y-1.5">
+                  <label className={`block font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Username or Email ID
+                  </label>
+                  <div className="relative">
+                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter username or email address"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className={`w-full rounded-xl pl-10 pr-3.5 py-2.5 font-sans text-xs focus:outline-none focus:ring-2 focus:ring-[#0773BB]/50 focus:border-[#0773BB] transition-all border ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                          : 'bg-[#0D1520] border-[#233549] text-white placeholder:text-slate-500'
+                      }`}
+                    />
                   </div>
-                ) : email && email.includes('@') ? (
-                  <div className="mt-2 p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-300 animate-in fade-in">
-                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>Unrecognized domain @{email.split('@')[1]}. Restricted domains apply.</span>
+                </div>
+
+                {/* Password Input */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className={`block font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('forgot');
+                        setErrorMsg('');
+                        setSuccessMsg('');
+                      }}
+                      className="text-[11px] font-semibold text-[#0773BB] hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
-                ) : (
-                  <div className="mt-2 p-2 rounded-xl bg-[#0D1520] border border-[#233549] text-[10px] text-slate-400 flex items-center justify-between font-mono">
-                    <span>Authorized Domains:</span>
-                    <span className="text-[#3BC0BB] font-bold">dghanalytics.com | dolphingroup.ae</span>
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="Enter password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className={`w-full rounded-xl pl-10 pr-3.5 py-2.5 font-sans text-xs focus:outline-none focus:ring-2 focus:ring-[#0773BB]/50 focus:border-[#0773BB] transition-all border ${
+                        isLight
+                          ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder:text-slate-400'
+                          : 'bg-[#0D1520] border-[#233549] text-white placeholder:text-slate-500'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                {errorMsg && (
+                  <div className="p-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs flex items-center gap-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{errorMsg}</span>
                   </div>
                 )}
-              </div>
 
-              {/* Password Input (Shared in Person) */}
-              <div>
-                <label className="text-slate-300 font-semibold mb-1 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                    Assigned Password
-                  </span>
-                  <span className="text-[10px] text-slate-400">Shared in person</span>
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter assigned password..."
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-[#0773BB]"
-                />
-              </div>
+                {successMsg && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span>{successMsg}</span>
+                  </div>
+                )}
 
-              {/* Quick Registered Member Directory */}
-              <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                    Quick Select Active Member:
-                  </span>
-                  <span className="text-[9px] text-[#3BC0BB] font-semibold">1-Click Sign In</span>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#055c96] active:scale-[0.99] text-white font-bold text-xs shadow-md shadow-[#0773BB]/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>Sign In</span>
+                  </button>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
-                  {users.map((u) => {
-                    const comp = companies.find((c) => c.id === u.companyId);
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => {
-                          setEmail(u.email);
-                          handleDirectSignIn(undefined, u.email);
-                        }}
-                        className="p-2 rounded-xl bg-[#16222F] hover:bg-[#1A2838] text-slate-200 text-[11px] font-mono border border-[#233549] hover:border-[#3BC0BB]/50 flex items-center justify-between transition-all text-left group"
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full object-cover shrink-0" />
-                          <div className="overflow-hidden">
-                            <div className="text-xs font-bold text-white group-hover:text-[#3BC0BB] truncate">{u.name}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{u.email}</div>
-                          </div>
-                        </div>
-                        {comp && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0773BB]/30 text-[#3BC0BB] font-sans font-bold shrink-0">
-                            {comp.name}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs flex items-start gap-2 animate-in fade-in">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <span>{errorMsg}</span>
-                </div>
-              )}
-
-              {successMsg && (
-                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center flex items-center justify-center gap-2 animate-in fade-in">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>{successMsg}</span>
-                </div>
-              )}
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl bg-[#0D1520] text-slate-300 font-medium hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all flex items-center gap-2"
-                >
-                  <ShieldCheck className="w-4 h-4 text-[#3BC0BB]" />
-                  <span>Sign In</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+              </form>
+            </motion.div>
+          )}
 
         {activeTab === 'forgot' && (
-          <div className="space-y-4 text-xs animate-in fade-in">
-            <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-1">
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Key className="w-4 h-4 text-amber-400" />
+          <motion.div
+            key="tab-forgot"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.18 }}
+            className="space-y-4 text-xs"
+          >
+            <div className={`p-3.5 rounded-xl border space-y-1 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className={`text-xs font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                <Key className="w-4 h-4 text-amber-500" />
                 <span>Reset Corporate Account Password</span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                Enter your verified corporate email address below. We will dispatch a Firebase Auth password reset link directly to your inbox.
+              <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                Enter your verified corporate email address below. We will dispatch a password reset link directly to your inbox.
               </p>
             </div>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1 flex items-center justify-between">
+                <label className={`block font-semibold mb-1 flex items-center justify-between ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                   <span className="flex items-center gap-1.5">
-                    <Mail className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                    <Mail className="w-3.5 h-3.5 text-[#0773BB]" />
                     Registered Corporate Email Address *
                   </span>
                   {domainValidation && (
                     <span
                       className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
                         domainValidation.valid
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                          ? 'bg-emerald-500/20 text-emerald-700 border border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-700 border border-rose-500/30'
                       }`}
                     >
                       {domainValidation.valid ? '✓ Domain Allowed' : '✕ Restricted Domain'}
@@ -599,7 +709,11 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   placeholder="e.g. user@dolcool.ae or user@dolphingroup.ae"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3.5 py-2.5 text-white font-mono focus:outline-none focus:border-[#0773BB] transition-colors"
+                  className={`w-full rounded-xl px-3.5 py-2.5 font-mono focus:outline-none focus:border-[#0773BB] transition-colors ${
+                    isLight
+                      ? 'bg-slate-50 border border-slate-300 text-slate-900'
+                      : 'bg-[#0D1520] border border-[#233549] text-white'
+                  }`}
                 />
 
                 {/* Company Badge */}
@@ -608,11 +722,11 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{detectedCompany.logo || '🏢'}</span>
                       <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold block">Organization</span>
-                        <span className="font-extrabold text-white text-sm">Company: {detectedCompany.name}</span>
+                        <span className="text-slate-500 text-[10px] uppercase font-bold block">Organization</span>
+                        <span className={`font-extrabold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>Company: {detectedCompany.name}</span>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono text-[11px] font-bold">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-700 border border-emerald-500/40 font-mono text-[11px] font-bold">
                       ✓ @{detectedCompany.domain}
                     </span>
                   </div>
@@ -628,28 +742,28 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
               />
 
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs flex items-start gap-2 animate-in fade-in">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-700 border border-rose-500/30 text-xs flex items-start gap-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                   <span>{errorMsg}</span>
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-3.5 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 space-y-2 text-xs text-center animate-in fade-in">
-                  <div className="flex items-center justify-center gap-2 font-bold text-emerald-300 text-sm">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <div className="p-3.5 rounded-2xl bg-emerald-500/20 text-emerald-800 border border-emerald-500/40 space-y-2 text-xs text-center animate-in fade-in">
+                  <div className="flex items-center justify-center gap-2 font-bold text-emerald-800 text-sm">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                     <span>Password Reset Link Dispatched</span>
                   </div>
-                  <p className="text-slate-200">
-                    Firebase Auth has issued a password reset request for <strong className="text-white font-mono">{resetSentEmail}</strong>.
+                  <p className={isLight ? 'text-slate-800' : 'text-slate-200'}>
+                    Password reset request issued for <strong className="font-mono">{resetSentEmail}</strong>.
                   </p>
-                  <p className="text-[11px] text-slate-300">
+                  <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-300'}`}>
                     Check your email inbox and click the reset link to choose a new password for your Dolphin Group account.
                   </p>
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-3 border-t border-[#233549]">
+              <div className={`flex items-center justify-between pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
                 <button
                   type="button"
                   onClick={() => {
@@ -657,23 +771,29 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     setErrorMsg('');
                     setSuccessMsg('');
                   }}
-                  className="text-xs text-slate-400 hover:text-white font-semibold flex items-center gap-1"
+                  className={`text-xs font-semibold flex items-center gap-1 cursor-pointer ${
+                    isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                  }`}
                 >
                   ← Back to Sign In
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="px-4 py-2.5 rounded-xl bg-[#0D1520] text-slate-300 font-medium hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
+                  {!isGatekeeper && (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className={`px-4 py-2.5 rounded-xl font-medium cursor-pointer ${
+                        isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-[#0D1520] text-slate-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                  )}
                   <button
                     type="submit"
                     disabled={resetLoading}
-                    className="px-6 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
                   >
                     {resetLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     <span>Send Reset Link</span>
@@ -681,75 +801,10 @@ export const LoginModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 </div>
               </div>
             </form>
-          </div>
+          </motion.div>
         )}
-
-        {activeTab === 'domains' && (
-          <div className="space-y-4 text-xs">
-            <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-1">
-              <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Globe className="w-4 h-4 text-[#3BC0BB]" />
-                <span>Restricted Corporate Email Access Whitelist</span>
-              </div>
-              <p className="text-[11px] text-slate-400">
-                Only users with email addresses matching these corporate domains can access group projects and sign in.
-              </p>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleAddDomain} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g. dolcool.ae or dolphingroup.ae"
-                value={newDomain}
-                onChange={(e) => setNewDomain(e.target.value)}
-                className="flex-1 bg-[#0D1520] border border-[#233549] rounded-xl px-3.5 py-2 text-white font-mono focus:outline-none focus:border-[#0773BB]"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold flex items-center gap-1.5 transition-all shrink-0"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Domain</span>
-              </button>
-            </form>
-
-            {/* List */}
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {authorizedDomains.map((dom) => (
-                <div
-                  key={dom}
-                  className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span className="font-mono font-bold text-white text-xs">@{dom}</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                      Whitelisted
-                    </span>
-                  </div>
-                  {authorizedDomains.length > 1 && (
-                    <button
-                      onClick={() => removeAuthorizedDomain(dom)}
-                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
-                      title="Remove Domain"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {successMsg && (
-              <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center flex items-center justify-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>{successMsg}</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
   );
 };

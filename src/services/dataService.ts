@@ -44,6 +44,11 @@ export function subscribeToProjects(onUpdate: (projects: Project[]) => void, onE
       onUpdate(projects);
     },
     (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) {
+        console.warn('Firestore projects snapshot notice:', msg);
+        return;
+      }
       console.warn('Firestore projects snapshot error:', error);
       try {
         handleFirestoreError(error, OperationType.LIST, PROJECTS_COLLECTION);
@@ -111,6 +116,11 @@ export function subscribeToTasks(onUpdate: (tasks: Task[]) => void, onError?: (e
       onUpdate(tasks);
     },
     (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) {
+        console.warn('Firestore tasks snapshot notice:', msg);
+        return;
+      }
       console.warn('Firestore tasks snapshot error:', error);
       if (onError) onError(error);
     }
@@ -173,6 +183,11 @@ export function subscribeToFiles(onUpdate: (files: ProjectFile[]) => void, onErr
       onUpdate(files);
     },
     (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) {
+        console.warn('Firestore files snapshot notice:', msg);
+        return;
+      }
       console.warn('Firestore files snapshot error:', error);
       if (onError) onError(error);
     }

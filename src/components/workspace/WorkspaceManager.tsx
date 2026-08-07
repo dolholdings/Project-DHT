@@ -25,7 +25,17 @@ import {
   AlertTriangle,
   Tag,
   BarChart2,
-  ArrowUpRight
+  ArrowUpRight,
+  Activity,
+  ExternalLink,
+  LayoutDashboard,
+  Briefcase,
+  Shield,
+  ArrowRight,
+  ListTodo,
+  PieChart,
+  Globe,
+  Building2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus } from '../../types';
@@ -44,6 +54,7 @@ export const WorkspaceManager: React.FC = () => {
     setActiveCompany,
     tasks,
     users,
+    activityLogs,
     setActiveTab,
     setSelectedProjectId,
     theme
@@ -52,7 +63,8 @@ export const WorkspaceManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'grid' | 'table' | 'hierarchy'>('grid');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'grid' | 'table' | 'hierarchy'>('dashboard');
+  const [activityFilter, setActivityFilter] = useState<string>('all');
 
   // Modal States
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
@@ -108,21 +120,29 @@ export const WorkspaceManager: React.FC = () => {
 
   const handleCreateSpace = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !newCode) return;
+    if (!newTitle.trim()) return;
 
-    addProject({
-      title: newTitle,
-      code: newCode.toUpperCase(),
-      companyId: newCompanyId,
-      description: newDesc || 'Strategic workspace initiative',
+    const generatedCode = newCode.trim()
+      ? newCode.trim().toUpperCase()
+      : newTitle.trim().slice(0, 4).toUpperCase() || 'SPC';
+
+    const createdProj = addProject({
+      title: newTitle.trim(),
+      code: generatedCode,
+      companyId: newCompanyId || activeCompany.id,
+      description: newDesc.trim() || 'Strategic workspace space',
       status: 'Planning',
-      managerId: newManagerId,
-      startDate: newStartDate,
-      dueDate: newDueDate,
-      budget: Number(newBudget),
+      managerId: newManagerId || users[0]?.id || 'usr_1',
+      startDate: newStartDate || new Date().toISOString().split('T')[0],
+      dueDate: newDueDate || '2026-12-31',
+      budget: Number(newBudget) || 100000,
       category: newCategory,
-      members: [newManagerId]
+      members: [newManagerId || users[0]?.id || 'usr_1']
     });
+
+    if (createdProj) {
+      setSelectedProjectId(createdProj.id);
+    }
 
     setShowCreateSpaceModal(false);
     setNewTitle('');
@@ -132,17 +152,27 @@ export const WorkspaceManager: React.FC = () => {
 
   const handleCreateCompany = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompName || !newCompCode) return;
+    if (!newCompName.trim()) return;
+
+    const generatedCode = newCompCode.trim()
+      ? newCompCode.trim().toUpperCase()
+      : newCompName.trim().slice(0, 4).toUpperCase() || 'ORG';
+
+    const domain = `${generatedCode.toLowerCase()}.dolphingroup.ae`;
 
     const created = addCompany({
-      name: newCompName,
-      code: newCompCode.toUpperCase(),
-      category: newCompCategory,
-      isExternal: newCompExternal,
-      membersCount: 12
+      name: newCompName.trim(),
+      code: generatedCode,
+      domain: domain,
+      logo: '🏢',
+      description: `${newCompName.trim()} workspace organization`,
+      type: newCompExternal ? 'External Partner' : 'Internal Dolphin Entity',
+      isExternal: newCompExternal
     });
 
-    setActiveCompany(created);
+    if (created) {
+      setActiveCompany(created);
+    }
     setShowCreateCompanyModal(false);
     setNewCompName('');
     setNewCompCode('');
@@ -352,6 +382,15 @@ export const WorkspaceManager: React.FC = () => {
         {/* View Switcher */}
         <div className="flex items-center gap-1.5 p-1 bg-[#0D1520] rounded-xl border border-[#233549]">
           <button
+            onClick={() => setViewMode('dashboard')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+              viewMode === 'dashboard' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span>Landing Dashboard</span>
+          </button>
+          <button
             onClick={() => setViewMode('grid')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
               viewMode === 'grid' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
@@ -379,6 +418,430 @@ export const WorkspaceManager: React.FC = () => {
       </div>
 
       {/* 4. MAIN SPACES CONTENT LISTING */}
+      {viewMode === 'dashboard' && (
+        <div className="space-y-6">
+          {/* 1. SELECTED WORKSPACE HERO & ENTITY SELECTOR */}
+          <div className={`p-5 rounded-2xl border transition-all ${
+            theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#233549]/40 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#16222F] flex items-center justify-center text-white text-xl shadow-lg">
+                  {activeCompany.logo || '🏢'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/40">
+                      @{activeCompany.code}
+                    </span>
+                    <h2 className={`text-xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      {activeCompany.name}
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                    <span>{activeCompany.type || 'Internal Entity'}</span>
+                    <span>•</span>
+                    <span className="font-mono text-[#3BC0BB]">{activeCompany.domain}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Workspace Quick Switcher Pills */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Switch Workspace Entity:</span>
+                {companies.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveCompany(c)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                      activeCompany.id === c.id
+                        ? 'bg-[#0773BB] text-white border-[#0773BB] shadow-md'
+                        : 'bg-[#0D1520] text-slate-400 hover:text-white border-[#233549] hover:border-[#3BC0BB]'
+                    }`}
+                  >
+                    <span>{c.logo || '🏢'}</span>
+                    <span>{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Selected Workspace Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs">
+              {(() => {
+                const wsProjects = projects.filter((p) => p.companyId === activeCompany.id);
+                const wsTasks = tasks.filter((t) => wsProjects.some((p) => p.id === t.projectId));
+                const completedWsTasks = wsTasks.filter((t) => t.status === 'Done').length;
+                const wsBudget = wsProjects.reduce((sum, p) => sum + (p.budget || 0), 0);
+                const taskPct = wsTasks.length > 0 ? Math.round((completedWsTasks / wsTasks.length) * 100) : 0;
+
+                return (
+                  <>
+                    <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549]">
+                      <span className="text-slate-400 font-semibold block text-[11px]">Active Spaces</span>
+                      <span className="text-lg font-black text-white">{wsProjects.length} Spaces</span>
+                      <span className="text-[10px] text-emerald-400 block mt-0.5 font-mono">
+                        {wsProjects.filter((p) => p.status === 'In Progress').length} in progress
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549]">
+                      <span className="text-slate-400 font-semibold block text-[11px]">Task Execution</span>
+                      <span className="text-lg font-black text-[#3BC0BB]">{completedWsTasks} / {wsTasks.length} Done ({taskPct}%)</span>
+                      <div className="w-full bg-slate-700/40 rounded-full h-1 mt-1.5 overflow-hidden">
+                        <div className="bg-[#3BC0BB] h-1 rounded-full" style={{ width: `${taskPct}%` }} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549]">
+                      <span className="text-slate-400 font-semibold block text-[11px]">Allocated Budget</span>
+                      <span className="text-lg font-black text-emerald-400">${wsBudget.toLocaleString()}</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5 font-mono">Across {wsProjects.length} spaces</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549]">
+                      <span className="text-slate-400 font-semibold block text-[11px]">Workspace Users</span>
+                      <span className="text-lg font-black text-purple-400">{users.length} Active Members</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">Role-based access</span>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* 2. SUMMARY OF ACTIVE PROJECTS (SPACES) */}
+          <div className={`p-5 rounded-2xl border space-y-4 ${
+            theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FolderKanban className="w-5 h-5 text-[#0773BB]" />
+                <h3 className={`text-base font-extrabold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  Active Spaces Summary for {activeCompany.name}
+                </h3>
+              </div>
+
+              <button
+                onClick={() => setShowCreateSpaceModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Space</span>
+              </button>
+            </div>
+
+            {(() => {
+              const wsProjects = filteredProjects.filter((p) => p.companyId === activeCompany.id);
+              const displayList = wsProjects.length > 0 ? wsProjects : filteredProjects;
+
+              if (displayList.length === 0) {
+                return (
+                  <div className="p-8 text-center rounded-2xl border border-dashed border-[#233549] bg-[#0D1520]/50 space-y-3">
+                    <FolderKanban className="w-10 h-10 text-slate-500 mx-auto" />
+                    <p className="text-sm font-semibold text-slate-300">No active spaces found in {activeCompany.name}.</p>
+                    <button
+                      onClick={() => setShowCreateSpaceModal(true)}
+                      className="px-4 py-2 rounded-xl bg-[#0773BB] text-white font-bold text-xs"
+                    >
+                      + Create First Space in {activeCompany.name}
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayList.map((project) => {
+                    const spaceTasks = tasks.filter((t) => t.projectId === project.id);
+                    const doneCount = spaceTasks.filter((t) => t.status === 'Done').length;
+                    const progress = spaceTasks.length > 0 ? Math.round((doneCount / spaceTasks.length) * 100) : 0;
+                    const manager = users.find((u) => u.id === project.managerId);
+
+                    return (
+                      <div
+                        key={project.id}
+                        className="p-4 rounded-xl border border-[#233549] bg-[#0D1520] hover:border-[#3BC0BB] transition-all flex flex-col justify-between gap-3 group"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-[#0773BB]/30 text-[#3BC0BB] font-mono text-xs font-bold border border-[#0773BB]/40">
+                                {project.code}
+                              </span>
+                              <h4 className="font-bold text-white text-sm line-clamp-1">{project.title}</h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                              project.status === 'In Progress' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'
+                            }`}>
+                              {project.status}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-400 line-clamp-2 mb-3">{project.description}</p>
+
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between text-slate-400 text-[11px]">
+                              <span>Progress ({doneCount}/{spaceTasks.length} Tasks)</span>
+                              <span className="font-mono text-[#3BC0BB] font-bold">{progress}%</span>
+                            </div>
+                            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-[#3BC0BB] h-1.5 rounded-full" style={{ width: `${progress}%` }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-[#233549]/60 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={manager?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                              alt={manager?.name}
+                              className="w-5 h-5 rounded-full object-cover border border-[#3BC0BB]"
+                            />
+                            <span className="text-slate-300 text-[11px] font-medium">{manager?.name?.split(' ')[0]}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setSelectedProjectId(project.id);
+                                setActiveTab('tasks');
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-[11px] flex items-center gap-1"
+                            >
+                              <span>Open</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setConfiguringProject(project)}
+                              className="p-1 rounded-lg bg-[#16222F] text-slate-300 hover:text-white border border-[#233549]"
+                              title="Configure Space Settings"
+                            >
+                              <Settings className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* 3. RECENT TEAM ACTIVITY & QUICK ACCESS GRID (2 COLUMNS) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Recent Team Activity */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between border-b border-[#233549]/40 pb-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-[#3BC0BB]" />
+                  <h3 className={`text-base font-extrabold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Recent Team Activity
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-1 bg-[#0D1520] p-1 rounded-lg border border-[#233549] text-[10px] font-bold">
+                  <button
+                    onClick={() => setActivityFilter('all')}
+                    className={`px-2 py-0.5 rounded ${activityFilter === 'all' ? 'bg-[#0773BB] text-white' : 'text-slate-400'}`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter('task')}
+                    className={`px-2 py-0.5 rounded ${activityFilter === 'task' ? 'bg-[#0773BB] text-white' : 'text-slate-400'}`}
+                  >
+                    Tasks
+                  </button>
+                  <button
+                    onClick={() => setActivityFilter('auth')}
+                    className={`px-2 py-0.5 rounded ${activityFilter === 'auth' ? 'bg-[#0773BB] text-white' : 'text-slate-400'}`}
+                  >
+                    Auth
+                  </button>
+                </div>
+              </div>
+
+              {/* Activity Feed List */}
+              <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                {(() => {
+                  const filteredLogs = (activityLogs || []).filter((log) => {
+                    if (activityFilter === 'all') return true;
+                    return log.type === activityFilter;
+                  });
+
+                  if (filteredLogs.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 text-center py-6">
+                        No recent activity recorded for this filter.
+                      </p>
+                    );
+                  }
+
+                  return filteredLogs.slice(0, 7).map((log) => {
+                    const logUser = users.find((u) => u.id === log.userId) || { name: log.userName, avatar: log.userAvatar };
+                    const timeAgo = log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently';
+
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] flex items-start gap-3 hover:border-[#3BC0BB]/40 transition-all text-xs"
+                      >
+                        <img
+                          src={logUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                          alt={logUser.name}
+                          className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5 border border-[#0773BB]"
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-white truncate">{logUser.name}</span>
+                            <span className="text-[10px] font-mono text-slate-400 shrink-0">{timeAgo}</span>
+                          </div>
+
+                          <p className="text-slate-300 mt-0.5 text-[11px] capitalize">
+                            <span className="text-[#3BC0BB] font-semibold">{log.action}</span>
+                            {log.target && <span> — {log.target}</span>}
+                          </p>
+
+                          {log.details && (
+                            <p className="text-[10px] text-slate-400 mt-1 italic line-clamp-1">{log.details}</p>
+                          )}
+                        </div>
+
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold shrink-0 ${
+                          log.type === 'auth' ? 'bg-amber-500/20 text-amber-300' :
+                          log.type === 'task' ? 'bg-emerald-500/20 text-emerald-300' :
+                          log.type === 'project' ? 'bg-blue-500/20 text-blue-300' :
+                          'bg-purple-500/20 text-purple-300'
+                        }`}>
+                          {log.type}
+                        </span>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+
+            {/* Workspace Quick-Access Links */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between border-b border-[#233549]/40 pb-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-400" />
+                  <h3 className={`text-base font-extrabold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                    Quick-Access Workspace Shortcuts
+                  </h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <button
+                  onClick={() => setActiveTab('tasks')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <ListTodo className="w-5 h-5 text-[#3BC0BB]" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Task Board & Kanban</div>
+                  <p className="text-[10px] text-slate-400">Manage tasks, deadlines, and dependencies</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('workload')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Users className="w-5 h-5 text-purple-400" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Team Workload Heatmap</div>
+                  <p className="text-[10px] text-slate-400">Review team bandwidth & task allocations</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('reports')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <BarChart2 className="w-5 h-5 text-[#0773BB]" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Reports & Analytics</div>
+                  <p className="text-[10px] text-slate-400">Executive KPIs, budgets, and SLAs</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('time')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Clock className="w-5 h-5 text-emerald-400" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Time Tracking & Logs</div>
+                  <p className="text-[10px] text-slate-400">Review logged hours and live timers</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('automations')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Zap className="w-5 h-5 text-amber-400" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">ClickUp Automations</div>
+                  <p className="text-[10px] text-slate-400">Manage rules, auto-assignees, and triggers</p>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <ShieldCheck className="w-5 h-5 text-teal-400" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Domain Control & Settings</div>
+                  <p className="text-[10px] text-slate-400">Manage email whitelists & enterprise auth</p>
+                </button>
+
+                <button
+                  onClick={() => setShowCreateSpaceModal(true)}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Plus className="w-5 h-5 text-[#0773BB]" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Create New Space</div>
+                  <p className="text-[10px] text-slate-400">Launch a new project or department</p>
+                </button>
+
+                <button
+                  onClick={() => setShowCreateCompanyModal(true)}
+                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <Building className="w-5 h-5 text-[#3BC0BB]" />
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="font-bold text-white text-xs">Add Workspace Entity</div>
+                  <p className="text-[10px] text-slate-400">Register new corporate subsidiary</p>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewMode === 'grid' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProjects.map((project) => {
@@ -717,9 +1180,11 @@ export const WorkspaceManager: React.FC = () => {
                     className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
                   >
                     <option value="Industrial Manufacturing">Industrial Manufacturing</option>
-                    <option value="HVAC Systems">HVAC Systems</option>
-                    <option value="ERP & Enterprise Software">ERP & Enterprise Software</option>
-                    <option value="Energy & Utility Infrastructure">Energy & Utilities</option>
+                    <option value="HVAC Engineering">HVAC Engineering</option>
+                    <option value="Radiator Production">Radiator Production</option>
+                    <option value="Heat Exchanger">Heat Exchanger</option>
+                    <option value="Group IT">Group IT</option>
+                    <option value="Digital Marketing">Digital Marketing</option>
                   </select>
                 </div>
 

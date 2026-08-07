@@ -19,8 +19,10 @@ import {
   ArrowDownRight,
   X,
   Sparkles,
-  Layers
+  Layers,
+  SlidersHorizontal
 } from 'lucide-react';
+import { ReportExportWizardModal } from './ReportExportWizardModal';
 import {
   BarChart,
   Bar,
@@ -44,6 +46,7 @@ import { Project, Task, Priority } from '../../types';
 
 export const ReportsView: React.FC = () => {
   const { projects, tasks, timeEntries, companies, activeCompany, theme, currentUser } = useApp();
+  const isLight = theme === 'light';
 
   // Filters state
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('all');
@@ -51,6 +54,7 @@ export const ReportsView: React.FC = () => {
   const [dateRange, setDateRange] = useState<'30days' | '60days' | '90days' | 'year'>('60days');
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'velocity' | 'completion' | 'trends'>('overview');
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
+  const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
 
   // Filter projects & tasks by selected company & project
   const relevantProjects = projects.filter((p) => {
@@ -227,19 +231,21 @@ export const ReportsView: React.FC = () => {
   return (
     <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#16222F] border border-[#233549] rounded-2xl p-6 shadow-xl no-print">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 border rounded-2xl p-6 shadow-xl no-print ${
+        isLight ? 'bg-white border-slate-200 shadow-slate-200/50' : 'bg-[#16222F] border-[#233549]'
+      }`}>
         <div className="flex items-center gap-4">
           <div className="p-3.5 rounded-2xl bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/30">
             <BarChart3 className="w-8 h-8" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-white tracking-tight">Executive Analytics & Velocity Reports</h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-mono font-bold">
+              <h1 className={`text-xl font-black tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>Executive Analytics & Velocity Reports</h1>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-mono font-bold">
                 REAL-TIME TELEMETRY
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className={`text-xs mt-1 ${isLight ? 'text-slate-600 font-medium' : 'text-slate-400'}`}>
               Project velocity, task completion efficiency, historical throughput trends & PDF executive summaries.
             </p>
           </div>
@@ -247,27 +253,41 @@ export const ReportsView: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setIsWizardOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/20 transition-all border border-[#3BC0BB]/40 cursor-pointer"
+          >
+            <SlidersHorizontal className="w-4 h-4 text-white animate-pulse" />
+            <span>CSV / PDF Export Wizard</span>
+          </button>
+
+          <button
             onClick={() => setIsPdfModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg transition-all cursor-pointer"
           >
             <Printer className="w-4 h-4" />
-            <span>Export Executive PDF Report</span>
+            <span>Quick PDF</span>
           </button>
 
           <button
             onClick={handleExportCsv}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg transition-all"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all border cursor-pointer ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                : 'bg-[#0D1520] hover:bg-[#233549] text-slate-200 border-[#233549]'
+            }`}
           >
-            <Download className="w-4 h-4" />
-            <span>Export CSV Data</span>
+            <Download className="w-4 h-4 text-[#3BC0BB]" />
+            <span>Quick CSV</span>
           </button>
         </div>
       </div>
 
       {/* Interactive Controls & Filters Bar */}
-      <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 no-print">
+      <div className={`border rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 no-print ${
+        isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+      }`}>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-semibold">
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>
             <Filter className="w-3.5 h-3.5 text-[#3BC0BB]" />
             <span>Report Scope:</span>
           </div>
@@ -279,7 +299,9 @@ export const ReportsView: React.FC = () => {
               setSelectedCompanyId(e.target.value);
               setSelectedProjectId('all');
             }}
-            className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+            className={`rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] border ${
+              isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+            }`}
           >
             <option value="all">All Tenant Companies ({companies.length})</option>
             {companies.map((c) => (
@@ -293,7 +315,9 @@ export const ReportsView: React.FC = () => {
           <select
             value={selectedProjectId}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+            className={`rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] border ${
+              isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+            }`}
           >
             <option value="all">All Projects ({relevantProjects.length})</option>
             {relevantProjects.map((p) => (
@@ -307,7 +331,9 @@ export const ReportsView: React.FC = () => {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
-            className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+            className={`rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] border ${
+              isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+            }`}
           >
             <option value="30days">Last 30 Days</option>
             <option value="60days">Last 60 Days (Sprint Quarter)</option>
@@ -317,23 +343,25 @@ export const ReportsView: React.FC = () => {
         </div>
 
         {/* Navigation Subtabs */}
-        <div className="flex items-center gap-1.5 bg-[#0D1520] p-1 rounded-xl border border-[#233549]">
+        <div className={`flex items-center gap-1.5 p-1 rounded-xl border ${
+          isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+        }`}>
           <button
             onClick={() => setActiveSubTab('overview')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeSubTab === 'overview'
                 ? 'bg-[#0773BB] text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white')
             }`}
           >
             Overview KPI
           </button>
           <button
             onClick={() => setActiveSubTab('velocity')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               activeSubTab === 'velocity'
                 ? 'bg-[#0773BB] text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                : (isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white')
             }`}
           >
             Project Velocity
@@ -857,6 +885,17 @@ export const ReportsView: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Custom CSV / PDF Export Wizard Modal */}
+      <ReportExportWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        projects={projects}
+        tasks={tasks}
+        companies={companies}
+        activeCompany={activeCompany}
+        currentUser={currentUser}
+        theme={theme}
+      />
     </div>
   );
 };

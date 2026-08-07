@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/print.css";
 
 @theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -422,5 +423,72 @@ html.light-theme .bg-tech-grid {
 
 [data-theme="midnight-teal"] .border-\[\#233549\] {
   border-color: #1E3A45 !important;
+}
+
+/* 3. Deep Sea (High-Contrast Obsidian & Bioluminescent Teal Highlights) */
+[data-theme="deep-sea"] {
+  --bg-primary: #020712;
+  --bg-surface: #081120;
+  --bg-card: #0F1C30;
+  --text-primary: #E6FFFA;
+  --text-secondary: #81E6D9;
+  --border-color: #1A2E40;
+  --accent-teal: #00F5D4;
+  --accent-blue: #00E5FF;
+}
+
+[data-theme="deep-sea"] body {
+  background-color: #020712 !important;
+  color: #E6FFFA !important;
+}
+
+[data-theme="deep-sea"] .bg-\[\#0D1520\],
+[data-theme="deep-sea"] .bg-\[\#0d1520\],
+[data-theme="deep-sea"] .bg-\[\#070D14\],
+[data-theme="deep-sea"] .bg-\[\#080D14\],
+[data-theme="deep-sea"] .bg-\[\#0B121C\],
+[data-theme="deep-sea"] .bg-slate-950 {
+  background-color: #020712 !important;
+}
+
+[data-theme="deep-sea"] .bg-\[\#16222F\],
+[data-theme="deep-sea"] .bg-\[\#16222f\],
+[data-theme="deep-sea"] .bg-\[\#121B26\],
+[data-theme="deep-sea"] .bg-\[\#121b26\],
+[data-theme="deep-sea"] .bg-\[\#0E1723\] {
+  background-color: #081120 !important;
+}
+
+[data-theme="deep-sea"] .bg-\[\#1A2838\],
+[data-theme="deep-sea"] .bg-\[\#121C28\],
+[data-theme="deep-sea"] .bg-\[\#1F2F42\],
+[data-theme="deep-sea"] .bg-slate-900 {
+  background-color: #0F1C30 !important;
+}
+
+[data-theme="deep-sea"] .border-\[\#233549\],
+[data-theme="deep-sea"] [class*="border-[#233549]"] {
+  border-color: #1A2E40 !important;
+}
+
+/* Bioluminescent Teal Glow & Accent Overrides for Deep Sea */
+[data-theme="deep-sea"] .text-\[\#3BC0BB\],
+[data-theme="deep-sea"] .text-teal-400,
+[data-theme="deep-sea"] .text-emerald-400 {
+  color: #00F5D4 !important;
+}
+
+[data-theme="deep-sea"] .bg-\[\#3BC0BB\],
+[data-theme="deep-sea"] .bg-teal-500,
+[data-theme="deep-sea"] .bg-emerald-500 {
+  background-color: #00F5D4 !important;
+  color: #020712 !important;
+}
+
+[data-theme="deep-sea"] .border-\[\#3BC0BB\],
+[data-theme="deep-sea"] .border-teal-500\/40,
+[data-theme="deep-sea"] .border-teal-400 {
+  border-color: #00F5D4 !important;
+  box-shadow: 0 0 10px rgba(0, 245, 212, 0.25);
 }
 

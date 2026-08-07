@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import { Menu } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/layout/Sidebar';
@@ -31,7 +32,7 @@ import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser } = useApp();
+  const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser, isAuthenticated } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showEmailGatewayModal, setShowEmailGatewayModal] = useState(false);
@@ -39,14 +40,26 @@ const MainLayout: React.FC = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
 
+  // Force Sign In Gatekeeper when hitting the site unauthenticated
+  if (!isAuthenticated) {
+    return (
+      <div className={`min-h-screen ${theme === 'light' ? 'bg-slate-100' : 'bg-[#0D1520]'} flex items-center justify-center p-4 font-sans`}>
+        <LoginModal isGatekeeper={true} onClose={() => {}} />
+      </div>
+    );
+  }
+
   // Block dashboard access if user email is not verified
   if (currentUser && currentUser.isEmailVerified === false) {
     return (
-      <EmailVerificationScreen
-        onVerified={() => {
-          setCurrentUser({ ...currentUser, isEmailVerified: true });
-        }}
-      />
+      <AnimatePresence mode="wait">
+        <EmailVerificationScreen
+          key="email-verification-screen"
+          onVerified={() => {
+            setCurrentUser({ ...currentUser, isEmailVerified: true });
+          }}
+        />
+      </AnimatePresence>
     );
   }
 
@@ -94,6 +107,7 @@ const MainLayout: React.FC = () => {
           onOpenCreateTaskModal={() => setActiveTab('tasks')}
           onToggleMobileSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
           onOpenEmailGateway={() => setShowEmailGatewayModal(true)}
+          onOpenLoginModal={() => setShowLoginModal(true)}
           isMobile={isMobile}
         />
 
@@ -136,7 +150,9 @@ const MainLayout: React.FC = () => {
         <NotificationsDrawer onClose={() => setShowNotifications(false)} />
       )}
 
-      {showLoginModal && <LoginModal onClose={() => setShowLoginModal(false)} />}
+      <AnimatePresence>
+        {showLoginModal && <LoginModal key="login-modal" onClose={() => setShowLoginModal(false)} />}
+      </AnimatePresence>
 
       <TransactionalEmailGatewayModal
         isOpen={showEmailGatewayModal}

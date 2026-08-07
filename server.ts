@@ -250,7 +250,7 @@ Respond ONLY with valid JSON array inside a JSON codeblock or array.
 // AI Smart Priority & Task Reordering Endpoint powered by Gemini API
 app.post('/api/ai/smart-priority', async (req, res) => {
   try {
-    const { tasks = [], projectTitle = 'General Project Scope', projectScope = '' } = req.body;
+    const { tasks = [], projectTitle = 'General Project Scope', projectScope = '', unassignedOnly = false } = req.body;
 
     if (!Array.isArray(tasks) || tasks.length === 0) {
       return res.status(400).json({ error: 'Please provide a non-empty list of tasks for Smart Priority evaluation.' });
@@ -266,6 +266,7 @@ app.post('/api/ai/smart-priority', async (req, res) => {
       currentPriority: t.priority,
       dueDate: t.dueDate,
       estimatedHours: t.estimatedHours || 10,
+      isUnassigned: !t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0],
       tags: t.tags || [],
       isMilestone: Boolean(t.isMilestone),
       isCriticalPath: Boolean(t.isCriticalPath),
@@ -275,30 +276,33 @@ app.post('/api/ai/smart-priority', async (req, res) => {
 
     const promptText = `
 You are an expert Executive Project Optimization AI for Dolphin Group Enterprise Management.
-Analyze the provided project scope, active tasks, upcoming deadlines, dependencies, and business impact.
+Analyze the provided project scope, active tasks, upcoming deadlines, effort estimates (in hours), and unassigned task statuses.
 
 Today's Date: ${todayStr}
 Project Title: ${projectTitle}
 Project Scope Description: ${projectScope || 'Enterprise Manufacturing, Heat Exchanger Overhaul, HVAC & DEWA Quality Audit'}
+Target Focus: ${unassignedOnly ? 'UNASSIGNED TASKS ONLY' : 'ALL ACTIVE TASKS (WITH SPECIAL ATTTENTION TO UNASSIGNED TASKS)'}
 
 Tasks to Evaluate:
 ${JSON.stringify(tasksPayload, null, 2)}
 
-Recommend an optimal priority order for the tasks based on:
-1. Critical Path & Blocking Dependencies (predecessor/successor links)
-2. Immediate Deadlines & Schedule Slippage Risks
-3. Business Impact & Client Milestones (e.g., DEWA compliance, heavy fabrication, procurement lead times)
+Evaluation Criteria:
+1. Deadlines & Schedule Proximity (proximity of dueDate to today: ${todayStr}).
+2. Effort Estimates (estimatedHours: tasks with high effort needed near upcoming deadlines require High or Urgent priority).
+3. Unassigned Task Status: Unassigned tasks require clear 'High', 'Medium', or 'Low' priority tags so team leads can prioritize delegation.
+4. Critical Path & Dependencies (predecessor/successor links).
 
 Return a JSON array of task recommendations with these exact fields for EVERY task provided:
 - id (string): exact task ID from input
 - title (string): task title
-- suggestedPriority (string): Urgent, High, Medium, or Low
+- isUnassigned (boolean): true if task has no assigned team member
+- suggestedPriority (string): "High", "Medium", or "Low" (or "Urgent" if critical path bottleneck)
 - impactScore (number): 1 to 100 business impact score
 - suggestedOrder (number): 1-indexed rank order (1 is highest priority)
-- reasoning (string): Brief 1-2 sentence rationale based on business impact, deadlines, and dependencies
-- riskFactor (string): e.g. "Schedule Bottleneck", "Contractual Milestone", "Critical Path Blocker", or "Low Risk"
+- reasoning (string): Brief 1-2 sentence rationale explicitly citing deadline proximity and effort estimate (e.g., "Short deadline (due in 5 days) with high estimated effort (24 hours) requires High priority tag before team assignment.")
+- riskFactor (string): e.g. "Tight Deadline / High Effort", "Unassigned Blocker", "Low Effort / Flexible Schedule", or "Critical Path"
 
-Respond ONLY with valid JSON array inside a JSON codeblock or array.
+Respond ONLY with valid JSON array inside a JSON codeblock or raw array.
     `;
 
     const response = await ai.models.generateContent({
@@ -314,15 +318,24 @@ Respond ONLY with valid JSON array inside a JSON codeblock or array.
       recommendations = JSON.parse(cleaned);
     } catch (parseErr) {
       console.warn('Failed to parse direct JSON from Gemini for Smart Priority, using fallback analyzer');
-      recommendations = tasksPayload.map((t, idx) => ({
-        id: t.id,
-        title: t.title,
-        suggestedPriority: t.isCriticalPath ? 'Urgent' : t.isMilestone ? 'High' : t.currentPriority,
-        impactScore: t.isCriticalPath ? 95 : t.isMilestone ? 85 : 70 - idx * 5,
-        suggestedOrder: idx + 1,
-        reasoning: `Prioritized based on schedule proximity (${t.dueDate || 'Upcoming'}) and project milestones.`,
-        riskFactor: t.isCriticalPath ? 'Critical Path Blocker' : 'Schedule Dependency'
-      }));
+      recommendations = tasksPayload.map((t, idx) => {
+        const estH = t.estimatedHours || 10;
+        const dueDays = t.dueDate ? Math.max(1, Math.ceil((new Date(t.dueDate).getTime() - new Date(todayStr).getTime()) / 86400000)) : 10;
+        const isHighPrio = dueDays <= 7 || (dueDays <= 14 && estH >= 20) || t.isCriticalPath;
+        const isMedPrio = dueDays <= 21 || estH >= 10;
+        const priorityTag = isHighPrio ? 'High' : isMedPrio ? 'Medium' : 'Low';
+
+        return {
+          id: t.id,
+          title: t.title,
+          isUnassigned: t.isUnassigned,
+          suggestedPriority: priorityTag,
+          impactScore: isHighPrio ? 88 : isMedPrio ? 65 : 40,
+          suggestedOrder: idx + 1,
+          reasoning: `Suggested ${priorityTag} priority tag based on ${dueDays}-day deadline window and ${estH}h effort estimate.`,
+          riskFactor: isHighPrio ? 'Tight Deadline / High Effort' : 'Standard Queue'
+        };
+      });
     }
 
     return res.json({
@@ -336,20 +349,22 @@ Respond ONLY with valid JSON array inside a JSON codeblock or array.
 
     const today = new Date();
     const fallbackRecs = (req.body.tasks || []).map((t: any, idx: number) => {
+      const isUnassigned = !t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0];
+      const estH = t.estimatedHours || 10;
       const dueDays = t.dueDate ? Math.max(1, Math.ceil((new Date(t.dueDate).getTime() - today.getTime()) / 86400000)) : 10;
-      const isUrgent = dueDays <= 5 || t.isCriticalPath || t.priority === 'Urgent';
-      const isHigh = dueDays <= 12 || t.isMilestone || t.priority === 'High';
+      const isHigh = dueDays <= 7 || (dueDays <= 14 && estH >= 20) || t.isCriticalPath || t.priority === 'Urgent';
+      const isMed = dueDays <= 21 || estH >= 10;
+      const priorityTag = isHigh ? 'High' : isMed ? 'Medium' : 'Low';
 
       return {
         id: t.id,
         title: t.title,
-        suggestedPriority: isUrgent ? 'Urgent' : isHigh ? 'High' : 'Medium',
-        impactScore: isUrgent ? 92 : isHigh ? 82 : Math.max(40, 75 - idx * 4),
+        isUnassigned,
+        suggestedPriority: priorityTag,
+        impactScore: isHigh ? 90 : isMed ? 70 : 45,
         suggestedOrder: idx + 1,
-        reasoning: isUrgent
-          ? `High business impact deliverable due in ${dueDays} days. Critical path dependency.`
-          : `Scheduled task supporting project milestone deliverable.`,
-        riskFactor: isUrgent ? 'Schedule Bottleneck' : 'Low Risk'
+        reasoning: `Evaluated ${estH}h effort against deadline (${t.dueDate || 'Upcoming'}). Suggested ${priorityTag} priority tag${isUnassigned ? ' for unassigned task' : ''}.`,
+        riskFactor: isHigh ? 'Tight Deadline / High Effort' : 'Low Risk'
       };
     });
 

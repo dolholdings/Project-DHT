@@ -52,6 +52,16 @@ export const INITIAL_COMPANIES: Company[] = [
     description: 'Dolphin Heat Transfer - Ajman Fabrication Plant',
     type: 'Internal Dolphin Entity',
     isExternal: false
+  },
+  {
+    id: 'comp_dgha',
+    name: 'DGH Analytics',
+    code: 'DGHA',
+    domain: 'p.dghanalytics.com',
+    logo: '📊',
+    description: 'DGH Analytics Portal & Enterprise Business Intelligence',
+    type: 'Internal Dolphin Entity',
+    isExternal: false
   }
 ];
 

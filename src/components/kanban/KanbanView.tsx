@@ -1,17 +1,20 @@
 import React from 'react';
-import { Columns, Plus, AlertCircle, Clock, CheckCircle2, GripVertical, Move } from 'lucide-react';
+import { Columns, Plus, AlertCircle, Clock, CheckCircle2, GripVertical, Move, Printer } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useApp } from '../../context/AppContext';
-import { TaskStatus } from '../../types';
+import { TaskStatus, Task } from '../../types';
+import { TaskQuickPreviewPopover } from '../tasks/TaskQuickPreviewPopover';
+import { DolphinTooltip } from '../common/DolphinTooltip';
 
 const SafeDraggable = Draggable as React.FC<any>;
 const SafeDroppable = Droppable as React.FC<any>;
 
-
 export const KanbanView: React.FC = () => {
-  const { tasks, updateTask, users, activeCompany, selectedProjectId, theme } = useApp();
+  const { tasks, updateTask, reorderTasks, users, activeCompany, projects, selectedProjectId, theme } = useApp();
 
   const statuses: TaskStatus[] = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
+
+  const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
   const filteredTasks = tasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
@@ -29,14 +32,91 @@ export const KanbanView: React.FC = () => {
       return;
     }
 
-    const targetStatus = destination.droppableId as TaskStatus;
-    updateTask(draggableId, {
-      status: targetStatus,
+    const sourceStatus = source.droppableId as TaskStatus;
+    const destStatus = destination.droppableId as TaskStatus;
+
+    // Isolate tasks belonging to the current board filter vs other boards/spaces
+    const boardTasks = tasks.filter((t) => {
+      if (selectedProjectId && t.projectId !== selectedProjectId) return false;
+      return t.companyId === activeCompany.id;
     });
+
+    const nonBoardTasks = tasks.filter((t) => {
+      if (selectedProjectId && t.projectId !== selectedProjectId) return true;
+      return t.companyId !== activeCompany.id;
+    });
+
+    // Group current board tasks by column status
+    const colTasksMap: Record<TaskStatus, Task[]> = {
+      'Backlog': boardTasks.filter((t) => t.status === 'Backlog'),
+      'To Do': boardTasks.filter((t) => t.status === 'To Do'),
+      'In Progress': boardTasks.filter((t) => t.status === 'In Progress'),
+      'In Review': boardTasks.filter((t) => t.status === 'In Review'),
+      'Done': boardTasks.filter((t) => t.status === 'Done'),
+    };
+
+    if (sourceStatus === destStatus) {
+      // Reorder tasks within the same column
+      const sourceCol = Array.from(colTasksMap[sourceStatus] || []);
+      const [movedTask] = sourceCol.splice(source.index, 1);
+      if (movedTask) {
+        sourceCol.splice(destination.index, 0, movedTask);
+        colTasksMap[sourceStatus] = sourceCol;
+      }
+    } else {
+      // Move task across columns and place at target index
+      const sourceCol = Array.from(colTasksMap[sourceStatus] || []);
+      const [movedTask] = sourceCol.splice(source.index, 1);
+      if (movedTask) {
+        const updatedMovedTask: Task = {
+          ...movedTask,
+          status: destStatus,
+          updatedAt: new Date().toISOString(),
+        };
+        const destCol = Array.from(colTasksMap[destStatus] || []);
+        destCol.splice(destination.index, 0, updatedMovedTask);
+
+        colTasksMap[sourceStatus] = sourceCol;
+        colTasksMap[destStatus] = destCol;
+
+        // Trigger side effects (activity log, notifications, automations, firestore sync)
+        updateTask(draggableId, { status: destStatus });
+      }
+    }
+
+    // Reconstruct full ordered tasks list
+    const newBoardTasks = statuses.flatMap((s) => colTasksMap[s] || []);
+    const newTasks = [...nonBoardTasks, ...newBoardTasks];
+
+    reorderTasks(newTasks);
   };
 
   return (
-    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in kanban-print-wrapper ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
+      {/* Executive Print Report Header for A4 Landscape PDF Export */}
+      <div className="hidden print:block mb-6 p-5 border-b-2 border-slate-900 bg-white text-slate-900 rounded-none print-executive-header">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-xs font-mono font-bold tracking-wider text-slate-600 uppercase">
+              {activeCompany?.name || 'DOLPHIN INDUSTRIAL PROJECTS'} — KANBAN WORKFLOW REPORT
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mt-1">
+              Agile Task Stage Matrix & Work-In-Progress Board
+            </h1>
+            <p className="text-xs text-slate-600 mt-1">
+              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{activeProject?.manager}</span>
+            </p>
+          </div>
+          <div className="text-right font-mono text-xs text-slate-600 space-y-1">
+            <div><span className="font-semibold text-slate-700">Generated:</span> {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            <div><span className="font-semibold text-slate-700">Format:</span> A4 Executive Landscape</div>
+            <div className="px-2.5 py-1 rounded border border-slate-400 bg-slate-100 text-slate-800 font-bold inline-block mt-1 text-[10px] tracking-wider uppercase">
+              OFFICIAL WORKFLOW RECORD
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -45,33 +125,51 @@ export const KanbanView: React.FC = () => {
             <span>Agile Kanban Board</span>
           </h1>
           <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-            Seamless drag-and-drop workflow columns for effortless task stage transitions.
+            Seamless drag-and-drop workflow columns for effortless task stage transitions and reordering.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-[#0773BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-mono flex items-center gap-1.5">
-            <Move className="w-3.5 h-3.5 text-[#3BC0BB]" />
-            <span>Drag & Drop Enabled</span>
-          </span>
+        <div className="flex items-center gap-2 no-print">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 border border-slate-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            title="Export formatted A4 Landscape Executive Report PDF"
+          >
+            <Printer className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Print Executive PDF (A4)</span>
+          </button>
+
+          <DolphinTooltip
+            title="Interactive Reordering"
+            badge="Drag & Drop"
+            content="Drag any task card up or down to reorder priority within a column, or drag between columns to change status."
+            position="bottom"
+            variant="glass"
+          >
+            <span className="px-3 py-1 rounded-full bg-[#0773BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-mono flex items-center gap-1.5 cursor-help">
+              <Move className="w-3.5 h-3.5 text-[#3BC0BB]" />
+              <span>Drag & Drop Reordering Enabled</span>
+            </span>
+          </DolphinTooltip>
         </div>
       </div>
 
       {/* Kanban Drag and Drop Context */}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4 kanban-board-grid">
           {statuses.map((status) => {
             const colTasks = filteredTasks.filter((t) => t.status === status);
 
             return (
               <div
                 key={status}
-                className={`p-4 rounded-2xl border flex flex-col h-[680px] space-y-3 shadow-md ${
+                className={`p-4 rounded-2xl border flex flex-col h-[680px] space-y-3 shadow-md kanban-column ${
                   theme === 'light' ? 'bg-slate-100/90 border-slate-200' : 'bg-[#16222F]/80 backdrop-blur-md border-[#233549]'
                 }`}
               >
                 {/* Column Header */}
-                <div className={`flex items-center justify-between border-b pb-3 ${
+                <div className={`flex items-center justify-between border-b pb-3 kanban-column-header ${
                   theme === 'light' ? 'border-slate-300' : 'border-[#233549]'
                 }`}>
                   <div className="flex items-center gap-2">
@@ -86,13 +184,13 @@ export const KanbanView: React.FC = () => {
                           : 'bg-slate-500'
                       }`}
                     ></span>
-                    <h3 className={`text-xs font-bold uppercase tracking-wider ${
+                    <h3 className={`text-xs font-bold uppercase tracking-wider kanban-column-title ${
                       theme === 'light' ? 'text-slate-900' : 'text-white'
                     }`}>
                       {status}
                     </h3>
                   </div>
-                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border ${
+                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border kanban-column-badge ${
                     theme === 'light' ? 'bg-white text-[#0D9488] border-slate-300' : 'bg-[#0D1520] text-[#3BC0BB] border-[#233549]'
                   }`}>
                     {colTasks.length}
@@ -105,7 +203,7 @@ export const KanbanView: React.FC = () => {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex-1 overflow-y-auto space-y-3 pr-1 rounded-xl transition-colors p-1 ${
+                      className={`flex-1 overflow-y-auto space-y-3 pr-1 rounded-xl transition-colors p-1 kanban-column-droppable ${
                         snapshot.isDraggingOver
                           ? theme === 'light'
                             ? 'bg-[#0773BB]/10 ring-2 ring-[#0773BB]/40'
@@ -122,7 +220,7 @@ export const KanbanView: React.FC = () => {
                               <div
                                 ref={draggableProvided.innerRef}
                                 {...draggableProvided.draggableProps}
-                                className={`p-4 rounded-xl border transition-all space-y-3 group shadow-md ${
+                                className={`p-4 rounded-xl border transition-all space-y-3 group shadow-md kanban-task-card ${
                                   draggableSnapshot.isDragging
                                     ? 'bg-[#0773BB]/95 border-[#3BC0BB] text-white shadow-2xl scale-105 ring-2 ring-[#3BC0BB] z-50'
                                     : theme === 'light'
@@ -132,13 +230,20 @@ export const KanbanView: React.FC = () => {
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
-                                    <div
-                                      {...draggableProvided.dragHandleProps}
-                                      className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-white p-0.5 rounded hover:bg-[#233549] transition-colors"
-                                      title="Drag to move column"
+                                    <DolphinTooltip
+                                      title="Reorder Task"
+                                      badge="Priority Drag"
+                                      content="Drag vertically to reorder task priority, or drop into a different column to transition workflow status."
+                                      position="top"
+                                      variant="glass"
                                     >
-                                      <GripVertical className="w-4 h-4" />
-                                    </div>
+                                      <div
+                                        {...draggableProvided.dragHandleProps}
+                                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-white p-0.5 rounded hover:bg-[#233549] transition-colors drag-handle no-print"
+                                      >
+                                        <GripVertical className="w-4 h-4" />
+                                      </div>
+                                    </DolphinTooltip>
                                     <span
                                       className={`text-[9px] font-bold px-2 py-0.5 rounded ${
                                         task.priority === 'Urgent'
@@ -159,7 +264,7 @@ export const KanbanView: React.FC = () => {
                                         status: e.target.value as TaskStatus,
                                       })
                                     }
-                                    className={`text-[10px] rounded border px-1.5 py-0.5 ${
+                                    className={`text-[10px] rounded border px-1.5 py-0.5 no-print ${
                                       theme === 'light'
                                         ? 'bg-slate-50 border-slate-300 text-slate-800'
                                         : 'bg-[#16222F] border-[#233549] text-slate-300'
@@ -173,27 +278,29 @@ export const KanbanView: React.FC = () => {
                                   </select>
                                 </div>
 
-                                <h4 className={`text-xs font-bold transition-colors ${
-                                  draggableSnapshot.isDragging
-                                    ? 'text-white'
-                                    : theme === 'light'
-                                    ? 'text-slate-900 group-hover:text-[#0D9488]'
-                                    : 'text-white group-hover:text-[#3BC0BB]'
-                                }`}>
-                                  {task.title}
-                                </h4>
+                                <TaskQuickPreviewPopover task={task}>
+                                  <h4 className={`text-xs font-bold transition-colors cursor-pointer kanban-task-title ${
+                                    draggableSnapshot.isDragging
+                                      ? 'text-white'
+                                      : theme === 'light'
+                                      ? 'text-slate-900 group-hover:text-[#0D9488]'
+                                      : 'text-white group-hover:text-[#3BC0BB]'
+                                  }`}>
+                                    {task.title}
+                                  </h4>
 
-                                <p className={`text-[11px] line-clamp-2 ${
-                                  draggableSnapshot.isDragging
-                                    ? 'text-slate-100'
-                                    : theme === 'light'
-                                    ? 'text-slate-600'
-                                    : 'text-slate-400'
-                                }`}>
-                                  {task.description}
-                                </p>
+                                  <p className={`text-[11px] line-clamp-2 mt-1 cursor-pointer kanban-task-desc ${
+                                    draggableSnapshot.isDragging
+                                      ? 'text-slate-100'
+                                      : theme === 'light'
+                                      ? 'text-slate-600'
+                                      : 'text-slate-400'
+                                  }`}>
+                                    {task.description}
+                                  </p>
+                                </TaskQuickPreviewPopover>
 
-                                <div className={`flex items-center justify-between pt-2 border-t text-[10px] font-mono ${
+                                <div className={`flex items-center justify-between pt-2 border-t text-[10px] font-mono kanban-task-footer ${
                                   draggableSnapshot.isDragging
                                     ? 'border-white/20 text-slate-200'
                                     : theme === 'light'
@@ -208,6 +315,9 @@ export const KanbanView: React.FC = () => {
                                         className="w-5 h-5 rounded-full object-cover ring-1 ring-[#0773BB] shrink-0"
                                       />
                                     )}
+                                    <span className="hidden print:inline-block font-sans text-[10px] font-semibold text-slate-800">
+                                      {assignee ? assignee.name : 'Unassigned'}
+                                    </span>
                                     <select
                                       value={task.assigneeIds[0] || ''}
                                       onChange={(e) => {
@@ -216,7 +326,7 @@ export const KanbanView: React.FC = () => {
                                           updateTask(task.id, { assigneeIds: [val] });
                                         }
                                       }}
-                                      className="bg-[#16222F] text-[10px] text-slate-300 rounded border border-[#233549] px-1 py-0.5 focus:outline-none focus:border-[#3BC0BB]"
+                                      className="bg-[#16222F] text-[10px] text-slate-300 rounded border border-[#233549] px-1 py-0.5 focus:outline-none focus:border-[#3BC0BB] no-print"
                                     >
                                       <option value="">Unassigned</option>
                                       {users.map((u) => (
@@ -246,4 +356,3 @@ export const KanbanView: React.FC = () => {
     </div>
   );
 };
-

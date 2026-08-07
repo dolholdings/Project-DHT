@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CheckSquare,
   Plus,
@@ -46,6 +46,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
 import { calculatePriorityScore } from '../../lib/priorityScore';
+import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 
 export const TasksView: React.FC = () => {
   const {
@@ -71,6 +72,8 @@ export const TasksView: React.FC = () => {
     searchQuery,
     theme
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [inProgressOpen, setInProgressOpen] = useState(true);
@@ -122,23 +125,35 @@ export const TasksView: React.FC = () => {
   }>>([]);
   const [smartPriorityToast, setSmartPriorityToast] = useState<string | null>(null);
   const [sortBySmartPriority, setSortBySmartPriority] = useState(false);
+  const [singleAnalyzingTaskId, setSingleAnalyzingTaskId] = useState<string | null>(null);
+  const [filterUnassignedModal, setFilterUnassignedModal] = useState(false);
 
-  const handleOpenSmartPriorityModal = async () => {
+  // Unassigned tasks helper
+  const unassignedTasks = useMemo(() => {
+    return tasks.filter((t) => !t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0]);
+  }, [tasks]);
+
+  const handleOpenSmartPriorityModal = async (unassignedOnly = false) => {
     setShowSmartPriorityModal(true);
     setIsAnalyzingPriority(true);
+    setFilterUnassignedModal(unassignedOnly);
     setPriorityRecommendations([]);
 
     const currentProject = projects.find((p) => p.id === (selectedProjectId || projects[0]?.id));
-    const tasksToAnalyze = filteredTasks.length > 0 ? filteredTasks : tasks;
+    const baseTasks = filteredTasks.length > 0 ? filteredTasks : tasks;
+    const tasksToAnalyze = unassignedOnly
+      ? baseTasks.filter((t) => !t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0])
+      : baseTasks;
 
     try {
       const res = await fetch('/api/ai/smart-priority', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectTitle: currentProject?.title || 'Dolphin Group Project',
-          projectScope: currentProject?.description || 'Industrial Fabrication & Heat Transfer Engineering',
-          tasks: tasksToAnalyze
+          projectTitle: currentProject?.title || 'Dolphin Group Scope',
+          projectScope: currentProject?.description || 'Industrial Fabrication & DEWA Quality Audit',
+          tasks: tasksToAnalyze,
+          unassignedOnly
         })
       });
 
@@ -155,28 +170,79 @@ export const TasksView: React.FC = () => {
     } catch (err: any) {
       if (err?.name === 'AbortError') return;
       console.warn('Smart Priority API fallback active:', err?.message || err);
-      const fallbackRecs = tasksToAnalyze.map((t, idx) => ({
-        id: t.id,
-        title: t.title,
-        suggestedPriority: t.priority === 'Urgent' ? 'Urgent' : t.isMilestone ? 'High' : 'Medium',
-        impactScore: t.priority === 'Urgent' ? 95 : Math.max(30, 80 - idx * 4),
-        suggestedOrder: idx + 1,
-        reasoning: 'Prioritized based on schedule proximity and milestone commitments.',
-        riskFactor: t.priority === 'Urgent' ? 'Schedule Bottleneck' : 'Low Risk'
-      }));
+      const fallbackRecs = tasksToAnalyze.map((t, idx) => {
+        const estH = t.estimatedHours || 10;
+        const dueDays = t.dueDate ? Math.max(1, Math.ceil((new Date(t.dueDate).getTime() - Date.now()) / 86400000)) : 10;
+        const priorityTag = (dueDays <= 7 || estH >= 20) ? 'High' : (dueDays <= 14 || estH >= 10) ? 'Medium' : 'Low';
+
+        return {
+          id: t.id,
+          title: t.title,
+          isUnassigned: !t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0],
+          suggestedPriority: priorityTag,
+          impactScore: priorityTag === 'High' ? 88 : priorityTag === 'Medium' ? 65 : 40,
+          suggestedOrder: idx + 1,
+          reasoning: `Evaluated ${estH}h effort estimate against due date (${t.dueDate || 'Upcoming'}). Suggested '${priorityTag}' priority tag.`,
+          riskFactor: priorityTag === 'High' ? 'Tight Deadline / High Effort' : 'Low Risk'
+        };
+      });
       setPriorityRecommendations(fallbackRecs);
     } finally {
       setIsAnalyzingPriority(false);
     }
   };
 
-  const handleApplySmartPriorities = () => {
+  const handleSingleTaskSmartPriority = async (task: Task) => {
+    setSingleAnalyzingTaskId(task.id);
+    try {
+      const currentProject = projects.find((p) => p.id === (selectedProjectId || projects[0]?.id));
+      const res = await fetch('/api/ai/smart-priority', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectTitle: currentProject?.title || 'Dolphin Group Scope',
+          projectScope: currentProject?.description || 'Dolphin Global Enterprise Project',
+          tasks: [task]
+        })
+      });
+
+      let suggestedTag = 'Medium';
+      if (res.ok) {
+        const data = await res.json();
+        const rec = data.recommendations?.[0];
+        if (rec && rec.suggestedPriority) {
+          suggestedTag = rec.suggestedPriority;
+        }
+      } else {
+        const estH = task.estimatedHours || 10;
+        const dueDays = task.dueDate ? Math.max(1, Math.ceil((new Date(task.dueDate).getTime() - Date.now()) / 86400000)) : 10;
+        suggestedTag = (dueDays <= 7 || estH >= 20) ? 'High' : (dueDays <= 14 || estH >= 10) ? 'Medium' : 'Low';
+      }
+
+      updateTask(task.id, { priority: suggestedTag as Priority });
+      setSmartPriorityToast(`Gemini AI evaluated deadline (${task.dueDate || 'Upcoming'}) & ${task.estimatedHours || 10}h effort: Auto-tagged as '${suggestedTag}' priority.`);
+      setTimeout(() => setSmartPriorityToast(null), 5000);
+    } catch (e) {
+      const estH = task.estimatedHours || 10;
+      const dueDays = task.dueDate ? Math.max(1, Math.ceil((new Date(task.dueDate).getTime() - Date.now()) / 86400000)) : 10;
+      const suggestedTag = (dueDays <= 7 || estH >= 20) ? 'High' : (dueDays <= 14 || estH >= 10) ? 'Medium' : 'Low';
+      updateTask(task.id, { priority: suggestedTag as Priority });
+      setSmartPriorityToast(`Evaluated deadline & effort estimate: Auto-tagged task as '${suggestedTag}' priority.`);
+      setTimeout(() => setSmartPriorityToast(null), 5000);
+    } finally {
+      setSingleAnalyzingTaskId(null);
+    }
+  };
+
+  const handleApplySmartPriorities = (unassignedOnly = false) => {
     if (priorityRecommendations.length === 0) return;
 
     let appliedCount = 0;
     priorityRecommendations.forEach((rec) => {
       const existing = tasks.find((t) => t.id === rec.id);
-      if (existing) {
+      const isUnassigned = existing && (!existing.assigneeIds || existing.assigneeIds.length === 0 || !existing.assigneeIds[0]);
+
+      if (existing && (!unassignedOnly || isUnassigned)) {
         updateTask(rec.id, {
           priority: rec.suggestedPriority as Priority,
         });
@@ -185,7 +251,11 @@ export const TasksView: React.FC = () => {
     });
 
     setSortBySmartPriority(true);
-    setSmartPriorityToast(`Successfully reordered & updated priorities for ${appliedCount} tasks based on business impact and dependencies!`);
+    setSmartPriorityToast(
+      unassignedOnly
+        ? `Successfully applied Gemini High/Medium/Low priority tags to ${appliedCount} unassigned tasks based on deadlines & effort estimates!`
+        : `Successfully reordered & updated priorities for ${appliedCount} tasks based on business impact and dependencies!`
+    );
     setShowSmartPriorityModal(false);
     setTimeout(() => setSmartPriorityToast(null), 5000);
   };
@@ -442,11 +512,25 @@ export const TasksView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
             type="button"
-            onClick={handleOpenSmartPriorityModal}
+            onClick={() => handleOpenSmartPriorityModal(false)}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20 active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
+            title="Analyze deadlines, effort estimates, and critical path to reorder all tasks"
           >
-            <Sparkles className="w-4 h-4 fill-current text-white" />
+            <Sparkles className="w-4 h-4 fill-current text-white animate-pulse" />
             <span>AI Smart Priority</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenSmartPriorityModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-amber-600/20 active:scale-95 border border-amber-400/40 whitespace-nowrap"
+            title="Use Gemini to analyze deadlines and effort estimates to tag unassigned tasks High/Medium/Low"
+          >
+            <Sparkles className="w-4 h-4 text-amber-200 fill-current" />
+            <span>Smart Priority (Unassigned)</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-black/30 text-amber-100 text-[10px] font-mono font-extrabold">
+              {unassignedTasks.length}
+            </span>
           </button>
 
           <button
@@ -547,8 +631,10 @@ export const TasksView: React.FC = () => {
             {/* Task Table */}
             {inProgressOpen && (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-[#0D1520]/40 text-slate-400 font-semibold uppercase tracking-wider border-b border-[#233549]/40 text-[10px]">
+                <table className={`w-full text-left text-xs ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
+                  <thead className={`font-semibold uppercase tracking-wider border-b text-[10px] ${
+                    isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-[#0D1520]/40 text-slate-400 border-[#233549]/40'
+                  }`}>
                     <tr>
                       <th className="p-3 pl-6">Name</th>
                       <th className="p-3">Assignee</th>
@@ -558,7 +644,7 @@ export const TasksView: React.FC = () => {
                       <th className="p-3 text-center">Timer</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#233549]/40 font-medium">
+                  <tbody className={`divide-y font-medium ${isLight ? 'divide-slate-200' : 'divide-[#233549]/40'}`}>
                     {inProgressTasks.map((t) => {
                       const assignee = users.find((u) => t.assigneeIds.includes(u.id));
                       const isTimerRunning = timer.active && timer.taskId === t.id;
@@ -569,8 +655,10 @@ export const TasksView: React.FC = () => {
                         <tr
                           key={t.id}
                           onClick={() => setSelectedTaskId(t.id)}
-                          className={`hover:bg-[#16222F]/80 transition-colors cursor-pointer ${
-                            isSelected ? 'bg-[#7B68EE]/10 border-l-4 border-l-[#7B68EE]' : ''
+                          className={`transition-colors cursor-pointer ${
+                            isLight ? 'hover:bg-slate-50' : 'hover:bg-[#16222F]/80'
+                          } ${
+                            isSelected ? (isLight ? 'bg-indigo-50/80 border-l-4 border-l-[#7B68EE]' : 'bg-[#7B68EE]/10 border-l-4 border-l-[#7B68EE]') : ''
                           }`}
                         >
                           <td className="p-3 pl-6">
@@ -580,12 +668,16 @@ export const TasksView: React.FC = () => {
                                   e.stopPropagation();
                                   updateTask(t.id, { status: 'Done' });
                                 }}
-                                className="w-4 h-4 rounded-full border-2 border-[#7B68EE] hover:bg-[#7B68EE] transition-all shrink-0"
+                                className="w-4 h-4 rounded-full border-2 border-[#7B68EE] hover:bg-[#7B68EE] transition-all shrink-0 cursor-pointer"
                                 title="Click to complete task"
                               />
-                              <span className="font-bold text-slate-100 hover:text-[#7B68EE] transition-colors">
-                                {t.title}
-                              </span>
+                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
+                                <span className={`font-bold transition-colors cursor-pointer ${
+                                  isLight ? 'text-slate-900 hover:text-[#0773BB]' : 'text-slate-100 hover:text-[#7B68EE]'
+                                }`}>
+                                  {t.title}
+                                </span>
+                              </TaskQuickPreviewPopover>
                               {t.recurrence && t.recurrence.type !== 'none' && (
                                 <span
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
@@ -600,13 +692,17 @@ export const TasksView: React.FC = () => {
                           </td>
 
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
-                              {assignee && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {assignee ? (
                                 <img
                                   src={assignee.avatar}
                                   alt={assignee.name}
                                   className="w-6 h-6 rounded-full object-cover ring-1 ring-[#7B68EE] shrink-0"
                                 />
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                  Unassigned
+                                </span>
                               )}
                               <select
                                 value={t.assigneeIds[0] || ''}
@@ -625,6 +721,18 @@ export const TasksView: React.FC = () => {
                                   </option>
                                 ))}
                               </select>
+                              {(!t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0]) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSingleTaskSmartPriority(t)}
+                                  disabled={singleAnalyzingTaskId === t.id}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
+                                  title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
+                                >
+                                  <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
+                                  <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
+                                </button>
+                              )}
                             </div>
                           </td>
 
@@ -796,11 +904,13 @@ export const TasksView: React.FC = () => {
                                 className="w-4 h-4 rounded-full border-2 border-slate-400 hover:border-[#7B68EE] transition-all shrink-0"
                                 title="Click to set In Progress"
                               />
-                              <span className={`font-medium transition-colors ${
-                                theme === 'light' ? 'text-slate-800 hover:text-teal-700' : 'text-slate-200 hover:text-white'
-                              }`}>
-                                {t.title}
-                              </span>
+                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
+                                <span className={`font-medium transition-colors cursor-pointer ${
+                                  theme === 'light' ? 'text-slate-800 hover:text-teal-700' : 'text-slate-200 hover:text-white'
+                                }`}>
+                                  {t.title}
+                                </span>
+                              </TaskQuickPreviewPopover>
                               {t.recurrence && t.recurrence.type !== 'none' && (
                                 <span
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
@@ -815,22 +925,38 @@ export const TasksView: React.FC = () => {
                           </td>
 
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               {assignee ? (
-                                <img
-                                  src={assignee.avatar}
-                                  alt={assignee.name}
-                                  className="w-6 h-6 rounded-full object-cover ring-1 ring-[#0773BB]"
-                                  title={assignee.name}
-                                />
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <img
+                                    src={assignee.avatar}
+                                    alt={assignee.name}
+                                    className="w-6 h-6 rounded-full object-cover ring-1 ring-[#0773BB] shrink-0"
+                                    title={assignee.name}
+                                  />
+                                  <span className={`font-mono text-[11px] truncate max-w-[100px] ${
+                                    theme === 'light' ? 'text-slate-700' : 'text-slate-300'
+                                  }`}>
+                                    {assignee.name}
+                                  </span>
+                                </div>
                               ) : (
-                                <UserIcon className="w-5 h-5 text-slate-400" />
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                                    Unassigned
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSingleTaskSmartPriority(t)}
+                                    disabled={singleAnalyzingTaskId === t.id}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
+                                    title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
+                                  >
+                                    <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
+                                    <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
+                                  </button>
+                                </div>
                               )}
-                              <span className={`font-mono text-[11px] truncate max-w-[100px] ${
-                                theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                              }`}>
-                                {assignee?.name || 'Unassigned'}
-                              </span>
                             </div>
                           </td>
 
@@ -964,7 +1090,9 @@ export const TasksView: React.FC = () => {
                         >
                           <td className="p-3 pl-6 text-slate-400 font-medium">
                             <div className="flex items-center gap-2">
-                              <span className="line-through">{t.title}</span>
+                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
+                                <span className="line-through cursor-pointer hover:text-slate-200">{t.title}</span>
+                              </TaskQuickPreviewPopover>
                               {renderDependencyIndicators(t)}
                             </div>
                           </td>
@@ -1528,36 +1656,44 @@ export const TasksView: React.FC = () => {
       {/* Modal: Create Task */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[#233549] pb-3">
+          <div className={`border rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-slate-100'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isLight ? 'border-slate-200' : 'border-[#233549]'
+            }`}>
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-[#7B68EE]" />
-                <h2 className="text-base font-bold text-white">Create New ClickUp Task</h2>
+                <h2 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Create New ClickUp Task</h2>
               </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowCreateModal(false)} className={`${isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'}`}>
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateTask} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Task Title *</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Task Title *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g., Dolphin Catalogue (Light Duty & Heavy Duty)"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#7B68EE]"
+                  className={`w-full rounded-xl px-3 py-2 focus:outline-none focus:border-[#7B68EE] border ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Space / Project *</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Space / Project *</label>
                 <select
                   value={newProjectId}
                   onChange={(e) => setNewProjectId(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-medium"
+                  className={`w-full rounded-xl px-3 py-2 font-medium border ${
+                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1568,8 +1704,10 @@ export const TasksView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Assign Team Members *</label>
-                <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 bg-[#0D1520] border border-[#233549] rounded-xl">
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Assign Team Members *</label>
+                <div className={`grid grid-cols-2 gap-2 max-h-32 overflow-y-auto p-2 border rounded-xl ${
+                  isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
+                }`}>
                   {users.map((u) => {
                     const isSelected = selectedAssigneeIds.includes(u.id);
                     return (
@@ -1579,8 +1717,8 @@ export const TasksView: React.FC = () => {
                         onClick={() => toggleAssignee(u.id)}
                         className={`flex items-center gap-2 p-1.5 rounded-lg border text-left transition-all ${
                           isSelected
-                            ? 'bg-[#7B68EE]/20 border-[#7B68EE] text-white font-bold'
-                            : 'bg-[#16222F]/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#16222F]'
+                            ? (isLight ? 'bg-indigo-100 border-[#7B68EE] text-slate-900 font-bold' : 'bg-[#7B68EE]/20 border-[#7B68EE] text-white font-bold')
+                            : (isLight ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100' : 'bg-[#16222F]/50 border-transparent text-slate-400 hover:text-slate-200 hover:bg-[#16222F]')
                         }`}
                       >
                         <img
@@ -1590,7 +1728,7 @@ export const TasksView: React.FC = () => {
                         />
                         <div className="truncate min-w-0">
                           <div className="text-[11px] truncate">{u.name}</div>
-                          <div className="text-[9px] text-slate-500 truncate">{u.department}</div>
+                          <div className={`text-[9px] truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{u.department}</div>
                         </div>
                       </button>
                     );
@@ -1600,11 +1738,13 @@ export const TasksView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Priority</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Priority</label>
                   <select
                     value={newPriority}
                     onChange={(e) => setNewPriority(e.target.value as Priority)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-medium"
+                    className={`w-full rounded-xl px-3 py-2 font-medium border ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   >
                     <option value="Urgent">Urgent</option>
                     <option value="High">High</option>
@@ -1614,12 +1754,14 @@ export const TasksView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Due Date</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Due Date</label>
                   <input
                     type="date"
                     value={newDueDate}
                     onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono"
+                    className={`w-full rounded-xl px-3 py-2 font-mono border ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   />
                 </div>
               </div>
@@ -1866,21 +2008,25 @@ export const TasksView: React.FC = () => {
       {/* GEMINI AI SMART PRIORITY OPTIMIZATION MODAL */}
       {showSmartPriorityModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-4xl p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+          <div className={`border rounded-2xl w-full max-w-4xl p-6 space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto ${
+            isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+          }`}>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-[#233549] pb-4">
-              <div className="flex items-center gap-3 text-white font-bold">
+            <div className={`flex items-center justify-between border-b pb-4 ${
+              isLight ? 'border-slate-200' : 'border-[#233549]'
+            }`}>
+              <div className="flex items-center gap-3 font-bold">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] flex items-center justify-center text-white shadow-lg shadow-[#0773BB]/30">
                   <Sparkles className="w-6 h-6 fill-current" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     <span>AI Smart Priority Task Reordering Engine</span>
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-mono">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-mono">
                       @google/genai v3.6
                     </span>
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                     Evaluates project scope, business impact, critical path blockers, and upcoming deadlines to suggest optimal task prioritization.
                   </p>
                 </div>
@@ -1888,24 +2034,56 @@ export const TasksView: React.FC = () => {
 
               <button
                 onClick={() => setShowSmartPriorityModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#233549]"
+                className={`p-1 rounded-lg ${isLight ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-[#233549]'}`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Scope info bar */}
-            <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] flex flex-wrap items-center justify-between gap-3 text-xs">
+            {/* Scope info & Filter bar */}
+            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 text-xs ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#3BC0BB]" />
-                <span className="text-slate-400">Active Scope Context:</span>
-                <span className="font-bold text-white">
+                <span className={isLight ? 'text-slate-600' : 'text-slate-400'}>Active Scope:</span>
+                <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   {projects.find((p) => p.id === selectedProjectId)?.title || 'All Projects Scope'}
                 </span>
               </div>
+
+              {/* Filter mode switcher */}
+              <div className={`flex items-center gap-1.5 p-1 rounded-xl border ${
+                isLight ? 'bg-white border-slate-300' : 'bg-[#16222F] border-[#233549]'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => handleOpenSmartPriorityModal(false)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    !filterUnassignedModal
+                      ? 'bg-[#0773BB] text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  All Tasks ({filteredTasks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenSmartPriorityModal(true)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    filterUnassignedModal
+                      ? 'bg-amber-600 text-white shadow-md'
+                      : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>Unassigned Only ({unassignedTasks.length})</span>
+                </button>
+              </div>
+
               <div className="flex items-center gap-2 font-mono text-[11px] text-[#3BC0BB]">
                 <Clock className="w-3.5 h-3.5" />
-                <span>Targeting {filteredTasks.length} Active Tasks</span>
+                <span>Evaluating {priorityRecommendations.length || filteredTasks.length} Tasks</span>
               </div>
             </div>
 
@@ -1916,10 +2094,10 @@ export const TasksView: React.FC = () => {
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-white flex items-center justify-center gap-2">
                     <Sparkles className="w-4 h-4 text-[#3BC0BB] animate-pulse" />
-                    <span>Gemini AI Analyzing Business Impact & Critical Path...</span>
+                    <span>Gemini AI Analyzing Deadlines & Effort Estimates...</span>
                   </h4>
                   <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Calculating schedule risks, predecessor dependencies, client milestones, and revenue impact to generate optimal task ordering.
+                    Evaluating task due dates, estimated hours, critical path dependencies, and unassigned status to suggest optimal High/Medium/Low priority tags.
                   </p>
                 </div>
               </div>
@@ -1929,11 +2107,16 @@ export const TasksView: React.FC = () => {
                 <div className="p-4 rounded-xl bg-gradient-to-r from-[#0773BB]/20 to-[#3BC0BB]/20 border border-[#3BC0BB]/40 text-slate-200 text-xs flex items-start gap-3 shadow-md">
                   <TrendingUp className="w-5 h-5 text-[#3BC0BB] shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <span className="font-bold text-white block">
-                      AI Priority Optimization Complete
+                    <span className="font-bold text-white flex items-center gap-2">
+                      <span>Gemini Smart Priority Analysis Complete</span>
+                      {filterUnassignedModal && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono">
+                          Unassigned Focus Mode
+                        </span>
+                      )}
                     </span>
                     <p className="text-slate-300 text-[11px] leading-relaxed">
-                      Tasks have been ranked by calculated business impact, critical path bottlenecks, and deadline urgency. Tasks with active predecessor dependencies or upcoming audit dates are elevated.
+                      Tasks analyzed using lightweight Gemini prompt evaluating deadline urgency against estimated effort (hours). Unassigned tasks are highlighted with recommended High/Medium/Low priority tags prior to team delegation.
                     </p>
                   </div>
                 </div>
@@ -1945,19 +2128,18 @@ export const TasksView: React.FC = () => {
                       <tr>
                         <th className="p-3 pl-4">Suggested Rank</th>
                         <th className="p-3">Task Deliverable</th>
-                        <th className="p-3 text-center">Impact Score</th>
-                        <th className="p-3 text-center">Priority Level</th>
-                        <th className="p-3">Risk Factor</th>
-                        <th className="p-3">AI Business Rationale</th>
+                        <th className="p-3 text-center font-mono">Assignee Status</th>
+                        <th className="p-3 text-center">Suggested Priority Tag</th>
+                        <th className="p-3">Risk & Effort Rationale</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#233549]">
                       {priorityRecommendations.map((rec, idx) => {
                         const originalTask = tasks.find((t) => t.id === rec.id);
-                        const isRank1 = idx === 0;
+                        const isUnassignedTask = originalTask && (!originalTask.assigneeIds || originalTask.assigneeIds.length === 0 || !originalTask.assigneeIds[0]);
 
                         return (
-                          <tr key={rec.id || idx} className={`hover:bg-[#16222F]/60 transition-colors ${isRank1 ? 'bg-[#0773BB]/10' : ''}`}>
+                          <tr key={rec.id || idx} className={`hover:bg-[#16222F]/60 transition-colors ${idx === 0 ? 'bg-[#0773BB]/10' : ''}`}>
                             <td className="p-3 pl-4 font-mono font-bold">
                               <div className="flex items-center gap-2">
                                 <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold ${
@@ -1976,17 +2158,23 @@ export const TasksView: React.FC = () => {
 
                             <td className="p-3">
                               <div className="font-bold text-white text-xs">{rec.title}</div>
-                              {originalTask?.dueDate && (
-                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                  Due: {originalTask.dueDate}
-                                </div>
-                              )}
+                              <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
+                                <span>Due: {originalTask?.dueDate || 'Upcoming'}</span>
+                                <span>•</span>
+                                <span className="text-[#3BC0BB] font-bold">Est: {originalTask?.estimatedHours || 10}h</span>
+                              </div>
                             </td>
 
-                            <td className="p-3 text-center font-mono">
-                              <span className="px-2 py-0.5 rounded-full bg-[#0773BB]/30 text-[#3BC0BB] font-bold text-xs border border-[#0773BB]/50">
-                                {rec.impactScore || 85} / 100
-                              </span>
+                            <td className="p-3 text-center">
+                              {isUnassignedTask ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                                  Unassigned
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300">
+                                  Assigned
+                                </span>
+                              )}
                             </td>
 
                             <td className="p-3 text-center">
@@ -1996,6 +2184,8 @@ export const TasksView: React.FC = () => {
                                     ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                                     : rec.suggestedPriority === 'High'
                                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : rec.suggestedPriority === 'Medium'
+                                    ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
                                     : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                                 }`}>
                                   {rec.suggestedPriority}
@@ -2008,15 +2198,14 @@ export const TasksView: React.FC = () => {
                               </div>
                             </td>
 
-                            <td className="p-3">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
-                                <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
-                                <span>{rec.riskFactor || 'Schedule Bottleneck'}</span>
-                              </span>
-                            </td>
-
-                            <td className="p-3 text-slate-300 text-[11px] leading-relaxed max-w-xs">
-                              {rec.reasoning || 'Prioritized based on critical path dependencies and client delivery milestone.'}
+                            <td className="p-3 text-slate-300 text-[11px] leading-relaxed max-w-sm">
+                              <div className="space-y-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
+                                  <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
+                                  <span>{rec.riskFactor || 'Tight Deadline / High Effort'}</span>
+                                </span>
+                                <p className="text-slate-300">{rec.reasoning}</p>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -2029,10 +2218,10 @@ export const TasksView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-[#233549]">
                   <div className="flex items-center gap-2 text-xs text-slate-400">
                     <CheckCircle2 className="w-4 h-4 text-[#3BC0BB]" />
-                    <span>Applying will automatically update task priorities & enable AI reordering in TasksView.</span>
+                    <span>Applying will automatically update task priorities in TasksView.</span>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
                       onClick={() => setShowSmartPriorityModal(false)}
@@ -2040,13 +2229,23 @@ export const TasksView: React.FC = () => {
                     >
                       Cancel
                     </button>
+                    {unassignedTasks.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleApplySmartPriorities(true)}
+                        className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:brightness-110 transition-all border border-amber-400/40"
+                      >
+                        <Sparkles className="w-4 h-4 fill-current text-amber-200" />
+                        <span>Tag Unassigned Tasks Only</span>
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={handleApplySmartPriorities}
+                      onClick={() => handleApplySmartPriorities(false)}
                       className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:brightness-110 transition-all"
                     >
                       <Sparkles className="w-4 h-4 fill-current" />
-                      <span>Apply AI Priority Reordering ({priorityRecommendations.length} Tasks)</span>
+                      <span>Apply All AI Priorities ({priorityRecommendations.length} Tasks)</span>
                     </button>
                   </div>
                 </div>
