@@ -35,6 +35,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
+import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -66,6 +67,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isSecondaryCollapsed, setIsSecondaryCollapsed] = useState(false);
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  const isAdmin = currentUser?.role === 'Admin';
+
+  const accessibleProjects = React.useMemo(() => {
+    if (!currentUser) return [];
+    if (isAdmin) return projects;
+    return projects.filter((p) => {
+      if (p.managerId === currentUser.id || p.manager?.id === currentUser.id) return true;
+      if (p.members && p.members.includes(currentUser.id)) return true;
+      if (p.memberRoles && p.memberRoles[currentUser.id]) return true;
+      return false;
+    });
+  }, [projects, currentUser, isAdmin]);
 
   // Automatically collapse secondary drawer when switching to mobile viewport
   useEffect(() => {
@@ -409,7 +423,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className={`flex items-center justify-between px-2 py-1.5 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/60 border-[#233549]/60'}`}>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className={`text-xs font-bold tracking-tight ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>Home</span>
+                  <span className={`text-xs font-bold tracking-tight ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>Dolphin Spaces</span>
                 </div>
                 <button
                   onClick={() => setIsSecondaryCollapsed(true)}
@@ -419,6 +433,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
               </div>
+
+              {/* Workspace Switcher */}
+              <WorkspaceSwitcher
+                onOpenCreateSpaceModal={() => setShowCreateSpaceModal(true)}
+              />
 
               {/* Quick ClickUp Menu Items */}
               <div className="space-y-0.5 text-xs font-medium">
@@ -555,9 +574,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
 
                     <div className="pl-1 space-y-0.5">
-                      {projects.length === 0 ? (
+                      {accessibleProjects.length === 0 ? (
                         <div className="p-3 text-center space-y-2 border border-dashed border-[#233549] rounded-xl my-1 bg-[#16222F]/40">
-                          <p className="text-[11px] text-slate-400">No projects or spaces yet.</p>
+                          <p className="text-[11px] text-slate-400">No granted spaces found.</p>
                           <button
                             onClick={() => setShowCreateSpaceModal(true)}
                             className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
@@ -571,7 +590,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                       ) : (
                         <>
-                          {projects.map((p) => {
+                          {accessibleProjects.map((p) => {
                             const isSelected = selectedProjectId === p.id;
                             const taskCount = tasks.filter((t) => t.projectId === p.id).length;
                             return (

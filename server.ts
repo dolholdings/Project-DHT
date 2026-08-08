@@ -247,6 +247,119 @@ Respond ONLY with valid JSON array inside a JSON codeblock or array.
   }
 });
 
+// AI Smart Import Assistant: Suggest Column Mappings for Excel/MS-Project/CSV
+app.post('/api/ai/suggest-mappings', async (req, res) => {
+  try {
+    const { headers = [], sampleRows = [], fileType = 'excel' } = req.body;
+
+    if (!Array.isArray(headers) || headers.length === 0) {
+      return res.status(400).json({ error: 'Please provide a non-empty array of file column headers.' });
+    }
+
+    // Standard rule-based fallback detector
+    const detectRuleBasedMappings = (hdrs: string[]) => {
+      const mappingObj: Record<string, { targetField: string; confidence: number; reasoning: string }> = {};
+
+      hdrs.forEach((h) => {
+        const lower = h.trim().toLowerCase();
+        if (/task.*name|task_title|title|summary|activity.*name|item/i.test(lower)) {
+          mappingObj[h] = { targetField: 'title', confidence: 98, reasoning: 'Direct match for primary task title/name' };
+        } else if (/desc|note|scope|comment|detail|specification/i.test(lower)) {
+          mappingObj[h] = { targetField: 'description', confidence: 94, reasoning: 'Matches task scope or details text' };
+        } else if (/status|percent.*complete|stage|progress|state|done/i.test(lower)) {
+          mappingObj[h] = { targetField: 'status', confidence: 92, reasoning: 'Matches completion status or percentage' };
+        } else if (/priority|urgency|importance|severity/i.test(lower)) {
+          mappingObj[h] = { targetField: 'priority', confidence: 95, reasoning: 'Matches priority ranking column' };
+        } else if (/finish|due|end_date|deadline|completion_date/i.test(lower)) {
+          mappingObj[h] = { targetField: 'dueDate', confidence: 96, reasoning: 'Matches deadline or finish date' };
+        } else if (/start|baseline_start|commence/i.test(lower)) {
+          mappingObj[h] = { targetField: 'startDate', confidence: 94, reasoning: 'Matches task start date' };
+        } else if (/duration|work|effort|hours|days|man_hours/i.test(lower)) {
+          mappingObj[h] = { targetField: 'estimatedHours', confidence: 90, reasoning: 'Matches duration or work effort' };
+        } else if (/resource|assign|owner|person|team|member/i.test(lower)) {
+          mappingObj[h] = { targetField: 'assignees', confidence: 93, reasoning: 'Matches resource names or task owner' };
+        } else if (/wbs|phase|category|group|module|epic/i.test(lower)) {
+          mappingObj[h] = { targetField: 'category', confidence: 91, reasoning: 'Matches project phase or WBS category' };
+        } else if (/pred|depend|link|predecessor|successor/i.test(lower)) {
+          mappingObj[h] = { targetField: 'predecessors', confidence: 92, reasoning: 'Matches task dependency linkages' };
+        } else if (/cost|budget|amount|price|expenditure/i.test(lower)) {
+          mappingObj[h] = { targetField: 'estimatedBudget', confidence: 95, reasoning: 'Matches estimated budget or cost' };
+        } else {
+          mappingObj[h] = { targetField: 'ignore', confidence: 70, reasoning: 'Unrecognized custom field - flagged for manual review' };
+        }
+      });
+
+      return mappingObj;
+    };
+
+    let mappingsResult: Record<string, { targetField: string; confidence: number; reasoning: string }> = {};
+
+    try {
+      const ai = getGeminiClient();
+      const promptText = `
+You are an expert Data Architect & Enterprise Project Management Integration Specialist.
+Analyze the following file headers and sample data rows from an exported ${fileType} schedule (Excel, MS Project, Jira, or Primavera).
+
+File Headers: ${JSON.stringify(headers)}
+Sample Rows Preview: ${JSON.stringify(sampleRows.slice(0, 3))}
+
+Map EACH input file column header to ONE of the internal Dolphin Task target fields:
+Target Fields Options:
+- 'title': Primary task name or title
+- 'description': Scope, notes, or details
+- 'status': % Complete, Status, or Stage
+- 'priority': Priority or Urgency
+- 'dueDate': Finish, End, or Deadline Date
+- 'startDate': Start Date
+- 'estimatedHours': Duration (days/hours) or Total Work Effort
+- 'assignees': Resource Names, Assigned Users, or Owners
+- 'category': WBS Code, Phase, or Section
+- 'predecessors': Predecessors or Task Dependency IDs
+- 'estimatedBudget': Planned Cost or Budget Amount
+- 'ignore': Unmapped or irrelevant metadata field
+
+Return a JSON object with key "mappings" where each key is the EXACT input header name, and value is an object:
+{
+  "targetField": "string",
+  "confidence": number (0-100),
+  "reasoning": "string explanation"
+}
+
+Respond ONLY with valid JSON.
+      `;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.6-flash',
+        contents: promptText
+      });
+
+      const text = response.text || '';
+      const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+
+      if (parsed && parsed.mappings) {
+        mappingsResult = parsed.mappings;
+      } else {
+        mappingsResult = detectRuleBasedMappings(headers);
+      }
+    } catch (aiErr: any) {
+      console.log('Gemini Column Mapping API fallback active:', aiErr.message);
+      mappingsResult = detectRuleBasedMappings(headers);
+    }
+
+    return res.json({
+      success: true,
+      headers,
+      suggestedMappings: mappingsResult,
+      sampleCount: sampleRows.length
+    });
+
+  } catch (err: any) {
+    console.error('Error in /api/ai/suggest-mappings:', err);
+    return res.status(500).json({ error: err.message || 'Failed to suggest column mappings.' });
+  }
+});
+
 // AI Smart Priority & Task Reordering Endpoint powered by Gemini API
 app.post('/api/ai/smart-priority', async (req, res) => {
   try {

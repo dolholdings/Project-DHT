@@ -38,10 +38,13 @@ export interface User {
   status: 'Active' | 'Offline' | 'In Meeting' | 'On Leave';
   isEmailVerified?: boolean;
   password?: string;
+  lastActive?: string;
 }
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'In Review' | 'Completed';
 export type Priority = 'Urgent' | 'High' | 'Medium' | 'Low';
+
+export type SpaceRole = 'Admin' | 'Editor' | 'Viewer';
 
 export interface Project {
   id: string;
@@ -58,6 +61,7 @@ export interface Project {
   spentBudget: number;
   category: 'Industrial Manufacturing' | 'HVAC Engineering' | 'Radiator Production' | 'Heat Exchanger' | 'Group IT' | 'Digital Marketing';
   members: string[]; // user ids
+  memberRoles?: Record<string, SpaceRole>; // map of userId -> SpaceRole
 }
 
 export type TaskStatus = 'Backlog' | 'To Do' | 'In Progress' | 'In Review' | 'Done';
@@ -291,6 +295,16 @@ export interface EmailConfig {
 
 export type DolphinTheme = 'ocean-deep' | 'abyssal' | 'midnight-teal' | 'deep-sea' | 'light';
 
+export interface TemplateCleanupRules {
+  clearAssignments?: boolean;       // Clear assignees from tasks & subtasks
+  resetTaskStatuses?: boolean;      // Reset all task statuses strictly to 'To Do' & reset logged hours
+  resetSubtasksCompletion?: boolean;// Reset all subtask completed flags to false
+  clearCustomTags?: boolean;        // Strip custom tags from tasks
+  clearDependencies?: boolean;      // Remove task dependency linkages
+  resetEstimatedHours?: boolean;    // Clear or reset estimated hours
+  clearDescriptionNotes?: boolean;  // Clear detailed description strings
+}
+
 export interface TemplateTask {
   tempId: string;
   title: string;
@@ -309,6 +323,23 @@ export interface TemplateDependency {
   type: 'finish_to_start' | 'start_to_start';
 }
 
+export interface TemplateVersionRecord {
+  id: string;
+  version: string;
+  name: string;
+  description: string;
+  changeSummary: string;
+  createdAt: string;
+  createdBy: string;
+  tasksCount: number;
+  dependenciesCount: number;
+  estimatedBudget: number;
+  estimatedDurationDays: number;
+  tasks: TemplateTask[];
+  dependencies: TemplateDependency[];
+  defaultCleanupRules?: TemplateCleanupRules;
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
@@ -322,4 +353,11 @@ export interface ProjectTemplate {
   sourceProjectId?: string;
   tasks: TemplateTask[];
   dependencies: TemplateDependency[];
+  version?: string;
+  versionHistory?: TemplateVersionRecord[];
+  defaultCleanupRules?: TemplateCleanupRules;
+  usageCount?: number;
+  lastUsedAt?: string;
+  avgTaskCompletionRate?: number;
+  totalTasksSpawned?: number;
 }

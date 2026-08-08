@@ -41,12 +41,15 @@ import {
   Layers,
   Award,
   Check,
-  ArrowUpDown
+  ArrowUpDown,
+  Eye,
+  Shield
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
+import { getSpaceRole, canEditSpace } from '../../lib/permissions';
 
 export const TasksView: React.FC = () => {
   const {
@@ -70,10 +73,23 @@ export const TasksView: React.FC = () => {
     selectedProjectId,
     setSelectedProjectId,
     searchQuery,
-    theme
+    theme,
+    currentUser
   } = useApp();
 
   const isLight = theme === 'light';
+
+  const currentProject = useMemo(() => {
+    return projects.find((p) => p.id === (selectedProjectId || projects[0]?.id)) || null;
+  }, [projects, selectedProjectId]);
+
+  const currentSpaceRole = useMemo(() => {
+    return getSpaceRole(currentUser, currentProject);
+  }, [currentUser, currentProject]);
+
+  const userCanEdit = useMemo(() => {
+    return canEditSpace(currentUser, currentProject);
+  }, [currentUser, currentProject]);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [inProgressOpen, setInProgressOpen] = useState(true);
@@ -555,14 +571,43 @@ export const TasksView: React.FC = () => {
           </button>
           
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#7B68EE] hover:bg-[#6854e4] text-white text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap"
+            onClick={() => {
+              if (!userCanEdit) return;
+              setShowCreateModal(true);
+            }}
+            disabled={!userCanEdit}
+            title={!userCanEdit ? 'Task creation is disabled in Viewer mode' : 'Create a new task'}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap ${
+              !userCanEdit
+                ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
+                : 'bg-[#7B68EE] hover:bg-[#6854e4] text-white'
+            }`}
           >
             <Plus className="w-4 h-4" />
             <span>Create Task</span>
           </button>
         </div>
       </div>
+
+      {/* Read-Only Space Access Banner */}
+      {!userCanEdit && (
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300">
+              <Eye className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-amber-300">Read-Only Space Access (Viewer Role):</span>
+              <span className="ml-1 text-slate-300">
+                You are viewing <strong>{currentProject?.title || 'this Space'}</strong> in read-only mode. Task creation and modification are restricted to Editors and Admins.
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 flex items-center gap-1">
+            <Eye className="w-3 h-3" /> Viewer Mode
+          </span>
+        </div>
+      )}
 
       {/* Smart Priority Toast Notification */}
       {smartPriorityToast && (

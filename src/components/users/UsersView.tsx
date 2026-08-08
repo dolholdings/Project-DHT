@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserPlus, AlertTriangle, Check, X, Building2, Key, Plus, Globe, Briefcase, ExternalLink, Users as UsersIcon, Trash2, Mail, Lock, Edit2, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, UserPlus, AlertTriangle, Check, X, Building2, Key, Plus, Globe, Briefcase, ExternalLink, Users as UsersIcon, Trash2, Mail, Lock, Edit2, ShieldAlert, Clock, FolderKanban, Layers, Send } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company } from '../../types';
+import { getUserLastActive } from '../../lib/userActivity';
 
 export const UsersView: React.FC = () => {
   const {
     users,
+    activityLogs,
     inviteUser,
     updateUser,
     deleteUser,
@@ -16,7 +18,12 @@ export const UsersView: React.FC = () => {
     addAuthorizedDomain,
     removeAuthorizedDomain,
     clearAllData,
-    theme
+    theme,
+    projects,
+    updateProject,
+    dispatchEmailNotification,
+    logActivity,
+    currentUser
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'skills' | 'domains' | 'companies'>('users');
@@ -24,6 +31,16 @@ export const UsersView: React.FC = () => {
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [clearSuccess, setClearSuccess] = useState('');
+  const [selectedSpaceIds, setSelectedSpaceIds] = useState<string[]>([]);
+  const [managingSpacesUserId, setManagingSpacesUserId] = useState<string | null>(null);
+
+  // Workspace Invite Modal state
+  const [showWorkspaceInviteModal, setShowWorkspaceInviteModal] = useState(false);
+  const [workspaceInviteProjectId, setWorkspaceInviteProjectId] = useState<string>('');
+  const [workspaceInviteUserIds, setWorkspaceInviteUserIds] = useState<string[]>([]);
+  const [workspaceInviteNote, setWorkspaceInviteNote] = useState<string>('You have been invited to join our Dolphin workspace to collaborate on projects, tasks, and deliverables.');
+  const [wsInviteError, setWsInviteError] = useState('');
+  const [wsInviteSuccess, setWsInviteSuccess] = useState('');
 
   // Domain state
   const [newDomainInput, setNewDomainInput] = useState('');
@@ -127,14 +144,14 @@ export const UsersView: React.FC = () => {
     }
 
     const finalPassword = assignedPassword.trim() || 'Dolphin@123';
-    const res = inviteUser(name, email, role, department, targetCompanyId, finalPassword);
+    const res = inviteUser(name, email, role, department, targetCompanyId, finalPassword, selectedSpaceIds);
 
     if (!res.success) {
       setInviteError(res.error || 'Failed to add user.');
     } else {
       const targetComp = companies.find((c) => c.id === targetCompanyId) || { name: customCompanyName || 'Specified Entity' };
       setInviteSuccess(
-        `User "${name}" (${email}) added successfully with assigned password "${finalPassword}"!`
+        `User "${name}" (${email}) added successfully with assigned password "${finalPassword}" and ${selectedSpaceIds.length} space(s) assigned!`
       );
       setTimeout(() => {
         setShowInviteModal(false);
@@ -146,9 +163,90 @@ export const UsersView: React.FC = () => {
         setIsCustomCompany(false);
         setCustomCompanyName('');
         setCustomCompanyDomain('');
+        setSelectedSpaceIds([]);
         setInviteSuccess('');
       }, 1400);
     }
+  };
+
+  const handleSendWorkspaceInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWsInviteError('');
+    setWsInviteSuccess('');
+
+    const targetProjId = workspaceInviteProjectId || projects[0]?.id;
+
+    if (!targetProjId) {
+      setWsInviteError('Please select a target workspace.');
+      return;
+    }
+
+    if (workspaceInviteUserIds.length === 0) {
+      setWsInviteError('Please select at least one user to invite.');
+      return;
+    }
+
+    const targetProject = projects.find((p) => p.id === targetProjId);
+    if (!targetProject) {
+      setWsInviteError('Selected workspace not found.');
+      return;
+    }
+
+    // Assign users to workspace
+    const currentMembers = targetProject.members || [];
+    const updatedMembers = Array.from(new Set([...currentMembers, ...workspaceInviteUserIds]));
+    updateProject(targetProject.id, { members: updatedMembers });
+
+    // Send email invitations & log activity
+    let count = 0;
+    workspaceInviteUserIds.forEach((uId) => {
+      const targetUser = users.find((u) => u.id === uId);
+      if (targetUser) {
+        const emailBody = `Dear ${targetUser.name},\n\n` +
+          `You have been invited by ${currentUser?.name || 'Workspace Manager'} (${currentUser?.email || 'Admin'}) to join the workspace:\n\n` +
+          `📌 Workspace Name: ${targetProject.title}\n` +
+          `🏷️ Workspace Code: ${targetProject.code}\n` +
+          `📁 Category: ${targetProject.category}\n` +
+          `⚡ Status: ${targetProject.status}\n\n` +
+          (workspaceInviteNote.trim() ? `💬 Note from Manager:\n"${workspaceInviteNote.trim()}"\n\n` : '') +
+          `As an assigned member of this workspace, you can now view its tasks, participate in discussions, upload documents, and track deliverables in Dolphin Heat Transfer SPS LLC.\n\n` +
+          `Log in to your Dolphin account to access this workspace.\n\n` +
+          `Best regards,\n` +
+          `Dolphin Heat Transfer SPS LLC Workspace Governance Team`;
+
+        dispatchEmailNotification({
+          toEmail: targetUser.email,
+          toName: targetUser.name,
+          subject: `Workspace Invitation: Joined "${targetProject.title}" (${targetProject.code})`,
+          body: emailBody,
+          category: 'Invitation',
+          relatedProjectId: targetProject.id
+        });
+
+        if (logActivity) {
+          logActivity(
+            'invited user to workspace',
+            targetUser.name,
+            'user',
+            targetProject.id,
+            undefined,
+            `Invited ${targetUser.name} (${targetUser.email}) to workspace "${targetProject.title}" and dispatched email alert`,
+            'info'
+          );
+        }
+        count++;
+      }
+    });
+
+    setWsInviteSuccess(
+      `Successfully assigned ${count} user(s) to workspace "${targetProject.title}" and sent email invitation(s)!`
+    );
+
+    setTimeout(() => {
+      setShowWorkspaceInviteModal(false);
+      setWorkspaceInviteUserIds([]);
+      setWsInviteSuccess('');
+    }, 1600);
   };
 
   const handleAddCompany = (e: React.FormEvent) => {
@@ -242,6 +340,18 @@ export const UsersView: React.FC = () => {
           >
             <Building2 className="w-4 h-4 text-[#3BC0BB]" />
             <span>Register Company</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setShowWorkspaceInviteModal(true);
+              setWsInviteError('');
+              setWsInviteSuccess('');
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-lg shadow-[#3BC0BB]/20 transition-all"
+          >
+            <FolderKanban className="w-4 h-4" />
+            <span>Invite to Workspace</span>
           </button>
 
           <button
@@ -390,8 +500,20 @@ export const UsersView: React.FC = () => {
               </select>
 
               <button
+                onClick={() => {
+                  setShowWorkspaceInviteModal(true);
+                  setWsInviteError('');
+                  setWsInviteSuccess('');
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-md transition-all shrink-0 ml-2"
+              >
+                <FolderKanban className="w-4 h-4" />
+                <span>Invite to Workspace</span>
+              </button>
+
+              <button
                 onClick={() => setShowInviteModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-2"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-1"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>+ Add User</span>
@@ -413,7 +535,9 @@ export const UsersView: React.FC = () => {
                   <th className="p-3">Department</th>
                   <th className="p-3">Assigned Password</th>
                   <th className="p-3">Access Level (Role Controller)</th>
+                  <th className="p-3">Assigned Spaces</th>
                   <th className="p-3">Status</th>
+                  <th className="p-3">Last Active</th>
                   <th className="p-3 text-right">Controller Actions</th>
                 </tr>
               </thead>
@@ -512,7 +636,7 @@ export const UsersView: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Role Access Controller (Dropdown) */}
+                      {/* Access Level */}
                       <td className="p-3">
                         <div className="flex items-center gap-2">
                           <select
@@ -545,6 +669,59 @@ export const UsersView: React.FC = () => {
                         </div>
                       </td>
 
+                      {/* Assigned Spaces */}
+                      <td className="p-3">
+                        {u.role === 'Admin' ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30">
+                            All Spaces (Admin Access)
+                          </span>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {(() => {
+                              const userSpaces = projects.filter(
+                                (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
+                              );
+                              if (userSpaces.length === 0) {
+                                return (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 border border-amber-500/30">
+                                    0 Spaces Assigned
+                                  </span>
+                                );
+                              }
+                              return userSpaces.slice(0, 2).map((sp) => (
+                                <span
+                                  key={sp.id}
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/20"
+                                >
+                                  {sp.title}
+                                </span>
+                              ));
+                            })()}
+                            {(() => {
+                              const userSpaces = projects.filter(
+                                (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
+                              );
+                              if (userSpaces.length > 2) {
+                                return (
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    +{userSpaces.length - 2}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()}
+                            <button
+                              onClick={() => setManagingSpacesUserId(u.id)}
+                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#3BC0BB]/20 text-[#0F766E] hover:bg-[#3BC0BB]/30 border border-[#3BC0BB]/30 transition-all flex items-center gap-1 shrink-0"
+                              title="Assign or modify spaces for this user"
+                            >
+                              <FolderKanban className="w-3 h-3" />
+                              <span>Manage</span>
+                            </button>
+                          </div>
+                        )}
+                      </td>
+
                       {/* Status */}
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -552,6 +729,26 @@ export const UsersView: React.FC = () => {
                         }`}>
                           {u.status}
                         </span>
+                      </td>
+
+                      {/* Last Active */}
+                      <td className="p-3 font-mono">
+                        {(() => {
+                          const lastActiveInfo = getUserLastActive(u, activityLogs);
+                          return (
+                            <div
+                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl w-fit text-xs font-semibold ${
+                                isLight
+                                  ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  : 'bg-[#0D1520] text-teal-300 border border-[#233549]'
+                              }`}
+                              title={`Last active on platform: ${lastActiveInfo.fullDate}`}
+                            >
+                              <Clock className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                              <span>{lastActiveInfo.text}</span>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Controller Actions */}
@@ -1145,6 +1342,72 @@ export const UsersView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Assign Spaces (Workspaces) Section */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <FolderKanban className="w-3.5 h-3.5 text-[#0773BB]" />
+                    <span>Assign Spaces (Workspaces)</span>
+                    <span className={`text-[10px] font-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      ({selectedSpaceIds.length} selected)
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedSpaceIds.length === projects.length) {
+                        setSelectedSpaceIds([]);
+                      } else {
+                        setSelectedSpaceIds(projects.map((p) => p.id));
+                      }
+                    }}
+                    className="text-[11px] text-[#0773BB] hover:underline font-bold"
+                  >
+                    {selectedSpaceIds.length === projects.length ? 'Deselect All' : 'Select All Spaces'}
+                  </button>
+                </div>
+                <p className={`text-[11px] mb-2 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Non-admin users can ONLY view spaces assigned to them. If no spaces are checked, the user will not see any spaces upon login until assigned.
+                </p>
+                <div className={`max-h-36 overflow-y-auto p-2 rounded-xl border space-y-1.5 ${
+                  isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
+                }`}>
+                  {projects.map((proj) => {
+                    const isChecked = selectedSpaceIds.includes(proj.id);
+                    return (
+                      <label
+                        key={proj.id}
+                        className={`flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer transition-all ${
+                          isChecked
+                            ? isLight ? 'bg-sky-50 text-slate-900 font-bold border border-sky-200' : 'bg-[#0773BB]/20 text-white font-bold border border-[#0773BB]/40'
+                            : isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-[#16222F] text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedSpaceIds((prev) => [...prev, proj.id]);
+                              } else {
+                                setSelectedSpaceIds((prev) => prev.filter((id) => id !== proj.id));
+                              }
+                            }}
+                            className="rounded text-[#0773BB] focus:ring-[#0773BB]"
+                          />
+                          <span>{proj.title}</span>
+                          <span className="text-[10px] font-mono text-slate-400">({proj.code})</span>
+                        </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 text-slate-400 font-mono">
+                          {companies.find((c) => c.id === proj.companyId)?.code || 'Global'}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               {inviteError && (
                 <div className="p-3 rounded-xl bg-rose-500/20 text-rose-700 border border-rose-500/30 text-xs flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1698,6 +1961,288 @@ export const UsersView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL: Invite to Workspace */}
+      {showWorkspaceInviteModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className={`rounded-2xl w-full max-w-xl p-6 space-y-4 shadow-2xl border ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#3BC0BB]/20 text-[#0F766E] border border-[#3BC0BB]/30">
+                  <FolderKanban className="w-5 h-5 text-[#3BC0BB]" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <span>Invite Users to Workspace</span>
+                  </h2>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Select a workspace and choose existing team members to assign and invite via email.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWorkspaceInviteModal(false);
+                  setWsInviteError('');
+                  setWsInviteSuccess('');
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSendWorkspaceInvite} className="space-y-4">
+              {/* Step 1: Target Workspace Selection */}
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  1. Select Target Workspace / Space
+                </label>
+                <select
+                  value={workspaceInviteProjectId || projects[0]?.id || ''}
+                  onChange={(e) => setWorkspaceInviteProjectId(e.target.value)}
+                  className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
+                >
+                  {projects.map((p) => {
+                    const comp = companies.find((c) => c.id === p.companyId);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.title} ({p.code}) — {comp?.name || 'Global'} ({p.members?.length || 0} Members)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Step 2: Select Existing Users */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    2. Select Team Members ({workspaceInviteUserIds.length} selected)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (workspaceInviteUserIds.length === users.length) {
+                        setWorkspaceInviteUserIds([]);
+                      } else {
+                        setWorkspaceInviteUserIds(users.map((u) => u.id));
+                      }
+                    }}
+                    className="text-[11px] text-[#0773BB] hover:underline font-bold"
+                  >
+                    {workspaceInviteUserIds.length === users.length ? 'Deselect All' : 'Select All Users'}
+                  </button>
+                </div>
+
+                <div className={`max-h-48 overflow-y-auto p-2 rounded-xl border space-y-1.5 ${
+                  isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
+                }`}>
+                  {users.map((u) => {
+                    const selectedProjId = workspaceInviteProjectId || projects[0]?.id;
+                    const selectedProj = projects.find((p) => p.id === selectedProjId);
+                    const isAlreadyMember = selectedProj?.members?.includes(u.id) || selectedProj?.managerId === u.id;
+                    const isChecked = workspaceInviteUserIds.includes(u.id);
+
+                    return (
+                      <label
+                        key={u.id}
+                        className={`flex items-center justify-between p-2.5 rounded-xl text-xs cursor-pointer transition-all ${
+                          isChecked
+                            ? isLight ? 'bg-sky-50 text-slate-900 font-bold border border-sky-300' : 'bg-[#0773BB]/20 text-white font-bold border border-[#0773BB]/50'
+                            : isLight ? 'hover:bg-slate-100 text-slate-700' : 'hover:bg-[#16222F] text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setWorkspaceInviteUserIds((prev) => [...prev, u.id]);
+                              } else {
+                                setWorkspaceInviteUserIds((prev) => prev.filter((id) => id !== u.id));
+                              }
+                            }}
+                            className="rounded text-[#0773BB] focus:ring-[#0773BB] w-4 h-4"
+                          />
+                          <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                          <div>
+                            <span className="font-bold">{u.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono ml-2">({u.email})</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                            {u.role}
+                          </span>
+                          {isAlreadyMember && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-500/20 text-emerald-600 border border-emerald-500/30">
+                              Already Member
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 3: Invitation Message Note */}
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  3. Email Invitation Note
+                </label>
+                <textarea
+                  rows={2}
+                  value={workspaceInviteNote}
+                  onChange={(e) => setWorkspaceInviteNote(e.target.value)}
+                  placeholder="Custom message included in the workspace email alert..."
+                  className={`w-full text-xs rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
+                />
+              </div>
+
+              {wsInviteError && (
+                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-700 border border-rose-500/30 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{wsInviteError}</span>
+                </div>
+              )}
+
+              {wsInviteSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-700 border border-emerald-500/30 text-xs flex items-center gap-2 font-semibold">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{wsInviteSuccess}</span>
+                </div>
+              )}
+
+              <div className={`flex justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowWorkspaceInviteModal(false);
+                    setWsInviteError('');
+                    setWsInviteSuccess('');
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] hover:bg-[#16222F] text-slate-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white text-xs font-bold shadow-lg shadow-[#0773BB]/30 transition-all"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Send Workspace Invitations ({workspaceInviteUserIds.length})</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Manage User Space Assignments */}
+      {managingSpacesUserId && (() => {
+        const targetUser = users.find((u) => u.id === managingSpacesUserId);
+        if (!targetUser) return null;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+            <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl border ${
+              isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+            }`}>
+              <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <FolderKanban className="w-5 h-5 text-[#0773BB]" />
+                    <span>Space Assignments for {targetUser.name}</span>
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">{targetUser.email}</p>
+                </div>
+                <button
+                  onClick={() => setManagingSpacesUserId(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                Select which spaces/projects <strong>{targetUser.name}</strong> is allowed to see and access. Non-admin users can only view spaces where they are an assigned member.
+              </p>
+
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {projects.map((proj) => {
+                  const isMember = (proj.members || []).includes(targetUser.id) || proj.managerId === targetUser.id;
+
+                  return (
+                    <div
+                      key={proj.id}
+                      className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
+                        isMember
+                          ? isLight ? 'bg-sky-50 border-sky-300' : 'bg-[#0773BB]/20 border-[#0773BB]/50'
+                          : isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-bold text-xs flex items-center gap-2">
+                          <span>{proj.title}</span>
+                          <span className="font-mono text-[10px] text-[#0773BB]">({proj.code})</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Category: {proj.category} | Status: {proj.status}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentMembers = proj.members || [];
+                          if (isMember) {
+                            updateProject(proj.id, {
+                              members: currentMembers.filter((id) => id !== targetUser.id)
+                            });
+                          } else {
+                            updateProject(proj.id, {
+                              members: [...currentMembers, targetUser.id]
+                            });
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow ${
+                          isMember
+                            ? 'bg-rose-500/20 text-rose-600 hover:bg-rose-500/30 border border-rose-500/30'
+                            : 'bg-[#0773BB] text-white hover:bg-[#0773BB]/80'
+                        }`}
+                      >
+                        {isMember ? 'Revoke Access' : 'Assign Space'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className={`flex justify-end pt-2 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+                <button
+                  onClick={() => setManagingSpacesUserId(null)}
+                  className="px-5 py-2 rounded-xl bg-[#0773BB] text-white text-xs font-bold hover:bg-[#0773BB]/80"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

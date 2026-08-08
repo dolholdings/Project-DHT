@@ -175,11 +175,11 @@ export const Header: React.FC = () => {
             </button>
           </DolphinTooltip>
 
-          {/* Import Excel / CSV Button */}
+          {/* Import Excel / MS-Project Button */}
           <DolphinTooltip
-            title="Import Project Data"
-            badge="XLSX / CSV"
-            content="Import tasks, subtasks, budgets, and milestones directly from Excel or CSV files."
+            title="Import Excel / MS-Project"
+            badge="XLSX / XML / MPP"
+            content="Import tasks, timelines, dependencies, and schedules directly from Excel or MS-Project files."
             position="bottom"
             variant="glass"
           >
@@ -188,7 +188,7 @@ export const Header: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-500/40 text-teal-300 hover:text-white text-xs font-bold transition-all shadow-sm hover:scale-105 active:scale-95"
             >
               <FileSpreadsheet className="w-4 h-4 text-teal-400" />
-              <span className="hidden sm:inline">Import Excel</span>
+              <span className="hidden sm:inline">Import Excel / MS-Project</span>
             </button>
           </DolphinTooltip>
 

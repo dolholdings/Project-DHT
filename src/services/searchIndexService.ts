@@ -1,8 +1,8 @@
-import { Task, Project, User, Company } from '../types';
+import { Task, Project, User, Company, ProjectFile } from '../types';
 
 export interface SearchResultItem {
   id: string;
-  type: 'task' | 'project' | 'user';
+  type: 'task' | 'project' | 'user' | 'document';
   title: string;
   code?: string;
   description: string;
@@ -13,10 +13,11 @@ export interface SearchResultItem {
   manager?: User;
   projectTitle?: string;
   score: number;
-  matchedFields: string[]; // e.g., ['title', 'assignee', 'description', 'name']
+  matchedFields: string[]; // e.g., ['title', 'assignee', 'description', 'name', 'file name', 'content']
   task?: Task;
   project?: Project;
   user?: User;
+  file?: ProjectFile;
 }
 
 export class FullTextSearchIndex {
@@ -24,26 +25,44 @@ export class FullTextSearchIndex {
   private projects: Project[] = [];
   private users: User[] = [];
   private companies: Company[] = [];
+  private files: ProjectFile[] = [];
 
-  constructor(tasks: Task[] = [], projects: Project[] = [], users: User[] = [], companies: Company[] = []) {
-    this.updateIndex(tasks, projects, users, companies);
+  constructor(
+    tasks: Task[] = [],
+    projects: Project[] = [],
+    users: User[] = [],
+    companies: Company[] = [],
+    files: ProjectFile[] = []
+  ) {
+    this.updateIndex(tasks, projects, users, companies, files);
   }
 
-  public updateIndex(tasks: Task[], projects: Project[], users: User[], companies: Company[]) {
+  public updateIndex(
+    tasks: Task[],
+    projects: Project[],
+    users: User[],
+    companies: Company[],
+    files: ProjectFile[] = []
+  ) {
     this.tasks = tasks;
     this.projects = projects;
     this.users = users;
     this.companies = companies;
+    this.files = files;
   }
 
   /**
-   * Performs full-text search over indexed tasks, projects, and team members
+   * Performs full-text search over indexed tasks, projects, team members, and documents/files
    * @param query Raw search query string
-   * @param filterType Optional filter for 'all', 'task', 'project', or 'user'
+   * @param filterType Optional filter for 'all', 'task', 'project', 'user', or 'document'
    * @param selectedProjectId Optional scope by active project ID
    * @returns Array of sorted search result items with relevance score
    */
-  public search(query: string, filterType: 'all' | 'task' | 'project' | 'user' = 'all', selectedProjectId?: string | null): SearchResultItem[] {
+  public search(
+    query: string,
+    filterType: 'all' | 'task' | 'project' | 'user' | 'document' = 'all',
+    selectedProjectId?: string | null
+  ): SearchResultItem[] {
     const cleanQuery = query.trim().toLowerCase();
     if (!cleanQuery) return [];
 
@@ -246,6 +265,62 @@ export class FullTextSearchIndex {
             score,
             matchedFields,
             user: u,
+          });
+        }
+      }
+    }
+
+    // 4. Search Documents / Files
+    if (filterType === 'all' || filterType === 'document') {
+      for (const file of this.files) {
+        if (selectedProjectId && file.projectId !== selectedProjectId) continue;
+
+        const proj = projectMap.get(file.projectId);
+        let score = 0;
+        const matchedFields: string[] = [];
+
+        const fileNameLower = file.name.toLowerCase();
+        const mimeLower = (file.mimeType || '').toLowerCase();
+        const uploaderLower = (file.uploadedByName || '').toLowerCase();
+        const snippetLower = (file.contentSnippet || '').toLowerCase();
+        const projTitleLower = (proj?.title || '').toLowerCase();
+
+        for (const token of queryTokens) {
+          if (fileNameLower.includes(token)) {
+            score += fileNameLower.startsWith(token) ? 25 : 15;
+            if (!matchedFields.includes('file name')) matchedFields.push('file name');
+          }
+          if (snippetLower.includes(token)) {
+            score += 12;
+            if (!matchedFields.includes('content')) matchedFields.push('content');
+          }
+          if (uploaderLower.includes(token)) {
+            score += 8;
+            if (!matchedFields.includes('uploaded by')) matchedFields.push('uploaded by');
+          }
+          if (projTitleLower.includes(token)) {
+            score += 6;
+            if (!matchedFields.includes('project')) matchedFields.push('project');
+          }
+          if (mimeLower.includes(token)) {
+            score += 4;
+            if (!matchedFields.includes('type')) matchedFields.push('type');
+          }
+        }
+
+        if (score > 0) {
+          results.push({
+            id: file.id,
+            type: 'document',
+            title: file.name,
+            code: file.size,
+            description: file.contentSnippet || `Uploaded by ${file.uploadedByName} • ${file.size}`,
+            status: 'Uploaded',
+            projectTitle: proj?.title,
+            assignees: [],
+            score,
+            matchedFields,
+            file,
           });
         }
       }

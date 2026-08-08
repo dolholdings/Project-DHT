@@ -11,6 +11,24 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
     tags: ['MEP', 'HVAC', 'Turnkey', 'Chillers', 'BIM'],
     createdBy: 'Pawan Kumar',
     createdAt: '2026-06-15T09:00:00Z',
+    version: 'v1.0',
+    versionHistory: [
+      {
+        id: 'vr_1_hvac',
+        version: 'v1.0',
+        name: 'HVAC Turnkey System Installation',
+        description: 'Initial release of HVAC MEP workflow template.',
+        changeSummary: 'Initial Baseline Release with 9 core stages and Finish-to-Start linkages.',
+        createdAt: '2026-06-15T09:00:00Z',
+        createdBy: 'Pawan Kumar',
+        tasksCount: 9,
+        dependenciesCount: 9,
+        estimatedBudget: 450000,
+        estimatedDurationDays: 90,
+        tasks: [],
+        dependencies: []
+      }
+    ],
     tasks: [
       {
         tempId: 'tt_1',

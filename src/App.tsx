@@ -30,6 +30,7 @@ import { EmailVerificationScreen } from './components/auth/EmailVerificationScre
 import { SessionTimeoutManager } from './components/auth/SessionTimeoutManager';
 import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
+import { QuickAddFAB } from './components/common/QuickAddFAB';
 
 const MainLayout: React.FC = () => {
   const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser, isAuthenticated } = useApp();
@@ -136,6 +137,9 @@ const MainLayout: React.FC = () => {
 
       {/* Floating Task Due Date Alert Toast Stack */}
       <TaskDueAlertToast />
+
+      {/* Mini Quick Add Floating Action Button (FAB) */}
+      <QuickAddFAB />
 
       {/* Session Inactivity Timeout Guard */}
       <SessionTimeoutManager onTriggerLoginModal={() => setShowLoginModal(true)} />

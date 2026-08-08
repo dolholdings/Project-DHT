@@ -26,7 +26,9 @@ import {
   DolphinTheme,
   ProjectTemplate,
   TemplateTask,
-  TemplateDependency
+  TemplateDependency,
+  TemplateVersionRecord,
+  TemplateCleanupRules
 } from '../types';
 
 import { INITIAL_TEMPLATES } from '../data/initialTemplates';
@@ -63,6 +65,10 @@ import {
   subscribeToProjects,
   subscribeToTasks,
   subscribeToFiles,
+  subscribeToUsers,
+  createUserInFirestore,
+  updateUserInFirestore,
+  deleteUserFromFirestore,
   seedInitialFirestoreData,
   clearAllFirestoreData,
 } from '../services/dataService';
@@ -105,7 +111,7 @@ interface AppContextType {
   addAuthorizedDomain: (domain: string) => void;
   removeAuthorizedDomain: (domain: string) => void;
   validateDomain: (email: string, targetCompanyId?: string) => { valid: boolean; error?: string; domain?: string; isDolphinDomain?: boolean; registeredCompany?: Company };
-  inviteUser: (name: string, email: string, role: User['role'], department: string, companyId?: string, password?: string) => { success: boolean; error?: string; user?: User };
+  inviteUser: (name: string, email: string, role: User['role'], department: string, companyId?: string, password?: string, assignedSpaceIds?: string[]) => { success: boolean; error?: string; user?: User };
   dispatchEmailNotification: (params: {
     toEmail: string;
     toName?: string;
@@ -122,9 +128,33 @@ interface AppContextType {
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
   projectTemplates: ProjectTemplate[];
-  saveProjectAsTemplate: (projectId: string, name: string, description?: string, category?: Project['category']) => ProjectTemplate;
-  instantiateProjectFromTemplate: (templateId: string, params: { title: string; code: string; companyId: string; managerId: string; startDate: string; budget?: number; description?: string }) => Project;
+  saveProjectAsTemplate: (
+    projectId: string,
+    name: string,
+    description?: string,
+    category?: Project['category'],
+    versionOptions?: {
+      targetTemplateId?: string;
+      versionNote?: string;
+      isMajorVersion?: boolean;
+    }
+  ) => ProjectTemplate;
+  instantiateProjectFromTemplate: (
+    templateId: string,
+    params: {
+      title: string;
+      code: string;
+      companyId: string;
+      managerId: string;
+      startDate: string;
+      budget?: number;
+      description?: string;
+      versionRecordId?: string;
+      cleanupRules?: TemplateCleanupRules;
+    }
+  ) => Project;
   deleteProjectTemplate: (templateId: string) => void;
+  rollbackTemplateVersion: (templateId: string, versionRecordId: string) => void;
   
   // Tasks & Subtasks
   tasks: Task[];
@@ -419,7 +449,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Seed initial data to Firestore if Firestore is empty
-    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES);
+    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, INITIAL_USERS);
+
+    // Subscribe to real-time Firestore updates for Users
+    const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
+      if (remoteUsers && remoteUsers.length > 0) {
+        setUsers((prev) => {
+          const userMap = new Map<string, User>();
+          INITIAL_USERS.forEach((u) => userMap.set(u.id, u));
+          prev.forEach((u) => userMap.set(u.id, u));
+          remoteUsers.forEach((u) => userMap.set(u.id, u));
+          return Array.from(userMap.values());
+        });
+      }
+    });
 
     // Subscribe to real-time Firestore updates for Projects
     const unsubscribeProjects = subscribeToProjects((remoteProjects) => {
@@ -444,6 +487,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       unsubscribeAuth();
+      unsubscribeUsers();
       unsubscribeProjects();
       unsubscribeTasks();
       unsubscribeFiles();
@@ -510,6 +554,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('dolphin_users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('dolphin_current_user', JSON.stringify(currentUser));
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     localStorage.setItem('dolphin_automations', JSON.stringify(automations));
@@ -792,8 +842,16 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     }
   }, [activeCompany, emailConfig, users, logActivity]);
 
-  // Invite User with Domain & Company Association
-  const inviteUser = (name: string, email: string, role: User['role'], department: string, companyId?: string, password?: string) => {
+  // Invite User with Domain & Company Association and optional assigned spaces
+  const inviteUser = (
+    name: string,
+    email: string,
+    role: User['role'],
+    department: string,
+    companyId?: string,
+    password?: string,
+    assignedSpaceIds?: string[]
+  ) => {
     const targetComp = companyId ? companies.find((c) => c.id === companyId) : undefined;
 
     const val = validateDomain(email, companyId);
@@ -818,6 +876,24 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     };
 
     setUsers((prev) => [...prev, newUser]);
+    createUserInFirestore(newUser);
+
+    // Assign spaces to the new user if specified
+    if (assignedSpaceIds && assignedSpaceIds.length > 0) {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (assignedSpaceIds.includes(p.id)) {
+            const currentMembers = p.members || [];
+            if (!currentMembers.includes(newUser.id)) {
+              const updatedMembers = [...currentMembers, newUser.id];
+              updateProjectInFirestore(p.id, { members: updatedMembers });
+              return { ...p, members: updatedMembers };
+            }
+          }
+          return p;
+        })
+      );
+    }
     
     // Auto-initialize new user's corporate inbox config & welcome email threads
     const { welcomeThreads } = initializeUserInboxOnSignup({
@@ -879,6 +955,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         return u;
       })
     );
+    updateUserInFirestore(userId, updates);
     const u = users.find((x) => x.id === userId);
     logActivity('updated user profile / role', u ? `${u.name} (${u.email})` : userId, 'permission', undefined, undefined, `Updated attributes: ${Object.keys(updates).join(', ')}`, 'warning');
   };
@@ -886,6 +963,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   const deleteUser = (userId: string) => {
     const u = users.find((x) => x.id === userId);
     setUsers((prev) => prev.filter((x) => x.id !== userId));
+    deleteUserFromFirestore(userId);
     if (u) {
       logActivity('deactivated tenant user', `${u.name} (${u.email})`, 'permission', undefined, undefined, 'User account removed from tenant directory', 'warning');
     }
@@ -925,12 +1003,32 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     deleteProjectFromFirestore(id);
   };
 
+  // Helper to compute next semver style string
+  const computeNextVersion = (currentVer: string = 'v1.0', isMajor: boolean = false): string => {
+    const clean = currentVer.replace(/^v/, '');
+    const parts = clean.split('.').map((p) => parseInt(p, 10) || 0);
+    let major = parts[0] || 1;
+    let minor = parts[1] || 0;
+    if (isMajor) {
+      major += 1;
+      minor = 0;
+    } else {
+      minor += 1;
+    }
+    return `v${major}.${minor}`;
+  };
+
   // Project Templates
   const saveProjectAsTemplate = (
     projectId: string,
     name: string,
     description?: string,
-    category?: Project['category']
+    category?: Project['category'],
+    versionOptions?: {
+      targetTemplateId?: string;
+      versionNote?: string;
+      isMajorVersion?: boolean;
+    }
   ): ProjectTemplate => {
     const proj = projects.find((p) => p.id === projectId);
     if (!proj) throw new Error('Project not found');
@@ -979,24 +1077,86 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     const durationMs = projDueDate - projStartDate;
     const estDurationDays = Math.max(1, Math.round(durationMs / (1000 * 60 * 60 * 24))) || 30;
 
-    const newTemplate: ProjectTemplate = {
-      id: `tpl_${Date.now()}`,
-      name: name || `${proj.title} Template`,
-      description: description || proj.description || `Template generated from ${proj.title}`,
-      category: category || proj.category || 'Industrial Manufacturing',
-      estimatedBudget: proj.budget || 100000,
-      estimatedDurationDays: estDurationDays,
-      tags: [proj.category, 'Custom Template'],
-      createdBy: currentUser?.name || 'Workspace User',
-      createdAt: new Date().toISOString(),
-      sourceProjectId: projectId,
-      tasks: templateTasks,
-      dependencies: templateDeps
-    };
+    const targetId = versionOptions?.targetTemplateId;
+    const existingTarget = targetId ? projectTemplates.find((t) => t.id === targetId) : undefined;
 
-    setProjectTemplates((prev) => [newTemplate, ...prev]);
-    logActivity('saved project as template', newTemplate.name, 'project', proj.id);
-    return newTemplate;
+    if (existingTarget) {
+      // Create new version for existing template
+      const currentVersionStr = existingTarget.version || 'v1.0';
+      const nextVersionStr = computeNextVersion(currentVersionStr, versionOptions?.isMajorVersion);
+
+      const snapshotRecord: TemplateVersionRecord = {
+        id: `vr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        version: currentVersionStr,
+        name: existingTarget.name,
+        description: existingTarget.description,
+        changeSummary: versionOptions?.versionNote || `Updated template version from space structure (${proj.title})`,
+        createdAt: existingTarget.createdAt || new Date().toISOString(),
+        createdBy: existingTarget.createdBy || currentUser?.name || 'Workspace User',
+        tasksCount: existingTarget.tasks.length,
+        dependenciesCount: existingTarget.dependencies.length,
+        estimatedBudget: existingTarget.estimatedBudget,
+        estimatedDurationDays: existingTarget.estimatedDurationDays,
+        tasks: [...existingTarget.tasks],
+        dependencies: [...existingTarget.dependencies]
+      };
+
+      const updatedTemplate: ProjectTemplate = {
+        ...existingTarget,
+        name: name || existingTarget.name,
+        description: description || existingTarget.description,
+        category: category || existingTarget.category,
+        estimatedBudget: proj.budget || existingTarget.estimatedBudget,
+        estimatedDurationDays: estDurationDays,
+        version: nextVersionStr,
+        tasks: templateTasks,
+        dependencies: templateDeps,
+        versionHistory: [snapshotRecord, ...(existingTarget.versionHistory || [])]
+      };
+
+      setProjectTemplates((prev) => prev.map((t) => (t.id === targetId ? updatedTemplate : t)));
+      logActivity('updated template version', `${updatedTemplate.name} (${nextVersionStr})`, 'project', proj.id);
+      return updatedTemplate;
+    } else {
+      // Brand new template
+      const initialVer = 'v1.0';
+      const initialRecord: TemplateVersionRecord = {
+        id: `vr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        version: initialVer,
+        name: name || `${proj.title} Template`,
+        description: description || proj.description || `Template generated from ${proj.title}`,
+        changeSummary: versionOptions?.versionNote || 'Initial baseline release saved from project workspace structure.',
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser?.name || 'Workspace User',
+        tasksCount: templateTasks.length,
+        dependenciesCount: templateDeps.length,
+        estimatedBudget: proj.budget || 100000,
+        estimatedDurationDays: estDurationDays,
+        tasks: [...templateTasks],
+        dependencies: [...templateDeps]
+      };
+
+      const newTemplate: ProjectTemplate = {
+        id: `tpl_${Date.now()}`,
+        name: name || `${proj.title} Template`,
+        description: description || proj.description || `Template generated from ${proj.title}`,
+        category: category || proj.category || 'Industrial Manufacturing',
+        estimatedBudget: proj.budget || 100000,
+        estimatedDurationDays: estDurationDays,
+        tags: [proj.category, 'Custom Template'],
+        createdBy: currentUser?.name || 'Workspace User',
+        createdAt: new Date().toISOString(),
+        sourceProjectId: projectId,
+        tasks: templateTasks,
+        dependencies: templateDeps,
+        version: initialVer,
+        versionHistory: [initialRecord]
+      };
+
+      setProjectTemplates((prev) => [newTemplate, ...prev]);
+      logActivity('saved project as template', `${newTemplate.name} (${initialVer})`, 'project', proj.id);
+      return newTemplate;
+    }
   };
 
   const instantiateProjectFromTemplate = (
@@ -1009,10 +1169,25 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       startDate: string;
       budget?: number;
       description?: string;
+      versionRecordId?: string;
+      cleanupRules?: TemplateCleanupRules;
     }
   ): Project => {
     const tpl = projectTemplates.find((t) => t.id === templateId);
     if (!tpl) throw new Error('Template not found');
+
+    let sourceTasks = tpl.tasks;
+    let sourceDeps = tpl.dependencies;
+
+    if (params.versionRecordId && tpl.versionHistory) {
+      const vRecord = tpl.versionHistory.find((v) => v.id === params.versionRecordId);
+      if (vRecord) {
+        sourceTasks = vRecord.tasks;
+        sourceDeps = vRecord.dependencies;
+      }
+    }
+
+    const cleanup = params.cleanupRules || tpl.defaultCleanupRules || {};
 
     const projStartMs = new Date(params.startDate).getTime();
     const estDurationDays = tpl.estimatedDurationDays || 30;
@@ -1041,28 +1216,33 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     const createdTasks: Task[] = [];
     const createdSubtasks: Subtask[] = [];
 
-    tpl.tasks.forEach((tt, idx) => {
+    sourceTasks.forEach((tt, idx) => {
       const newTaskId = `task_${Date.now()}_${idx}_${Math.floor(Math.random() * 1000)}`;
       tempIdToNewTaskId[tt.tempId] = newTaskId;
 
       const tStartMs = projStartMs + (tt.dayOffset || 0) * 24 * 60 * 60 * 1000;
       const tDueMs = tStartMs + (tt.durationDays || 5) * 24 * 60 * 60 * 1000;
 
+      const taskAssignees = cleanup.clearAssignments ? [] : [params.managerId];
+      const taskTags = cleanup.clearCustomTags ? [] : (tt.tags || []);
+      const taskEstHours = cleanup.resetEstimatedHours ? 0 : (tt.estimatedHours || 10);
+      const taskDesc = cleanup.clearDescriptionNotes ? '' : (tt.description || '');
+
       const newTask: Task = {
         id: newTaskId,
         projectId: newProjId,
         companyId: params.companyId,
         title: tt.title,
-        description: tt.description,
+        description: taskDesc,
         status: 'To Do',
         priority: tt.priority || 'Medium',
-        assigneeIds: [params.managerId],
+        assigneeIds: taskAssignees,
         reporterId: currentUser.id,
         startDate: new Date(tStartMs).toISOString().split('T')[0],
         dueDate: new Date(tDueMs).toISOString().split('T')[0],
-        estimatedHours: tt.estimatedHours || 10,
+        estimatedHours: taskEstHours,
         loggedHours: 0,
-        tags: tt.tags || [],
+        tags: taskTags,
         subtaskCount: tt.subtasks?.length || 0,
         completedSubtasks: 0,
         dependencies: [],
@@ -1080,32 +1260,34 @@ ${currentUser?.name || 'Workspace Administrator'}`,
             taskId: newTaskId,
             title: stTitle,
             completed: false,
-            assignedTo: params.managerId
+            assignedTo: cleanup.clearAssignments ? undefined : params.managerId
           });
         });
       }
     });
 
     const createdDependencies: TaskDependency[] = [];
-    tpl.dependencies.forEach((td, dIdx) => {
-      const depTaskId = tempIdToNewTaskId[td.taskTempId];
-      const dependsOnTaskId = tempIdToNewTaskId[td.dependsOnTaskTempId];
+    if (!cleanup.clearDependencies) {
+      sourceDeps.forEach((td, dIdx) => {
+        const depTaskId = tempIdToNewTaskId[td.taskTempId];
+        const dependsOnTaskId = tempIdToNewTaskId[td.dependsOnTaskTempId];
 
-      if (depTaskId && dependsOnTaskId) {
-        createdDependencies.push({
-          id: `dep_${Date.now()}_${dIdx}`,
-          taskId: depTaskId,
-          dependsOnTaskId: dependsOnTaskId,
-          type: td.type || 'finish_to_start'
-        });
+        if (depTaskId && dependsOnTaskId) {
+          createdDependencies.push({
+            id: `dep_${Date.now()}_${dIdx}`,
+            taskId: depTaskId,
+            dependsOnTaskId: dependsOnTaskId,
+            type: td.type || 'finish_to_start'
+          });
 
-        const taskObj = createdTasks.find((t) => t.id === depTaskId);
-        if (taskObj) {
-          taskObj.dependencies = Array.from(new Set([...(taskObj.dependencies || []), dependsOnTaskId]));
-          taskObj.predecessors = Array.from(new Set([...(taskObj.predecessors || []), dependsOnTaskId]));
+          const taskObj = createdTasks.find((t) => t.id === depTaskId);
+          if (taskObj) {
+            taskObj.dependencies = Array.from(new Set([...(taskObj.dependencies || []), dependsOnTaskId]));
+            taskObj.predecessors = Array.from(new Set([...(taskObj.predecessors || []), dependsOnTaskId]));
+          }
         }
-      }
-    });
+      });
+    }
 
     setProjects((prev) => [newProject, ...prev]);
     setTasks((prev) => [...createdTasks, ...prev]);
@@ -1116,10 +1298,78 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       setDependencies((prev) => [...createdDependencies, ...prev]);
     }
 
-    logActivity('instantiated project from template', `${newProject.title} (${tpl.name})`, 'project', newProject.id);
+    const cleanupSummary = Object.entries(cleanup)
+      .filter(([_, v]) => v)
+      .map(([k]) => k)
+      .join(', ');
+
+    logActivity(
+      'instantiated project from template',
+      `${newProject.title} (${tpl.name}) ${cleanupSummary ? `[Cleanup Rules: ${cleanupSummary}]` : ''}`,
+      'project',
+      newProject.id
+    );
+
+    // Update Template Usage Metrics
+    setProjectTemplates((prev) =>
+      prev.map((t) => {
+        if (t.id !== templateId) return t;
+        const newUsage = (t.usageCount || 0) + 1;
+        const newTotalSpawned = (t.totalTasksSpawned || 0) + createdTasks.length;
+        return {
+          ...t,
+          usageCount: newUsage,
+          lastUsedAt: new Date().toISOString(),
+          totalTasksSpawned: newTotalSpawned,
+          updatedAt: new Date().toISOString()
+        };
+      })
+    );
+
     createProjectInFirestore(newProject);
 
     return newProject;
+  };
+
+  const rollbackTemplateVersion = (templateId: string, versionRecordId: string) => {
+    setProjectTemplates((prev) =>
+      prev.map((tpl) => {
+        if (tpl.id !== templateId) return tpl;
+        const targetRecord = tpl.versionHistory?.find((r) => r.id === versionRecordId);
+        if (!targetRecord) return tpl;
+
+        const currentSnapshot: TemplateVersionRecord = {
+          id: `vr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          version: tpl.version || 'v1.0',
+          name: tpl.name,
+          description: tpl.description,
+          changeSummary: `Automatic pre-rollback snapshot before restoring ${targetRecord.version}`,
+          createdAt: new Date().toISOString(),
+          createdBy: currentUser?.name || 'Workspace User',
+          tasksCount: tpl.tasks.length,
+          dependenciesCount: tpl.dependencies.length,
+          estimatedBudget: tpl.estimatedBudget,
+          estimatedDurationDays: tpl.estimatedDurationDays,
+          tasks: [...tpl.tasks],
+          dependencies: [...tpl.dependencies]
+        };
+
+        const restoredVersionStr = `${targetRecord.version}-restored`;
+
+        return {
+          ...tpl,
+          name: targetRecord.name,
+          description: targetRecord.description,
+          estimatedBudget: targetRecord.estimatedBudget,
+          estimatedDurationDays: targetRecord.estimatedDurationDays,
+          version: restoredVersionStr,
+          tasks: [...targetRecord.tasks],
+          dependencies: [...targetRecord.dependencies],
+          versionHistory: [currentSnapshot, ...(tpl.versionHistory || [])]
+        };
+      })
+    );
+    logActivity('restored template version', `Template ${templateId} rolled back to version record ${versionRecordId}`, 'project');
   };
 
   const deleteProjectTemplate = (templateId: string) => {
@@ -2260,6 +2510,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         saveProjectAsTemplate,
         instantiateProjectFromTemplate,
         deleteProjectTemplate,
+        rollbackTemplateVersion,
         tasks,
         subtasks,
         dependencies,

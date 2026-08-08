@@ -55,6 +55,7 @@ import { BurnDownChartWidget } from './BurnDownChartWidget';
 import { TaskStatusDistributionWidget } from './TaskStatusDistributionWidget';
 import { PriorityRiskDistributionWidget } from './PriorityRiskDistributionWidget';
 import { D3CapacityVelocityGaugeWidget } from './D3CapacityVelocityGaugeWidget';
+import { QuickAddFAB } from '../common/QuickAddFAB';
 
 export interface ProjectHealthInfo {
   status: 'On-Track' | 'At-Risk' | 'Blocked';
@@ -345,10 +346,20 @@ export const DashboardView: React.FC = () => {
     setWidgets(DEFAULT_WIDGETS);
   };
 
-  // Filter tasks & projects by workspace
-  const companyProjects = projects.filter((p) => p.companyId === activeCompany?.id).length > 0
-    ? projects.filter((p) => p.companyId === activeCompany?.id)
-    : projects;
+  // Filter tasks & projects by space assignment and workspace
+  const userAccessibleProjects = projects.filter((p) => {
+    if (currentUser?.role === 'Admin') return true;
+    return (
+      p.managerId === currentUser?.id ||
+      p.manager?.id === currentUser?.id ||
+      (p.members && p.members.includes(currentUser?.id || '')) ||
+      (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']))
+    );
+  });
+
+  const companyProjects = userAccessibleProjects.filter((p) => p.companyId === activeCompany?.id).length > 0
+    ? userAccessibleProjects.filter((p) => p.companyId === activeCompany?.id)
+    : userAccessibleProjects;
   const companyTasks = tasks.filter((t) => t.companyId === activeCompany?.id).length > 0
     ? tasks.filter((t) => t.companyId === activeCompany?.id)
     : tasks;

@@ -9,11 +9,12 @@ import {
   query
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Project, Task, ProjectFile } from '../types';
+import { Project, Task, ProjectFile, User } from '../types';
 
 const PROJECTS_COLLECTION = 'projects';
 const TASKS_COLLECTION = 'tasks';
 const FILES_COLLECTION = 'files';
+const USERS_COLLECTION = 'users';
 
 // ==================== PROJECTS CRUD ====================
 
@@ -221,6 +222,73 @@ export async function deleteFileFromFirestore(id: string): Promise<void> {
   }
 }
 
+// ==================== USERS CRUD ====================
+
+export async function fetchUsersFromFirestore(): Promise<User[]> {
+  try {
+    const colRef = collection(db, USERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const users: User[] = [];
+    snapshot.forEach((docSnap) => {
+      users.push({ id: docSnap.id, ...docSnap.data() } as User);
+    });
+    return users;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, USERS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToUsers(onUpdate: (users: User[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, USERS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const users: User[] = [];
+      snapshot.forEach((docSnap) => {
+        users.push({ id: docSnap.id, ...docSnap.data() } as User);
+      });
+      onUpdate(users);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) {
+        console.warn('Firestore users snapshot notice:', msg);
+        return;
+      }
+      console.warn('Firestore users snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createUserInFirestore(user: User): Promise<void> {
+  const docRef = doc(db, USERS_COLLECTION, user.id);
+  try {
+    await setDoc(docRef, user);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `users/${user.id}`);
+  }
+}
+
+export async function updateUserInFirestore(id: string, updates: Partial<User>): Promise<void> {
+  const docRef = doc(db, USERS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, updates);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
+  }
+}
+
+export async function deleteUserFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, USERS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+  }
+}
+
 // Clear all projects and tasks from Firestore for clean fresh workspace
 export async function clearAllFirestoreData(): Promise<void> {
   try {
@@ -236,6 +304,10 @@ export async function clearAllFirestoreData(): Promise<void> {
     for (const f of existingFiles) {
       await deleteFileFromFirestore(f.id);
     }
+    const existingUsers = await fetchUsersFromFirestore();
+    for (const u of existingUsers) {
+      await deleteUserFromFirestore(u.id);
+    }
   } catch (error) {
     console.warn('Could not clear Firestore data:', error);
   }
@@ -245,9 +317,16 @@ export async function clearAllFirestoreData(): Promise<void> {
 export async function seedInitialFirestoreData(
   initialProjects: Project[],
   initialTasks: Task[],
-  initialFiles: ProjectFile[] = []
+  initialFiles: ProjectFile[] = [],
+  initialUsers: User[] = []
 ): Promise<void> {
   try {
+    const existingUsers = await fetchUsersFromFirestore();
+    if (existingUsers.length === 0 && initialUsers.length > 0) {
+      for (const u of initialUsers) {
+        await createUserInFirestore(u);
+      }
+    }
     const existingProjects = await fetchProjectsFromFirestore();
     if (existingProjects.length === 0) {
       for (const p of initialProjects) {

@@ -77,7 +77,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 250,
     maxWeeklyHours: 40,
     status: 'Active',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 3 * 60000).toISOString()
   },
   {
     id: 'usr_pk',
@@ -90,7 +91,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 100,
     maxWeeklyHours: 40,
     status: 'Active',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 14 * 60000).toISOString()
   },
   {
     id: 'usr_2',
@@ -103,7 +105,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 120,
     maxWeeklyHours: 40,
     status: 'Active',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 42 * 60000).toISOString()
   },
   {
     id: 'usr_3',
@@ -116,7 +119,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 110,
     maxWeeklyHours: 40,
     status: 'In Meeting',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 110 * 60000).toISOString()
   },
   {
     id: 'usr_4',
@@ -129,7 +133,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 85,
     maxWeeklyHours: 40,
     status: 'Active',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 195 * 60000).toISOString()
   },
   {
     id: 'usr_5',
@@ -142,7 +147,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 95,
     maxWeeklyHours: 40,
     status: 'Active',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 340 * 60000).toISOString()
   },
   {
     id: 'usr_6',
@@ -155,7 +161,8 @@ export const INITIAL_USERS: User[] = [
     hourlyRate: 130,
     maxWeeklyHours: 35,
     status: 'Offline',
-    isEmailVerified: true
+    isEmailVerified: true,
+    lastActive: new Date(Date.now() - 1440 * 60000).toISOString()
   }
 ];
 

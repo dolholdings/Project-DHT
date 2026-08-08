@@ -59,6 +59,7 @@ export const AdminView: React.FC = () => {
     inviteUser,
     tasks,
     projects,
+    updateProject,
     activityLogs,
     files,
     timeEntries,
@@ -93,6 +94,70 @@ export const AdminView: React.FC = () => {
   const [editRole, setEditRole] = useState<Role>('Team Member');
   const [editDepartment, setEditDepartment] = useState('');
   const [editRate, setEditRate] = useState<number>(100);
+
+  // Space & Project Access Permissions Modal State
+  const [spaceAccessUser, setSpaceAccessUser] = useState<User | null>(null);
+  const [selectedUserCompanyId, setSelectedUserCompanyId] = useState<string>('');
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [accessSavedMessage, setAccessSavedMessage] = useState<string>('');
+
+  const handleOpenSpaceAccessModal = (user: User) => {
+    setSpaceAccessUser(user);
+    setSelectedUserCompanyId(user.companyId);
+    const userProjects = projects.filter((p) => p.members?.includes(user.id)).map((p) => p.id);
+    setSelectedProjectIds(userProjects);
+    setAccessSavedMessage('');
+  };
+
+  const handleToggleProjectAccess = (projId: string) => {
+    setSelectedProjectIds((prev) =>
+      prev.includes(projId) ? prev.filter((id) => id !== projId) : [...prev, projId]
+    );
+  };
+
+  const handleSelectAllProjects = () => {
+    setSelectedProjectIds(projects.map((p) => p.id));
+  };
+
+  const handleDeselectAllProjects = () => {
+    setSelectedProjectIds([]);
+  };
+
+  const handleSaveSpaceAccess = () => {
+    if (!spaceAccessUser) return;
+
+    if (spaceAccessUser.companyId !== selectedUserCompanyId) {
+      updateUser(spaceAccessUser.id, { companyId: selectedUserCompanyId });
+    }
+
+    projects.forEach((proj) => {
+      const shouldHaveAccess = selectedProjectIds.includes(proj.id);
+      const currentMembers = proj.members || [];
+      const hasAccess = currentMembers.includes(spaceAccessUser.id);
+
+      if (shouldHaveAccess && !hasAccess) {
+        updateProject(proj.id, { members: [...currentMembers, spaceAccessUser.id] });
+      } else if (!shouldHaveAccess && hasAccess) {
+        updateProject(proj.id, { members: currentMembers.filter((m) => m !== spaceAccessUser.id) });
+      }
+    });
+
+    logActivity(
+      'updated user space & project access permissions',
+      `Modified access scope for ${spaceAccessUser.name} (${spaceAccessUser.email})`,
+      'permission',
+      undefined,
+      undefined,
+      `Granted access to ${selectedProjectIds.length} projects in space.`,
+      'warning'
+    );
+
+    setAccessSavedMessage(`Space permissions successfully updated for ${spaceAccessUser.name}!`);
+    setTimeout(() => {
+      setAccessSavedMessage('');
+      setSpaceAccessUser(null);
+    }, 1800);
+  };
 
   // New Domain State
   const [newDomainInput, setNewDomainInput] = useState('');
@@ -541,6 +606,15 @@ export const AdminView: React.FC = () => {
                               </div>
                             ) : (
                               <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleOpenSpaceAccessModal(u)}
+                                  className="p-1.5 bg-[#0D1520] hover:bg-[#1C2C3D] text-teal-300 border border-teal-500/30 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm"
+                                  title="Configure Space & Project Access Permissions"
+                                >
+                                  <Lock className="w-3.5 h-3.5 text-teal-400" />
+                                  <span className="hidden sm:inline font-semibold">Space Access</span>
+                                </button>
+
                                 <button
                                   onClick={() => {
                                     setEditingUserId(u.id);
@@ -1096,6 +1170,194 @@ export const AdminView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Granular Space & Project Access Permissions Modal */}
+      {spaceAccessUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+          <div className="w-full max-w-2xl bg-[#121E2B] border border-[#223548] rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+            {/* Header */}
+            <div className="p-5 border-b border-[#223548] bg-[#182738] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/40">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white">
+                    Manage Space & Project Access
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Control workspace boundaries and specific project spaces for{' '}
+                    <span className="text-teal-300 font-semibold">{spaceAccessUser.name}</span> ({spaceAccessUser.email})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSpaceAccessUser(null)}
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Saved Notification */}
+            {accessSavedMessage && (
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>{accessSavedMessage}</span>
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* User Overview Bar */}
+              <div className="p-3.5 rounded-2xl bg-[#182738] border border-[#223548] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={spaceAccessUser.avatar}
+                    alt={spaceAccessUser.name}
+                    className="w-10 h-10 rounded-full object-cover border border-slate-700"
+                  />
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-2">
+                      <span>{spaceAccessUser.name}</span>
+                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[9px]">
+                        {spaceAccessUser.role}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 font-mono">{spaceAccessUser.email}</div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold">Granted Projects</div>
+                  <div className="text-xs font-black text-teal-400 font-mono">
+                    {selectedProjectIds.length} / {projects.length} Projects
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 1: Company / Workspace Entity */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                  Primary Tenant Entity / Workspace
+                </label>
+                <select
+                  value={selectedUserCompanyId}
+                  onChange={(e) => setSelectedUserCompanyId(e.target.value)}
+                  className="w-full text-xs font-semibold rounded-xl border border-[#223548] bg-[#182738] text-white px-3.5 py-2.5 focus:outline-none focus:border-teal-500"
+                >
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} (@{c.domain})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400">
+                  Defines the user's primary organizational workspace domain.
+                </p>
+              </div>
+
+              {/* Step 2: Granular Project Space Permissions */}
+              <div className="space-y-2 pt-2 border-t border-[#223548]">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Allowed Project Spaces
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllProjects}
+                      className="text-[10px] font-bold text-teal-400 hover:text-teal-300 hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-600">|</span>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllProjects}
+                      className="text-[10px] font-bold text-slate-400 hover:text-slate-300 hover:underline"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-60 overflow-y-auto p-1">
+                  {projects.map((p) => {
+                    const isSelected = selectedProjectIds.includes(p.id);
+                    const comp = companies.find((c) => c.id === p.companyId);
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => handleToggleProjectAccess(p.id)}
+                        className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 ${
+                          isSelected
+                            ? 'bg-teal-500/10 border-teal-500/50 shadow-md'
+                            : 'bg-[#182738]/50 border-[#223548] opacity-60 hover:opacity-100 hover:bg-[#182738]'
+                        }`}
+                      >
+                        <div
+                          className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                            isSelected
+                              ? 'bg-teal-500 border-teal-400 text-slate-950'
+                              : 'border-slate-600 bg-slate-800'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-[9px] font-mono font-bold">
+                              {p.code}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate">{p.title}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                            {comp?.name || 'Workspace'} • {p.category}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Explanatory Notice */}
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Access Enforcement Note:</span> Non-admin users (Team Members & Viewers) will strictly see tasks, documents, and Gantt timelines only for the project spaces selected above. Admins retain overall tenant visibility.
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-[#223548] bg-[#182738] flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSpaceAccessUser(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSpaceAccess}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-400 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Save Space Permissions</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

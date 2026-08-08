@@ -388,40 +388,39 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         ? companies.find((c) => c.domain.toLowerCase() === compMatch.domain.toLowerCase())?.id || companies[0]?.id
         : companies[0]?.id;
 
-      const newUser: User = {
-        id: `usr-${Date.now()}`,
-        name: derivedName,
-        email: derivedEmail,
-        role: 'Team Member',
-        companyId: assignedCompId || 'comp-1',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        department: 'Operations',
-        hourlyRate: 85,
-        maxWeeklyHours: 40,
-        status: 'Active',
-        isEmailVerified: true,
-      };
-
-      setCurrentUser(newUser);
-      setIsAuthenticated(true);
-      initializeUserInboxForUser({
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name
-      });
-      logActivity(
-        'user account provisioned',
+      const res = inviteUser(
+        derivedName,
         derivedEmail,
-        'auth',
-        undefined,
-        undefined,
-        `Account provisioned for ${derivedEmail} and signed in`,
-        'info'
+        'Team Member',
+        'Operations',
+        assignedCompId || companies[0]?.id,
+        password || 'Dolphin@123'
       );
-      setSuccessMsg(`Signed in as ${newUser.name} (${derivedEmail})!`);
-      setTimeout(() => {
-        onClose();
-      }, 600);
+
+      if (res.user) {
+        setCurrentUser({ ...res.user, isEmailVerified: true });
+        setIsAuthenticated(true);
+        initializeUserInboxForUser({
+          id: res.user.id,
+          email: res.user.email,
+          name: res.user.name
+        });
+        logActivity(
+          'user account provisioned',
+          derivedEmail,
+          'auth',
+          undefined,
+          undefined,
+          `Account provisioned for ${derivedEmail} and signed in`,
+          'info'
+        );
+        setSuccessMsg(`Signed in as ${res.user.name} (${derivedEmail})!`);
+        setTimeout(() => {
+          onClose();
+        }, 600);
+      } else {
+        setErrorMsg(res.error || 'Failed to create user account.');
+      }
     }
   };
 

@@ -5,6 +5,7 @@ import {
   CheckSquare,
   FolderKanban,
   User as UserIcon,
+  FileText,
   Tag,
   ArrowRight,
   Sparkles,
@@ -24,6 +25,7 @@ export const HeaderSearchInput: React.FC = () => {
     projects,
     users,
     companies,
+    files,
     selectedProjectId,
     setSelectedProjectId,
     setActiveTab,
@@ -34,7 +36,7 @@ export const HeaderSearchInput: React.FC = () => {
 
   const [inputVal, setInputVal] = useState(searchQuery || '');
   const [isOpen, setIsOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'task' | 'project' | 'user'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'task' | 'project' | 'user' | 'document'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,8 +59,8 @@ export const HeaderSearchInput: React.FC = () => {
 
   // Initialize and memoize search index
   const searchIndex = useMemo(() => {
-    return new FullTextSearchIndex(tasks, projects, users, companies);
-  }, [tasks, projects, users, companies]);
+    return new FullTextSearchIndex(tasks, projects, users, companies, files);
+  }, [tasks, projects, users, companies, files]);
 
   // Execute full-text search using index
   const searchResults = useMemo(() => {
@@ -128,6 +130,11 @@ export const HeaderSearchInput: React.FC = () => {
       setActiveTab('projects');
     } else if (item.type === 'user') {
       setActiveTab('workload');
+    } else if (item.type === 'document') {
+      if (item.file?.projectId) {
+        setSelectedProjectId(item.file.projectId);
+      }
+      setActiveTab('files');
     }
   };
 
@@ -165,7 +172,7 @@ export const HeaderSearchInput: React.FC = () => {
           }}
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleInputKeyDown}
-          placeholder="Search tasks, projects, or team members across all workspaces..."
+          placeholder="Search tasks, projects, documents, or team members across all workspaces..."
           className={`w-full bg-transparent text-xs focus:outline-none ${
             theme === 'light' ? 'text-slate-900 placeholder:text-slate-500 font-medium' : 'text-white placeholder:text-slate-400'
           }`}
@@ -238,6 +245,16 @@ export const HeaderSearchInput: React.FC = () => {
                 Projects
               </button>
               <button
+                onClick={() => setActiveFilter('document')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                  activeFilter === 'document'
+                    ? 'bg-[#0D9488] text-white shadow'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                Docs
+              </button>
+              <button
                 onClick={() => setActiveFilter('user')}
                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
                   activeFilter === 'user'
@@ -257,19 +274,20 @@ export const HeaderSearchInput: React.FC = () => {
                 <Search className="w-8 h-8 mx-auto text-slate-600 mb-1" />
                 <p className="font-semibold text-slate-300">Type to search indexed items</p>
                 <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-                  Instant search across task titles, full descriptions, assignee names, status codes, and project spaces.
+                  Instant search across task titles, full descriptions, project files/documents, assignee names, status codes, and project spaces.
                 </p>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-400">
                 <p className="font-semibold text-slate-300">No matching items found for "{debouncedQuery}"</p>
-                <p className="text-[11px] text-slate-500 mt-1">Try searching by assignee name (e.g., "Parvez"), title keywords, or project code.</p>
+                <p className="text-[11px] text-slate-500 mt-1">Try searching by assignee name (e.g., "Parvez"), document name, title keywords, or project code.</p>
               </div>
             ) : (
               searchResults.map((item, index) => {
                 const isSelected = index === selectedIndex;
                 const isTask = item.type === 'task';
                 const isUser = item.type === 'user';
+                const isDoc = item.type === 'document';
 
                 return (
                   <div
@@ -294,6 +312,8 @@ export const HeaderSearchInput: React.FC = () => {
                               ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                               : isUser
                               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                              : isDoc
+                              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                               : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                           }`}
                         >
@@ -305,6 +325,8 @@ export const HeaderSearchInput: React.FC = () => {
                             ) : (
                               <UserIcon className="w-3.5 h-3.5" />
                             )
+                          ) : isDoc ? (
+                            <FileText className="w-3.5 h-3.5 text-cyan-400" />
                           ) : (
                             <FolderKanban className="w-3.5 h-3.5" />
                           )}

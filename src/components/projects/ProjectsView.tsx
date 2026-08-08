@@ -108,6 +108,15 @@ export const ProjectsView: React.FC = () => {
 
   // Projects Filter
   const filteredProjects = projects.filter((p) => {
+    const isAccessible =
+      currentUser?.role === 'Admin' ||
+      p.managerId === currentUser?.id ||
+      p.manager?.id === currentUser?.id ||
+      (p.members && p.members.includes(currentUser?.id || '')) ||
+      (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']));
+
+    if (!isAccessible) return false;
+
     if (selectedCompanyFilter !== 'all') {
       if (selectedCompanyFilter === 'internal') {
         const c = companies.find((comp) => comp.id === p.companyId);
