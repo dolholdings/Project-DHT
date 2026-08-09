@@ -25,6 +25,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Priority, User } from '../../types';
+import * as XLSX from 'xlsx';
 
 interface SmartImportAssistantModalProps {
   isOpen: boolean;
@@ -318,48 +319,92 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
     if (!file) return;
 
     const fileName = file.name;
+    const ext = fileName.split('.').pop()?.toLowerCase();
+
+    if (ext === 'xml') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const xmlText = event.target?.result as string;
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+          const taskNodes = xmlDoc.getElementsByTagName('Task');
+          if (!taskNodes || taskNodes.length === 0) {
+            alert('No tasks found in XML file.');
+            return;
+          }
+          const headers = ['Task_Name', 'Notes', 'Start_Date', 'Finish_Date', 'Percent_Complete', 'Priority'];
+          const rows: Record<string, string>[] = [];
+          for (let i = 0; i < taskNodes.length; i++) {
+            const t = taskNodes[i];
+            const name = t.getElementsByTagName('Name')[0]?.textContent || '';
+            if (!name.trim()) continue;
+            rows.push({
+              Task_Name: name.trim(),
+              Notes: t.getElementsByTagName('Notes')[0]?.textContent || '',
+              Start_Date: (t.getElementsByTagName('Start')[0]?.textContent || '').split('T')[0],
+              Finish_Date: (t.getElementsByTagName('Finish')[0]?.textContent || '').split('T')[0],
+              Percent_Complete: t.getElementsByTagName('PercentComplete')[0]?.textContent || '0',
+              Priority: t.getElementsByTagName('Priority')[0]?.textContent || '500',
+            });
+          }
+          setFileData({
+            fileName,
+            fileType: 'msproject',
+            headers,
+            rows
+          });
+          if (!newProjectName) {
+            setNewProjectName(fileName.replace(/\.[^/.]+$/, ''));
+          }
+        } catch (err) {
+          console.error('XML parse error:', err);
+          alert('Could not parse XML schedule.');
+        }
+      };
+      reader.readAsText(file);
+      return;
+    }
+
+    // Excel or CSV via XLSX parser
     const reader = new FileReader();
-
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) return;
-
+    reader.onload = (evt) => {
       try {
-        // Simple CSV parser
-        const lines = content.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-        if (lines.length < 2) {
-          alert('File contains insufficient rows. At least a header and 1 data row required.');
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+
+        if (!json || json.length === 0) {
+          alert('The selected spreadsheet file appears to be empty.');
           return;
         }
 
-        const headers = lines[0]
-          .split(/,|\t/)
-          .map((h) => h.trim().replace(/^["']|["']$/g, ''));
-        
-        const rows: Record<string, string>[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const vals = lines[i].split(/,|\t/).map((v) => v.trim().replace(/^["']|["']$/g, ''));
-          const rowObj: Record<string, string> = {};
-          headers.forEach((h, idx) => {
-            rowObj[h] = vals[idx] || '';
+        const headers = Object.keys(json[0] || {});
+        const rows: Record<string, string>[] = json.map((row) => {
+          const formattedRow: Record<string, string> = {};
+          headers.forEach((h) => {
+            formattedRow[h] = String(row[h] ?? '').trim();
           });
-          rows.push(rowObj);
-        }
+          return formattedRow;
+        });
 
         setFileData({
           fileName,
-          fileType: fileName.endsWith('.csv') ? 'csv' : fileName.endsWith('.xml') || fileName.endsWith('.mpp') ? 'msproject' : 'excel',
+          fileType: ext === 'csv' ? 'csv' : 'excel',
           headers,
           rows
         });
+        if (!newProjectName) {
+          setNewProjectName(fileName.replace(/\.[^/.]+$/, ''));
+        }
       } catch (err) {
-        console.error('Error parsing file:', err);
-        alert('Could not parse file. Falling back to structured sample headers.');
+        console.error('Error parsing spreadsheet file:', err);
+        alert('Failed to parse spreadsheet file. Please ensure it is a valid .xlsx, .xls, or .csv file.');
       }
     };
-
-    reader.readAsText(file);
+    reader.readAsBinaryString(file);
   };
 
   // Trigger Gemini AI Column Auto-Detection Endpoint

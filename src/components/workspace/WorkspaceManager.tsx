@@ -54,7 +54,9 @@ import {
   ArrowDown,
   Columns,
   ShieldAlert,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet,
+  Upload
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus, SpaceRole, ProjectTemplate, TemplateVersionRecord, TemplateCleanupRules, Task, TaskDependency, TemplateTask, TemplateDependency } from '../../types';
@@ -66,6 +68,7 @@ import { SmartImportAssistantModal } from './SmartImportAssistantModal';
 import { ValidationEngineModal } from './ValidationEngineModal';
 import { TemplateMetricsDashboardModal } from './TemplateMetricsDashboardModal';
 import { UnifiedProjectSearchModal } from './UnifiedProjectSearchModal';
+import { ExcelImportModal } from '../common/ExcelImportModal';
 
 export const WorkspaceManager: React.FC = () => {
   const {
@@ -140,6 +143,8 @@ export const WorkspaceManager: React.FC = () => {
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [showCapacityPlannerModal, setShowCapacityPlannerModal] = useState(false);
   const [showSmartImportModal, setShowSmartImportModal] = useState(false);
+  const [showExcelModal, setShowExcelModal] = useState(false);
+  const [importTargetProjectId, setImportTargetProjectId] = useState<string>('');
   const [showValidationEngineModal, setShowValidationEngineModal] = useState(false);
   const [showTemplateMetricsModal, setShowTemplateMetricsModal] = useState(false);
   const [showUnifiedSearchModal, setShowUnifiedSearchModal] = useState(false);
@@ -549,6 +554,18 @@ export const WorkspaceManager: React.FC = () => {
             >
               <Sparkles className="w-4 h-4 text-teal-400" />
               <span>Smart Import</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setImportTargetProjectId('');
+                setShowExcelModal(true);
+              }}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-bold text-xs transition-all shadow-md"
+              title="Direct Excel (.xlsx, .xls) and CSV file parser to upload & import existing project plans into workspaces"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>Import CSV / Excel</span>
             </button>
 
             <button
@@ -962,6 +979,16 @@ export const WorkspaceManager: React.FC = () => {
                             >
                               <span>Open</span>
                               <ArrowRight className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setImportTargetProjectId(project.id);
+                                setShowExcelModal(true);
+                              }}
+                              className="p-1 rounded-lg bg-[#16222F] text-emerald-400 hover:text-emerald-200 border border-[#233549] hover:border-emerald-500/50 flex items-center gap-1"
+                              title={`Import MS-Project / Excel / CSV into "${project.title}"`}
+                            >
+                              <FileSpreadsheet className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => {
@@ -4160,6 +4187,14 @@ export const WorkspaceManager: React.FC = () => {
         onImportTasks={handleImportTasks}
         onCreateProjectAndImport={handleCreateProjectAndImport}
       />
+
+      {/* EXCEL / CSV DIRECT IMPORT MODAL */}
+      {showExcelModal && (
+        <ExcelImportModal
+          onClose={() => setShowExcelModal(false)}
+          defaultProjectId={importTargetProjectId}
+        />
+      )}
 
       {/* VALIDATION ENGINE MODAL */}
       <ValidationEngineModal
