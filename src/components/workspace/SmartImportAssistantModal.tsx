@@ -240,6 +240,63 @@ const DEMO_SCHEDULES = {
   }
 };
 
+export const parseImportDate = (val: string | number | undefined | null, fallback: string): string => {
+  if (val === undefined || val === null) return fallback;
+  const str = String(val).trim();
+  if (!str) return fallback;
+
+  // Standard YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // Standard YYYY-MM-DD with time
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) return str.split('T')[0];
+
+  // MM/DD/YYYY or DD/MM/YYYY or YYYY/MM/DD or DD-MM-YYYY
+  const parts = str.split(/[-/.]/);
+  if (parts.length === 3) {
+    let y = 0, m = 0, d = 0;
+    if (parts[0].length === 4) {
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10);
+      d = parseInt(parts[2], 10);
+    } else if (parts[2].length === 4) {
+      y = parseInt(parts[2], 10);
+      const p1 = parseInt(parts[0], 10);
+      const p2 = parseInt(parts[1], 10);
+      if (p1 > 12) {
+        d = p1;
+        m = p2;
+      } else {
+        m = p1;
+        d = p2;
+      }
+    }
+    if (y > 1900 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      const mm = m < 10 ? `0${m}` : `${m}`;
+      const dd = d < 10 ? `0${d}` : `${d}`;
+      return `${y}-${mm}-${dd}`;
+    }
+  }
+
+  // Generic Date constructor fallback
+  const dObj = new Date(str);
+  if (!isNaN(dObj.getTime())) {
+    return dObj.toISOString().split('T')[0];
+  }
+
+  // Excel serial number (e.g. 45123)
+  const num = Number(str);
+  if (!isNaN(num) && num > 25000 && num < 75000) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const parsed = new Date(excelEpoch.getTime() + num * 86400000);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+  }
+
+  return fallback;
+};
+
 export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps> = ({
   isOpen,
   onClose,
@@ -283,6 +340,7 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
   const [notifyAssignees, setNotifyAssignees] = useState<boolean>(true);
   const [autoTagImport, setAutoTagImport] = useState<boolean>(true);
   const [linkDependencies, setLinkDependencies] = useState<boolean>(true);
+  const [allowOverdueImport, setAllowOverdueImport] = useState<boolean>(true);
 
   // Success screen
   const [importCompleted, setImportCompleted] = useState<boolean>(false);
@@ -582,10 +640,10 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
               else priority = 'Medium';
               break;
             case 'startDate':
-              if (/\d{4}-\d{2}-\d{2}/.test(val)) startDate = val;
+              startDate = parseImportDate(val, startDate);
               break;
             case 'dueDate':
-              if (/\d{4}-\d{2}-\d{2}/.test(val)) dueDate = val;
+              dueDate = parseImportDate(val, dueDate);
               break;
             case 'estimatedHours':
               const num = parseFloat(val.replace(/[^0-9.]/g, ''));
@@ -1339,7 +1397,17 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
                         </td>
 
                         <td className="p-3 font-mono text-slate-400">
-                          {t.startDate} ➔ {t.dueDate}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{t.startDate} ➔ {t.dueDate}</span>
+                            {t.dueDate < new Date().toISOString().split('T')[0] && t.status !== 'Done' && (
+                              <span
+                                className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono border border-rose-500/30 font-bold"
+                                title="Overdue task date preserved and allowed on import"
+                              >
+                                Overdue
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         <td className="p-3 font-mono text-teal-300 font-bold">
@@ -1404,7 +1472,7 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
           {step === 3 && (
             <div className="p-4 rounded-xl border bg-teal-500/5 border-teal-500/20 space-y-3 text-xs">
               <span className="font-bold text-teal-300 block">Import Execution Settings:</span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -1433,6 +1501,16 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
                     className="accent-[#3BC0BB]"
                   />
                   <span>Link Task Dependencies</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer text-emerald-400 font-semibold" title="Overdue/past schedules are preserved as-is on import">
+                  <input
+                    type="checkbox"
+                    checked={allowOverdueImport}
+                    onChange={(e) => setAllowOverdueImport(e.target.checked)}
+                    className="accent-emerald-500"
+                  />
+                  <span>Allow & Preserve Overdue Dates</span>
                 </label>
               </div>
             </div>

@@ -21,6 +21,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { Priority, TaskStatus, Project } from '../../types';
+import { parseImportDate } from '../workspace/SmartImportAssistantModal';
 
 interface ProjectCsvImportModalProps {
   onClose: () => void;
@@ -297,12 +298,13 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
 
     // Dates
     const todayStr = new Date().toISOString().split('T')[0];
-    const startDateVal = columnMap.startDate && row[columnMap.startDate]
-      ? String(row[columnMap.startDate]).trim()
-      : todayStr;
-    const dueDateVal = columnMap.dueDate && row[columnMap.dueDate]
-      ? String(row[columnMap.dueDate]).trim()
-      : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const defaultDueStr = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    const rawStart = columnMap.startDate && row[columnMap.startDate] ? String(row[columnMap.startDate]).trim() : '';
+    const rawDue = columnMap.dueDate && row[columnMap.dueDate] ? String(row[columnMap.dueDate]).trim() : '';
+
+    const startDateVal = parseImportDate(rawStart, todayStr);
+    const dueDateVal = parseImportDate(rawDue, defaultDueStr);
 
     // Estimated Hours
     const estHoursVal = columnMap.estimatedHours && row[columnMap.estimatedHours]
@@ -796,7 +798,16 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
                         </td>
                         <td className="p-2.5 font-mono text-slate-300">{task.status}</td>
                         <td className="p-2.5 font-mono text-slate-300">{task.startDate}</td>
-                        <td className="p-2.5 font-mono text-slate-300">{task.dueDate}</td>
+                        <td className="p-2.5 font-mono text-slate-300">
+                          <div className="flex items-center gap-1.5">
+                            <span>{task.dueDate}</span>
+                            {task.dueDate < new Date().toISOString().split('T')[0] && task.status !== 'Done' && (
+                              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-mono font-bold" title="Overdue task schedule will be imported as-is into workspace">
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="p-2.5 font-mono text-slate-300">{task.estimatedHours}h</td>
                         <td className="p-2.5 font-mono text-slate-400">{task.subtasks.length} items</td>
                       </tr>

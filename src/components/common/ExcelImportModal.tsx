@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
+import { parseImportDate } from '../workspace/SmartImportAssistantModal';
 
 interface ExcelImportModalProps {
   onClose: () => void;
@@ -307,8 +308,12 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       else if (rawPriority.includes('high')) priority = 'High';
       else if (rawPriority.includes('low')) priority = 'Low';
 
-      const startDate = mapping.startDateCol ? String(row[mapping.startDateCol] || '').trim() : new Date().toISOString().split('T')[0];
-      const dueDate = mapping.dueDateCol ? String(row[mapping.dueDateCol] || '').trim() : '2026-12-31';
+      const rawStartDate = mapping.startDateCol ? String(row[mapping.startDateCol] || '').trim() : '';
+      const rawDueDate = mapping.dueDateCol ? String(row[mapping.dueDateCol] || '').trim() : '';
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const startDate = parseImportDate(rawStartDate, todayStr);
+      const dueDate = parseImportDate(rawDueDate, '2026-12-31');
 
       const rawHours = mapping.hoursCol ? parseFloat(String(row[mapping.hoursCol] || '')) : NaN;
       const estimatedHours = !isNaN(rawHours) && rawHours > 0 ? rawHours : 16;
@@ -707,6 +712,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 const titleVal = mapping.titleCol ? String(row[mapping.titleCol] || '') : 'Task Item';
                 const statusVal = mapping.statusCol ? String(row[mapping.statusCol] || '') : 'To Do';
                 const dueVal = mapping.dueDateCol ? String(row[mapping.dueDateCol] || '') : '';
+                const parsedDue = dueVal ? parseImportDate(dueVal, '') : '';
+                const todayStr = new Date().toISOString().split('T')[0];
+                const isOverdue = parsedDue && parsedDue < todayStr && !/done|comp|100%/i.test(statusVal);
 
                 return (
                   <div key={idx} className="p-2.5 text-xs flex items-center justify-between font-mono">
@@ -715,7 +723,16 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                       <span className="font-bold truncate">{titleVal || 'Untitled Task'}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 text-[10px]">
-                      {dueVal && <span className="text-slate-400">{dueVal}</span>}
+                      {dueVal && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-400">{parsedDue || dueVal}</span>
+                          {isOverdue && (
+                            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-bold" title="Overdue schedule preserved on import">
+                              Overdue
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <span className="px-2 py-0.5 rounded-md font-bold bg-[#0773BB]/20 text-[#0773BB]">
                         {statusVal || 'To Do'}
                       </span>

@@ -101,9 +101,9 @@ export const ProjectsView: React.FC = () => {
   const [newDesc, setNewDesc] = useState('');
   const [newCompanyId, setNewCompanyId] = useState(activeCompany.id || 'comp_5');
   const [newCategory, setNewCategory] = useState<Project['category']>('Industrial Manufacturing');
-  const [newBudget, setNewBudget] = useState(500000);
-  const [newStartDate, setNewStartDate] = useState('2026-08-10');
-  const [newDueDate, setNewDueDate] = useState('2026-12-31');
+  const [newBudget, setNewBudget] = useState<string>('');
+  const [newStartDate, setNewStartDate] = useState('');
+  const [newDueDate, setNewDueDate] = useState('');
   const [newManagerId, setNewManagerId] = useState(users[0]?.id || 'usr_1');
 
   // Projects Filter
@@ -161,19 +161,27 @@ export const ProjectsView: React.FC = () => {
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !newCode) return;
+    if (!newTitle.trim()) return;
+
+    // Auto-generate uppercase project code if left blank
+    const generatedCode = newCode.trim()
+      ? newCode.trim().toUpperCase()
+      : (newTitle.trim().slice(0, 4).toUpperCase() || 'PRJ') + '-' + Math.floor(100 + Math.random() * 900);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const defaultDue = new Date(Date.now() + 120 * 86400000).toISOString().split('T')[0];
 
     addProject({
-      title: newTitle,
-      code: newCode.toUpperCase(),
+      title: newTitle.trim(),
+      code: generatedCode,
       companyId: newCompanyId,
       description: newDesc || 'Strategic engineering project',
       status: 'Planning',
       managerId: newManagerId,
-      startDate: newStartDate,
-      dueDate: newDueDate,
-      budget: Number(newBudget),
-      category: newCategory,
+      startDate: newStartDate || todayStr,
+      dueDate: newDueDate || defaultDue,
+      budget: newBudget ? Number(newBudget) : 0,
+      category: newCategory || 'Industrial Manufacturing',
       members: [newManagerId],
     });
 
@@ -181,7 +189,10 @@ export const ProjectsView: React.FC = () => {
     setNewTitle('');
     setNewCode('');
     setNewDesc('');
-    showToast(`Project "${newTitle}" initialized successfully.`);
+    setNewBudget('');
+    setNewStartDate('');
+    setNewDueDate('');
+    showToast(`Project "${newTitle.trim()}" initialized successfully.`);
   };
 
   const handleOpenSaveAsTemplate = (projectId?: string) => {
@@ -1111,11 +1122,10 @@ export const ProjectsView: React.FC = () => {
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Project Code *
+                    Project Code <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
                   </label>
                   <input
                     type="text"
-                    required
                     placeholder="e.g. DM-CHILL-03"
                     value={newCode}
                     onChange={(e) => setNewCode(e.target.value)}
@@ -1127,7 +1137,7 @@ export const ProjectsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Industry Category
+                    Industry Category <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
                   </label>
                   <select
                     value={newCategory}
@@ -1145,12 +1155,13 @@ export const ProjectsView: React.FC = () => {
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Budget Allocation ($)
+                    Budget Allocation ($) <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
                   </label>
                   <input
                     type="number"
+                    placeholder="e.g. 500000"
                     value={newBudget}
-                    onChange={(e) => setNewBudget(Number(e.target.value))}
+                    onChange={(e) => setNewBudget(e.target.value)}
                     className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#0773BB]"
                   />
                 </div>
@@ -1159,7 +1170,7 @@ export const ProjectsView: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Start Date
+                    Start Date <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
                   </label>
                   <input
                     type="date"
@@ -1171,7 +1182,7 @@ export const ProjectsView: React.FC = () => {
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Target Due Date
+                    Target Due Date <span className="text-slate-400 font-normal text-[10px]">(Optional)</span>
                   </label>
                   <input
                     type="date"
