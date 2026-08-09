@@ -298,7 +298,7 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         id: `proj-${proj.id}`,
         type: 'project',
         title: `${proj.title} (${proj.code})`,
-        subtitle: `Client: ${proj.client} • Budget: $${proj.budget.toLocaleString()} • Status: ${proj.status}`,
+        subtitle: `Company: ${companies.find((c) => c.id === proj.companyId)?.name || 'Dolphin Group'} • Budget: $${proj.budget.toLocaleString()} • Status: ${proj.status}`,
         category: 'Project',
         icon: <FolderKanban className="w-4 h-4 text-amber-400" />,
         badge: proj.status,
@@ -328,7 +328,7 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         icon: <CheckSquare className="w-4 h-4 text-sky-400" />,
         badge: t.priority,
         badgeColor:
-          t.priority === 'Critical'
+          t.priority === 'Urgent'
             ? 'bg-red-500/20 text-red-400'
             : t.priority === 'High'
             ? 'bg-amber-500/20 text-amber-400'
@@ -348,10 +348,10 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         id: `file-${f.id}`,
         type: 'file',
         title: f.name,
-        subtitle: `Size: ${f.size} • Category: ${f.category} • Project: ${proj?.title || 'System'}`,
+        subtitle: `Size: ${f.size} • Type: ${f.mimeType || 'Document'} • Project: ${proj?.title || 'System'}`,
         category: 'File',
-        icon: f.fileType === 'pdf' ? <FileText className="w-4 h-4 text-red-400" /> : <FileSpreadsheet className="w-4 h-4 text-emerald-400" />,
-        badge: f.fileType.toUpperCase(),
+        icon: f.mimeType?.includes('pdf') ? <FileText className="w-4 h-4 text-red-400" /> : <FileSpreadsheet className="w-4 h-4 text-emerald-400" />,
+        badge: (f.mimeType ? f.mimeType.split('/').pop() || 'FILE' : 'FILE').toUpperCase(),
         badgeColor: 'bg-[#3BC0BB]/20 text-[#3BC0BB]',
         onSelect: () => {
           setActiveTab('files');

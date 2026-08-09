@@ -39,6 +39,7 @@ export interface User {
   isEmailVerified?: boolean;
   password?: string;
   lastActive?: string;
+  theme?: DolphinTheme;
 }
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'In Review' | 'Completed';

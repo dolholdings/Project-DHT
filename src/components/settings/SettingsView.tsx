@@ -321,7 +321,7 @@ export const SettingsView: React.FC = () => {
       t.projectId,
       t.status,
       t.priority,
-      t.assigneeId || 'Unassigned',
+      t.assigneeIds.join(';') || 'Unassigned',
       t.estimatedHours,
       t.loggedHours,
       t.dueDate
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS \`tasks\` (
 -- Seed Data Insertion
 ${companies.map(c => `INSERT INTO \`companies\` (\`id\`, \`name\`, \`code\`, \`domain\`, \`description\`) VALUES ('${c.id}', '${c.name.replace(/'/g, "''")}', '${c.code}', '${c.domain}', '${(c.description || '').replace(/'/g, "''")}');`).join('\n')}
 
-${projects.map(p => `INSERT INTO \`projects\` (\`id\`, \`title\`, \`code\`, \`company_id\`, \`status\`, \`priority\`, \`progress\`, \`total_budget\`, \`spent_budget\`, \`start_date\`, \`end_date\`) VALUES ('${p.id}', '${p.title.replace(/'/g, "''")}', '${p.code}', '${p.companyId}', '${p.status}', '${p.priority}', ${p.progress}, ${p.totalBudget}, ${p.spentBudget}, '${p.startDate}', '${p.endDate}');`).join('\n')}
+${projects.map(p => `INSERT INTO \`projects\` (\`id\`, \`title\`, \`code\`, \`company_id\`, \`status\`, \`progress\`, \`total_budget\`, \`spent_budget\`, \`start_date\`, \`due_date\`) VALUES ('${p.id}', '${p.title.replace(/'/g, "''")}', '${p.code}', '${p.companyId}', '${p.status}', ${p.progress}, ${p.budget}, ${p.spentBudget}, '${p.startDate}', '${p.dueDate}');`).join('\n')}
 
 SET FOREIGN_KEY_CHECKS = 1;
 `;

@@ -14,21 +14,44 @@
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
     --border-color: #233549;
-    --accent-primary: #7B68EE;
+    --accent-primary: #00AEA9;
     --accent-blue: #0773BB;
-    --accent-teal: #3BC0BB;
+    --accent-teal: #00AEA9;
+
+    /* Centralized Theme Tokens */
+    --theme-primary: #00AEA9;
+    --theme-primary-dark: #008F8A;
+    --theme-background: #0D1520;
+    --theme-surface: #16222F;
+    --theme-border: #233549;
+    --theme-text: #F8FAFC;
+    --theme-text-secondary: #94A3B8;
   }
 
-  html.light-theme, [data-theme="light"] {
+  html.light-theme, html.light, .light-theme, .light, [data-theme="light"] {
     --bg-primary: #F8FAFC;
     --bg-surface: #FFFFFF;
     --bg-card: #F1F5F9;
     --text-primary: #0F172A;
-    --text-secondary: #475569;
+    --text-secondary: #64748B;
     --border-color: #E2E8F0;
-    --accent-primary: #6366F1;
+    --accent-primary: #00AEA9;
     --accent-blue: #0284C7;
-    --accent-teal: #0D9488;
+    --accent-teal: #00AEA9;
+
+    /* Centralized Theme Tokens for Light Mode */
+    --theme-primary: #00AEA9;
+    --theme-primary-dark: #008F8A;
+    --theme-background: #F8FAFC;
+    --theme-surface: #FFFFFF;
+    --theme-border: #E2E8F0;
+    --theme-text: #0F172A;
+    --theme-text-secondary: #64748B;
+  }
+
+  html, body, #root {
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   html {
@@ -54,64 +77,104 @@
 }
 
 /* Light Mode Overrides for Hardcoded Dark Containers and Elements across all subpages */
-html.light-theme, [data-theme="light"] {
+html.light-theme, html.light, .light-theme, .light, [data-theme="light"] {
   color-scheme: light;
 }
 
-html.light-theme body, [data-theme="light"] body {
+html.light-theme body, html.light body, .light-theme body, .light body, [data-theme="light"] body {
   background-color: #F8FAFC !important;
   color: #0F172A !important;
 }
 
-/* Background overrides for hardcoded dark colors */
+/* Canvas Primary Background overrides */
 html.light-theme .bg-\[\#0D1520\],
 html.light-theme .bg-\[\#0d1520\],
 html.light-theme .bg-\[\#070D14\],
 html.light-theme .bg-\[\#080D14\],
+html.light-theme .bg-\[\#0B121C\],
+html.light-theme .bg-\[\#020712\],
+html.light-theme .bg-\[\#061318\],
+html.light-theme .bg-\[\#0D1724\],
+html.light-theme .bg-\[\#0a111a\],
+html.light .bg-\[\#0D1520\],
+.light-theme .bg-\[\#0D1520\],
+.light .bg-\[\#0D1520\],
 [data-theme="light"] .bg-\[\#0D1520\],
-[data-theme="light"] .bg-\[\#0d1520\] {
+[data-theme="light"] .bg-\[\#0d1520\],
+[data-theme="light"] .bg-\[\#070D14\] {
   background-color: #F8FAFC !important;
 }
 
+/* Surface / Card / Panel / Modal backgrounds */
 html.light-theme .bg-\[\#16222F\],
 html.light-theme .bg-\[\#16222f\],
 html.light-theme .bg-\[\#121B26\],
 html.light-theme .bg-\[\#121b26\],
+html.light-theme .bg-\[\#0E1723\],
+html.light-theme .bg-\[\#121E2B\],
+html.light-theme .bg-\[\#182738\],
+html.light-theme .bg-\[\#121E2D\],
+html.light-theme .bg-\[\#152230\],
+html.light .bg-\[\#16222F\],
+.light-theme .bg-\[\#16222F\],
+.light-theme .bg-\[\#121B26\],
+.light .bg-\[\#16222F\],
 [data-theme="light"] .bg-\[\#16222F\],
 [data-theme="light"] .bg-\[\#121B26\] {
   background-color: #FFFFFF !important;
 }
 
+/* Sub-card / Sub-container / Header / Table Row backgrounds */
 html.light-theme .bg-\[\#1A2838\],
 html.light-theme .bg-\[\#1a2838\],
 html.light-theme .bg-\[\#121C28\],
 html.light-theme .bg-\[\#121c28\],
 html.light-theme .bg-\[\#182332\],
+html.light-theme .bg-\[\#1F2F42\],
+html.light-theme .bg-\[\#1C2C3D\],
+html.light-theme .bg-\[\#192B3C\],
+html.light-theme .bg-\[\#111d2b\],
+html.light-theme .bg-\[\#162638\],
+html.light .bg-\[\#1A2838\],
+.light-theme .bg-\[\#1A2838\],
+.light .bg-\[\#1A2838\],
 [data-theme="light"] .bg-\[\#1A2838\],
 [data-theme="light"] .bg-\[\#121C28\] {
   background-color: #F1F5F9 !important;
 }
 
-/* Semi-transparent Dark Backgrounds */
+/* Semi-transparent Dark Background Overrides */
 html.light-theme [class*="bg-[#0D1520]"],
 html.light-theme [class*="bg-[#0d1520]"],
 html.light-theme [class*="bg-[#16222F]"],
 html.light-theme [class*="bg-[#16222f]"],
 html.light-theme [class*="bg-[#121B26]"],
-html.light-theme [class*="bg-[#121b26]"] {
+html.light-theme [class*="bg-[#121b26]"],
+html.light-theme [class*="bg-[#182738]"],
+html.light-theme [class*="bg-[#1C2C3D]"],
+.light-theme [class*="bg-[#0D1520]"],
+.light-theme [class*="bg-[#16222F]"],
+[data-theme="light"] [class*="bg-[#0D1520]"],
+[data-theme="light"] [class*="bg-[#16222F]"] {
   background-color: #FFFFFF !important;
 }
 
 /* Slate Dark Background Overrides */
-html.light-theme .bg-slate-900,
 html.light-theme .bg-slate-950,
+html.light-theme .bg-slate-900,
+html.light-theme [class*="bg-slate-950"],
 html.light-theme [class*="bg-slate-900"],
-html.light-theme [class*="bg-slate-950"] {
+.light-theme .bg-slate-950,
+.light-theme .bg-slate-900,
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] .bg-slate-900 {
   background-color: #FFFFFF !important;
 }
 
 html.light-theme .bg-slate-800,
-html.light-theme [class*="bg-slate-800"] {
+html.light-theme [class*="bg-slate-800"],
+.light-theme .bg-slate-800,
+[data-theme="light"] .bg-slate-800 {
   background-color: #F1F5F9 !important;
 }
 
@@ -119,58 +182,91 @@ html.light-theme [class*="bg-slate-800"] {
 html.light-theme .from-\[\#16222F\],
 html.light-theme .from-\[\#1A2838\],
 html.light-theme .from-\[\#0D1520\],
-html.light-theme .from-\[\#121B26\] {
+html.light-theme .from-\[\#121B26\],
+.light-theme .from-\[\#16222F\],
+[data-theme="light"] .from-\[\#16222F\] {
   --tw-gradient-from: #FFFFFF !important;
   --tw-gradient-to: #F8FAFC !important;
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
 }
 
 html.light-theme .via-\[\#1A2838\],
-html.light-theme .via-\[\#1A2634\] {
+html.light-theme .via-\[\#1A2634\],
+[data-theme="light"] .via-\[\#1A2838\] {
   --tw-gradient-via: #F1F5F9 !important;
 }
 
 html.light-theme .to-\[\#0D1520\],
 html.light-theme .to-\[\#16222F\],
-html.light-theme .to-\[\#121B26\] {
+html.light-theme .to-\[\#121B26\],
+[data-theme="light"] .to-\[\#0D1520\] {
   --tw-gradient-to: #F8FAFC !important;
 }
 
 /* Border Overrides */
 html.light-theme .border-\[\#233549\],
+html.light-theme .border-\[\#223548\],
 html.light-theme [class*="border-[#233549]"],
+html.light-theme [class*="border-[#223548]"],
 html.light-theme .border-slate-800,
 html.light-theme .border-slate-700,
 html.light-theme [class*="border-slate-800"],
-html.light-theme [class*="border-slate-700"] {
+html.light-theme [class*="border-slate-700"],
+.light-theme .border-\[\#233549\],
+.light .border-\[\#233549\],
+[data-theme="light"] .border-\[\#233549\],
+[data-theme="light"] [class*="border-[#233549]"] {
   border-color: #E2E8F0 !important;
 }
 
 html.light-theme .divide-\[\#233549\],
+html.light-theme .divide-\[\#223548\],
 html.light-theme [class*="divide-[#233549]"],
 html.light-theme .divide-slate-800,
-html.light-theme .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+html.light-theme .divide-slate-700 > :not([hidden]) ~ :not([hidden]),
+.light-theme .divide-\[\#233549\],
+[data-theme="light"] .divide-\[\#233549\] {
   border-color: #E2E8F0 !important;
 }
 
 /* Typography Text Colors for Light Theme */
-html.light-theme .text-slate-100 {
+html.light-theme .text-slate-100,
+.light-theme .text-slate-100,
+[data-theme="light"] .text-slate-100 {
   color: #0F172A !important;
 }
 
-html.light-theme .text-slate-200 {
+html.light-theme .text-slate-200,
+.light-theme .text-slate-200,
+[data-theme="light"] .text-slate-200 {
   color: #1E293B !important;
 }
 
-html.light-theme .text-slate-300 {
+html.light-theme .text-slate-300,
+.light-theme .text-slate-300,
+[data-theme="light"] .text-slate-300 {
   color: #334155 !important;
 }
 
-html.light-theme .text-slate-400 {
+html.light-theme .text-slate-400,
+.light-theme .text-slate-400,
+[data-theme="light"] .text-slate-400 {
   color: #475569 !important;
 }
 
-/* Preserve White Text inside Buttons / Badges / Pills */
+/* Transform white text on cards into dark slate text in Light Mode, except inside buttons/badges/pills/accents */
+html.light-theme .text-white:not(button *):not(.btn *):not(.badge *):not(.pill *):not([role="button"] *):not(.bg-\[\#0773BB\] *):not(.bg-\[\#7B68EE\] *):not(.bg-indigo-600 *):not(.bg-indigo-700 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-rose-500 *):not(.bg-rose-600 *):not(.bg-amber-500 *):not(.bg-teal-600 *):not(.bg-teal-700 *),
+.light-theme .text-white:not(button *):not(.btn *):not(.badge *):not(.pill *):not([role="button"] *):not(.bg-\[\#0773BB\] *):not(.bg-\[\#7B68EE\] *):not(.bg-indigo-600 *):not(.bg-indigo-700 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-rose-500 *):not(.bg-rose-600 *):not(.bg-amber-500 *):not(.bg-teal-600 *):not(.bg-teal-700 *),
+.light .text-white:not(button *):not(.btn *):not(.badge *):not(.pill *):not([role="button"] *):not(.bg-\[\#0773BB\] *):not(.bg-\[\#7B68EE\] *):not(.bg-indigo-600 *):not(.bg-indigo-700 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-rose-500 *):not(.bg-rose-600 *):not(.bg-amber-500 *):not(.bg-teal-600 *):not(.bg-teal-700 *),
+[data-theme="light"] .text-white:not(button *):not(.btn *):not(.badge *):not(.pill *):not([role="button"] *):not(.bg-\[\#0773BB\] *):not(.bg-\[\#7B68EE\] *):not(.bg-indigo-600 *):not(.bg-indigo-700 *):not(.bg-emerald-500 *):not(.bg-emerald-600 *):not(.bg-rose-500 *):not(.bg-rose-600 *):not(.bg-amber-500 *):not(.bg-teal-600 *):not(.bg-teal-700 *) {
+  color: #0F172A !important;
+}
+
+/* Preserve White Text inside Buttons / Badges / Pills / Action Elements */
+html.light-theme button *,
+html.light-theme .btn *,
+html.light-theme .badge *,
+html.light-theme .pill *,
 html.light-theme .bg-\[\#7B68EE\],
 html.light-theme .bg-\[\#7B68EE\] *,
 html.light-theme .bg-\[\#0773BB\],
@@ -184,34 +280,55 @@ html.light-theme .bg-emerald-600 *,
 html.light-theme .bg-rose-500,
 html.light-theme .bg-rose-500 *,
 html.light-theme .bg-amber-500,
-html.light-theme .bg-amber-500 * {
+html.light-theme .bg-amber-500 *,
+.light-theme button *,
+[data-theme="light"] button * {
   color: #FFFFFF !important;
 }
 
 /* Form Controls: Inputs, Selects, Textareas */
 html.light-theme input:not([type="checkbox"]):not([type="radio"]),
 html.light-theme select,
-html.light-theme textarea {
+html.light-theme textarea,
+.light-theme input:not([type="checkbox"]):not([type="radio"]),
+.light-theme select,
+.light-theme textarea,
+.light input:not([type="checkbox"]):not([type="radio"]),
+.light select,
+.light textarea,
+[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="light"] select,
+[data-theme="light"] textarea {
   background-color: #FFFFFF !important;
   color: #0F172A !important;
   border-color: #CBD5E1 !important;
 }
 
 html.light-theme input::placeholder,
-html.light-theme textarea::placeholder {
-  color: #94A3B8 !important;
+html.light-theme textarea::placeholder,
+.light-theme input::placeholder,
+.light-theme textarea::placeholder,
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #64748B !important;
 }
 
 /* Modal Backdrops */
 html.light-theme .fixed.inset-0.bg-black\/70,
 html.light-theme .fixed.inset-0.bg-black\/80,
-html.light-theme .fixed.inset-0.bg-[#070D14]\/80 {
+html.light-theme .fixed.inset-0.bg-\[\#070D14\]\/80,
+.light-theme .fixed.inset-0.bg-black\/70,
+.light-theme .fixed.inset-0.bg-black\/80,
+[data-theme="light"] .fixed.inset-0.bg-black\/70,
+[data-theme="light"] .fixed.inset-0.bg-black\/80 {
   background-color: rgba(15, 23, 42, 0.4) !important;
 }
 
 /* Table Headers and Row Hover */
 html.light-theme table thead,
-html.light-theme .bg-\[\#0D1520\]\/40 {
+html.light-theme .bg-\[\#0D1520\]\/40,
+.light-theme table thead,
+[data-theme="light"] table thead {
   background-color: #F1F5F9 !important;
   color: #475569 !important;
 }
@@ -219,7 +336,9 @@ html.light-theme .bg-\[\#0D1520\]\/40 {
 html.light-theme tr:hover,
 html.light-theme .hover\:bg-\[\#16222F\]:hover,
 html.light-theme .hover\:bg-\[\#16222F\]\/80:hover,
-html.light-theme .hover\:bg-\[\#1A2838\]:hover {
+html.light-theme .hover\:bg-\[\#1A2838\]:hover,
+.light-theme tr:hover,
+[data-theme="light"] tr:hover {
   background-color: #F8FAFC !important;
 }
 

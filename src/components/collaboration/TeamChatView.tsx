@@ -47,7 +47,7 @@ interface VoiceMessage {
 }
 
 export const TeamChatView: React.FC = () => {
-  const { users, currentUser, activeCompany, theme, projects, addTask } = useApp();
+  const { users, currentUser, activeCompany, companies, theme, projects, addTask } = useApp();
 
   const [messages, setMessages] = useState<VoiceMessage[]>([
     {
@@ -767,7 +767,7 @@ export const TeamChatView: React.FC = () => {
                 >
                   {projects.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.title} ({p.companyName || 'Dolphin Group'})
+                      {p.title} ({companies.find((c) => c.id === p.companyId)?.name || 'Dolphin Group'})
                     </option>
                   ))}
                 </select>

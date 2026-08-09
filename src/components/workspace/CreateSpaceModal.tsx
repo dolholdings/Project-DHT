@@ -115,69 +115,30 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs font-medium">
-          {/* Space Name & Code */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2">
-              <label className="block text-slate-400 font-semibold mb-1">Space Name *</label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Industrial Automation, Growth Strategy"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (!code) {
-                    setCode(e.target.value.slice(0, 4).toUpperCase());
-                  }
-                }}
-                className={`w-full rounded-xl px-3.5 py-2.5 font-medium border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1">Space Code</label>
-              <input
-                type="text"
-                placeholder="e.g. AUTO"
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                maxLength={6}
-                className={`w-full rounded-xl px-3.5 py-2.5 font-mono uppercase border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              />
-            </div>
+          {/* Space Name */}
+          <div>
+            <label className="block text-slate-400 font-semibold mb-1">Space Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Industrial Automation, Growth Strategy"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (!code) {
+                  setCode(e.target.value.slice(0, 4).toUpperCase());
+                }
+              }}
+              className={`w-full rounded-xl px-3.5 py-2.5 font-medium border focus:outline-none transition-colors ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
+                  : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
+              }`}
+            />
           </div>
 
-          {/* Department Category & Organization */}
+          {/* Workspace / Organization & Lead Manager */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                Category / Department
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Project['category'])}
-                className={`w-full rounded-xl px-3 py-2.5 border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              >
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             <div>
               <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-[#3BC0BB]" />
@@ -199,26 +160,7 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
                 ))}
               </select>
             </div>
-          </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-slate-400 font-semibold mb-1">Space Description</label>
-            <textarea
-              rows={2}
-              placeholder="Describe the primary goals, scope, and objectives of this space..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className={`w-full rounded-xl px-3.5 py-2 border focus:outline-none transition-colors ${
-                theme === 'light'
-                  ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                  : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-              }`}
-            />
-          </div>
-
-          {/* Lead Manager & Budget */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-[#3BC0BB]" />
@@ -240,61 +182,22 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
                 ))}
               </select>
             </div>
-
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-emerald-400" />
-                Initial Space Budget ($)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={5000}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
-                className={`w-full rounded-xl px-3.5 py-2.5 font-mono border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              />
-            </div>
           </div>
 
-          {/* Dates */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className={`w-full rounded-xl px-3.5 py-2 border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                Target Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={`w-full rounded-xl px-3.5 py-2 border focus:outline-none transition-colors ${
-                  theme === 'light'
-                    ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
-                    : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
-                }`}
-              />
-            </div>
+          {/* Description */}
+          <div>
+            <label className="block text-slate-400 font-semibold mb-1">Space Description</label>
+            <textarea
+              rows={2}
+              placeholder="Describe the primary goals, scope, and objectives of this space..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className={`w-full rounded-xl px-3.5 py-2 border focus:outline-none transition-colors ${
+                theme === 'light'
+                  ? 'bg-slate-50 border-slate-300 text-slate-900 focus:border-[#0D9488]'
+                  : 'bg-[#0D1520] border-[#233549] text-white focus:border-[#0773BB]'
+              }`}
+            />
           </div>
 
           {/* Actions */}

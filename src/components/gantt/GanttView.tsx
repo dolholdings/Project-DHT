@@ -196,8 +196,13 @@ export const GanttView: React.FC = () => {
   };
 
   const handleRemoveLink = (taskId: string, dependsOnTaskId: string) => {
-    removeDependency(taskId, dependsOnTaskId);
-    setToastMsg('Dependency link removed.');
+    const matchedDep = dependencies.find((d) => d.taskId === taskId && d.dependsOnTaskId === dependsOnTaskId);
+    if (matchedDep) {
+      removeDependency(matchedDep.id);
+      setToastMsg('Dependency link removed.');
+    } else {
+      setToastMsg('Dependency link not found.');
+    }
     setTimeout(() => setToastMsg(null), 3000);
   };
 
@@ -417,7 +422,7 @@ export const GanttView: React.FC = () => {
               Project Gantt Schedule & Dependency Matrix
             </h1>
             <p className="text-xs text-slate-600 mt-1">
-              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{activeProject?.manager}</span>
+              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{users.find((u) => u.id === activeProject?.managerId)?.name || 'Project Manager'}</span>
             </p>
           </div>
           <div className="text-right font-mono text-xs text-slate-600 space-y-1">

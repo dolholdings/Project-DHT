@@ -104,7 +104,7 @@ export const KanbanView: React.FC = () => {
               Agile Task Stage Matrix & Work-In-Progress Board
             </h1>
             <p className="text-xs text-slate-600 mt-1">
-              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{activeProject?.manager}</span>
+              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{users.find((u) => u.id === activeProject?.managerId)?.name || 'Project Manager'}</span>
             </p>
           </div>
           <div className="text-right font-mono text-xs text-slate-600 space-y-1">

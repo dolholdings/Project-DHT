@@ -282,7 +282,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         dueDate: '2026-12-31',
         budget: 150000,
         spentBudget: 0,
-        category: 'Excel Import',
+        category: 'Group IT',
         members: users.map((u) => u.id)
       });
       destinationProjId = createdProj.id;
@@ -323,7 +323,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
       addTask({
         projectId: destinationProjId,
-        companyId: 'comp_1',
+        companyId: 'comp_corp',
         title,
         description: description || `Task imported from ${fileName}`,
         status,
@@ -333,7 +333,6 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         startDate: startDate || new Date().toISOString().split('T')[0],
         dueDate: dueDate || '2026-12-31',
         estimatedHours,
-        loggedHours: status === 'Done' ? estimatedHours : 0,
         tags: ['Imported', fileType.toUpperCase()]
       });
 

@@ -113,12 +113,13 @@ export const QuickAddFAB: React.FC = () => {
         status: status,
         priority: priority,
         assigneeIds: assigneeIds.length > 0 ? assigneeIds : [users[0]?.id || 'usr_pk'],
+        reporterId: users[0]?.id || 'usr_pk',
         startDate: new Date().toISOString().split('T')[0],
         dueDate: dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
         estimatedHours: Number(estimatedHours) || 8,
         dependencies: [],
         predecessors: [],
-        progress: 0,
+        tags: ['Quick Add']
       });
 
       setSuccessToast({

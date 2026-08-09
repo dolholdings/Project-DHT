@@ -49,7 +49,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
     if (isAdmin) return projects;
 
     return projects.filter((p) => {
-      if (p.managerId === currentUser.id || p.manager?.id === currentUser.id) return true;
+      if (p.managerId === currentUser.id) return true;
       if (p.members && p.members.includes(currentUser.id)) return true;
       if (p.memberRoles && p.memberRoles[currentUser.id]) return true;
       return false;
@@ -125,17 +125,17 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-teal-400 flex items-center gap-1">
+            <div className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${isLight ? 'text-[#0D9488]' : 'text-teal-400'}`}>
               <span>Space Switcher</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             </div>
-            <div className="text-xs font-extrabold truncate">
+            <div className={`text-xs font-extrabold truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
               {activeProject ? activeProject.title : 'All Accessible Spaces'}
             </div>
           </div>
         </div>
 
-        <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 text-slate-400 ${isOpen ? 'rotate-180 text-teal-400' : ''}`} />
+        <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-200 ${isLight ? 'text-slate-500' : 'text-slate-400'} ${isOpen ? 'rotate-180 text-teal-500' : ''}`} />
       </button>
 
       {/* Switcher Dropdown Popover */}
@@ -151,20 +151,20 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
           <div className={`p-3 border-b flex items-center gap-2 ${
             isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182738] border-[#223548]'
           }`}>
-            <Search className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <Search className={`w-3.5 h-3.5 shrink-0 ${isLight ? 'text-slate-500' : 'text-slate-400'}`} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search project spaces..."
-              className="w-full bg-transparent text-xs font-medium focus:outline-none placeholder:text-slate-500"
+              className={`w-full bg-transparent text-xs font-medium focus:outline-none ${isLight ? 'text-slate-800 placeholder:text-slate-400' : 'text-slate-100 placeholder:text-slate-500'}`}
               autoFocus
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="text-[10px] font-bold text-slate-400 hover:text-white"
+                className={`text-[10px] font-bold ${isLight ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-white'}`}
               >
                 Clear
               </button>
@@ -178,27 +178,35 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
               onClick={() => handleSelectSpace(null)}
               className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                 selectedProjectId === null
-                  ? 'bg-teal-500/15 border-teal-500/40 text-teal-300 font-bold'
+                  ? isLight
+                    ? 'bg-teal-50 border-teal-500/40 text-teal-900 font-bold'
+                    : 'bg-teal-500/15 border-teal-500/40 text-teal-300 font-bold'
+                  : isLight
+                  ? 'bg-transparent border-transparent hover:bg-slate-100 text-slate-800'
                   : 'bg-transparent border-transparent hover:bg-slate-800/40 text-slate-300'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center shrink-0">
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                  isLight ? 'bg-sky-100 text-sky-700 border border-sky-200' : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                }`}>
                   <Briefcase className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-bold truncate">All Accessible Spaces</div>
-                  <div className="text-[10px] text-slate-400">View tasks across all granted spaces</div>
+                  <div className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>All Accessible Spaces</div>
+                  <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>View tasks across all granted spaces</div>
                 </div>
               </div>
 
-              {selectedProjectId === null && <Check className="w-4 h-4 text-teal-400 stroke-[2.5]" />}
+              {selectedProjectId === null && <Check className={`w-4 h-4 stroke-[2.5] ${isLight ? 'text-[#0D9488]' : 'text-teal-400'}`} />}
             </button>
 
-            <div className="pt-2 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+            <div className={`pt-2 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider flex items-center justify-between ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               <span>Your Allowed Spaces ({accessibleProjects.length})</span>
               {isAdmin && (
-                <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[9px] font-mono">
+                <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold ${
+                  isLight ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-amber-500/20 text-amber-300'
+                }`}>
                   ADMIN ACCESS
                 </span>
               )}
@@ -206,7 +214,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
 
             {/* Accessible Projects List */}
             {filteredProjects.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-400">
+              <div className={`p-4 text-center text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                 No matching spaces found for "{searchQuery}"
               </div>
             ) : (
@@ -222,23 +230,31 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                     className={`w-full p-2.5 rounded-xl border text-left transition-all flex items-center justify-between group ${
                       isSelected
                         ? isLight
-                          ? 'bg-teal-500/15 border-teal-500/40 text-teal-900 font-bold'
+                          ? 'bg-teal-50 border-teal-500/40 text-teal-900 font-bold'
                           : 'bg-teal-500/15 border-teal-500/40 text-teal-300 font-bold'
                         : isLight
-                        ? 'bg-transparent border-transparent hover:bg-slate-100 text-slate-700'
+                        ? 'bg-transparent border-transparent hover:bg-slate-100 text-slate-800'
                         : 'bg-transparent border-transparent hover:bg-slate-800/40 text-slate-300'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="px-1.5 py-0.5 rounded bg-slate-800 text-teal-400 text-[10px] font-mono font-bold shrink-0 border border-slate-700">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 ${
+                        isLight
+                          ? 'bg-teal-100 text-[#0D9488] border border-teal-200'
+                          : 'bg-slate-800 text-teal-400 border border-slate-700'
+                      }`}>
                         {p.code}
                       </span>
 
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-bold truncate group-hover:text-teal-400 transition-colors">
+                        <div className={`text-xs font-bold truncate transition-colors ${
+                          isLight
+                            ? 'text-slate-800 group-hover:text-[#0D9488]'
+                            : 'text-slate-100 group-hover:text-teal-400'
+                        }`}>
                           {p.title}
                         </div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-2 truncate">
+                        <div className={`text-[10px] flex items-center gap-2 truncate ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                           <span>{p.category}</span>
                           <span>•</span>
                           <span>{taskCount} tasks</span>
@@ -246,7 +262,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
                       </div>
                     </div>
 
-                    {isSelected && <Check className="w-4 h-4 text-teal-400 stroke-[2.5] shrink-0 ml-2" />}
+                    {isSelected && <Check className={`w-4 h-4 stroke-[2.5] shrink-0 ml-2 ${isLight ? 'text-[#0D9488]' : 'text-teal-400'}`} />}
                   </button>
                 );
               })

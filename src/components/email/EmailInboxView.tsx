@@ -67,6 +67,7 @@ export const EmailInboxView: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [onlyLinked, setOnlyLinked] = useState(false);
+  const [showMobilePreview, setShowMobilePreview] = useState(false);
 
   // Modals
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -212,8 +213,6 @@ Your corporate email dispatch pipeline is fully operational!`,
       subject: composeSubject,
       snippet: composeBody.slice(0, 80),
       body: composeBody,
-      isStarred: false,
-      folder: 'sent',
       linkedTaskId: composeLinkedTaskId || undefined,
       tags: ['Outgoing', 'Direct']
     });
@@ -320,8 +319,8 @@ Your corporate email dispatch pipeline is fully operational!`,
 
       {/* THREE-PANE MAIN INBOX WORKSPACE */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* PANE 1: LEFT FOLDER & TAG NAVIGATION SIDEBAR */}
-        <div className={`w-56 shrink-0 border-r flex flex-col justify-between overflow-y-auto p-3 ${
+        {/* PANE 1: LEFT FOLDER & TAG NAVIGATION SIDEBAR (Desktop 1024px+) */}
+        <div className={`hidden lg:flex w-56 shrink-0 border-r flex-col justify-between overflow-y-auto p-3 ${
           theme === 'light' ? 'bg-slate-100/70 border-slate-200' : 'bg-[#0B121C] border-[#233549]'
         }`}>
           <div className="space-y-4">
@@ -476,9 +475,67 @@ Your corporate email dispatch pipeline is fully operational!`,
         </div>
 
         {/* PANE 2: MIDDLE EMAIL LIST COLUMN */}
-        <div className={`w-80 sm:w-96 shrink-0 border-r flex flex-col min-h-0 overflow-hidden ${
+        <div className={`w-full md:w-80 lg:w-80 xl:w-96 shrink-0 border-r flex flex-col min-h-0 overflow-hidden ${
+          showMobilePreview ? 'hidden md:flex' : 'flex'
+        } ${
           theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#0E1723] border-[#233549]'
         }`}>
+          {/* Tablet/Mobile Quick Folder Navigation Bar */}
+          <div className="lg:hidden flex items-center gap-1.5 p-2 bg-slate-100 dark:bg-[#121B26] border-b border-slate-200 dark:border-[#233549] overflow-x-auto text-xs shrink-0">
+            <button
+              onClick={() => {
+                setActiveFolder('inbox');
+                setOnlyLinked(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs shrink-0 transition-all ${
+                activeFolder === 'inbox' && !onlyLinked
+                  ? 'bg-[#00AEA9] text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#16222F]'
+              }`}
+            >
+              Inbox
+            </button>
+            <button
+              onClick={() => {
+                setActiveFolder('linked');
+                setOnlyLinked(true);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs shrink-0 transition-all ${
+                activeFolder === 'linked'
+                  ? 'bg-[#00AEA9] text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#16222F]'
+              }`}
+            >
+              Linked
+            </button>
+            <button
+              onClick={() => {
+                setActiveFolder('starred');
+                setOnlyLinked(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs shrink-0 transition-all ${
+                activeFolder === 'starred'
+                  ? 'bg-[#00AEA9] text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#16222F]'
+              }`}
+            >
+              Starred
+            </button>
+            <button
+              onClick={() => {
+                setActiveFolder('sent');
+                setOnlyLinked(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold text-xs shrink-0 transition-all ${
+                activeFolder === 'sent'
+                  ? 'bg-[#00AEA9] text-white'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-[#16222F]'
+              }`}
+            >
+              Sent
+            </button>
+          </div>
+
           {/* List Search & Quick Filter Controls */}
           <div className="p-3 space-y-2 border-b border-[#233549]/50">
             <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${
@@ -547,6 +604,7 @@ Your corporate email dispatch pipeline is fully operational!`,
                     key={email.id}
                     onClick={() => {
                       setSelectedEmailId(email.id);
+                      setShowMobilePreview(true);
                       if (email.isUnread) {
                         toggleUnreadEmail(email.id);
                       }
@@ -632,6 +690,8 @@ Your corporate email dispatch pipeline is fully operational!`,
 
         {/* PANE 3: RIGHT EMAIL READER & TASK LINKING DETAIL VIEW */}
         <div className={`flex-1 flex flex-col min-w-0 overflow-y-auto ${
+          !showMobilePreview ? 'hidden md:flex' : 'flex'
+        } ${
           theme === 'light' ? 'bg-white text-slate-900' : 'bg-[#0D1520] text-slate-100'
         }`}>
           {!selectedEmail ? (
@@ -647,10 +707,17 @@ Your corporate email dispatch pipeline is fully operational!`,
               </div>
             </div>
           ) : (
-            <div className="p-6 space-y-6 max-w-4xl mx-auto w-full">
+            <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto w-full">
               {/* READER HEADER ACTIONS BAR */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#233549]">
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowMobilePreview(false)}
+                    className="md:hidden flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-[#16222F] text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-[#233549] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00AEA9]"
+                  >
+                    <ChevronRight className="w-4 h-4 rotate-180 text-[#00AEA9]" />
+                    <span>Back to Inbox</span>
+                  </button>
                   <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                     selectedEmail.priority === 'High'
                       ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
@@ -658,7 +725,7 @@ Your corporate email dispatch pipeline is fully operational!`,
                   }`}>
                     {selectedEmail.priority || 'Normal Priority'}
                   </span>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-400 font-mono hidden sm:inline">
                     ID: {selectedEmail.id}
                   </span>
                 </div>

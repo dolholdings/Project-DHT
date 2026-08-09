@@ -1764,18 +1764,6 @@ export const WorkspaceManager: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Space Code *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. DM-HVAC"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono uppercase"
-                  />
-                </div>
-
-                <div>
                   <label className="block text-slate-300 font-semibold mb-1">Target Workspace Entity</label>
                   <select
                     value={newCompanyId}
@@ -1785,6 +1773,21 @@ export const WorkspaceManager: React.FC = () => {
                     {companies.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({c.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Project Manager</label>
+                  <select
+                    value={newManagerId}
+                    onChange={(e) => setNewManagerId(e.target.value)}
+                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
+                  >
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.department})
                       </option>
                     ))}
                   </select>
@@ -1800,61 +1803,6 @@ export const WorkspaceManager: React.FC = () => {
                   onChange={(e) => setNewDesc(e.target.value)}
                   className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Department / Category</label>
-                  <select
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value as Project['category'])}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
-                  >
-                    <option value="Industrial Manufacturing">Industrial Manufacturing</option>
-                    <option value="HVAC Engineering">HVAC Engineering</option>
-                    <option value="Radiator Production">Radiator Production</option>
-                    <option value="Heat Exchanger">Heat Exchanger</option>
-                    <option value="Group IT">Group IT</option>
-                    <option value="Digital Marketing">Digital Marketing</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Budget ($)</label>
-                  <input
-                    type="number"
-                    value={newBudget}
-                    onChange={(e) => setNewBudget(Number(e.target.value))}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Project Manager</label>
-                  <select
-                    value={newManagerId}
-                    onChange={(e) => setNewManagerId(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
-                  >
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.department})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Completion Date</label>
-                  <input
-                    type="date"
-                    value={newDueDate}
-                    onChange={(e) => setNewDueDate(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
-                  />
-                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#233549]">
@@ -3021,18 +2969,6 @@ export const WorkspaceManager: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Space Code *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. RAK-PLANT"
-                    value={instantiateCode}
-                    onChange={(e) => setInstantiateCode(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono uppercase"
-                  />
-                </div>
-
-                <div>
                   <label className="block text-slate-300 font-semibold mb-1">Target Workspace Entity</label>
                   <select
                     value={instantiateCompanyId}
@@ -3046,9 +2982,7 @@ export const WorkspaceManager: React.FC = () => {
                     ))}
                   </select>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">Project Manager</label>
                   <select
@@ -3062,36 +2996,6 @@ export const WorkspaceManager: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Project Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={instantiateStartDate}
-                    onChange={(e) => setInstantiateStartDate(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Allocated Budget ($)</label>
-                  <input
-                    type="number"
-                    value={instantiateBudget}
-                    onChange={(e) => setInstantiateBudget(Number(e.target.value))}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Estimated Timeline</label>
-                  <div className="p-2 bg-[#0D1520] border border-[#233549] rounded-xl text-slate-300 font-mono text-[11px]">
-                    {selectedTemplateForInstantiate.estimatedDurationDays || 30} Days Baseline
-                  </div>
                 </div>
               </div>
 
@@ -3161,7 +3065,7 @@ export const WorkspaceManager: React.FC = () => {
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span className="font-semibold text-slate-200 truncate">{t.title}</span>
                                   <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${
-                                    t.priority === 'High' || t.priority === 'Critical'
+                                    t.priority === 'High' || t.priority === 'Urgent'
                                       ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                       : t.priority === 'Medium'
                                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -3686,7 +3590,7 @@ export const WorkspaceManager: React.FC = () => {
                             </span>
                             <span className="text-sm font-bold text-white">{t.title}</span>
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              t.priority === 'High' || t.priority === 'Critical'
+                              t.priority === 'High' || t.priority === 'Urgent'
                                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                 : t.priority === 'Medium'
                                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
@@ -4002,7 +3906,7 @@ export const WorkspaceManager: React.FC = () => {
                                           <span className="text-xs font-bold truncate">{t.title}</span>
                                         </div>
                                         <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${
-                                          t.priority === 'High' || t.priority === 'Critical'
+                                          t.priority === 'High' || t.priority === 'Urgent'
                                             ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                                             : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                                         }`}>

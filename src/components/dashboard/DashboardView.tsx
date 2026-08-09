@@ -351,7 +351,6 @@ export const DashboardView: React.FC = () => {
     if (currentUser?.role === 'Admin') return true;
     return (
       p.managerId === currentUser?.id ||
-      p.manager?.id === currentUser?.id ||
       (p.members && p.members.includes(currentUser?.id || '')) ||
       (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']))
     );
@@ -513,7 +512,7 @@ export const DashboardView: React.FC = () => {
     const nowMs = new Date().setHours(0,0,0,0);
 
     companyProjects.forEach((p) => {
-      const targetDateStr = p.endDate || p.startDate;
+      const targetDateStr = p.dueDate || p.startDate;
       if (targetDateStr) {
         const d = new Date(targetDateStr);
         if (!isNaN(d.getTime())) {
@@ -873,7 +872,7 @@ export const DashboardView: React.FC = () => {
                 },
                 {
                   label: 'Active Team Assignees',
-                  value: new Set(companyTasks.filter((t) => t.status === 'In Progress').map((t) => t.assigneeId)).size,
+                  value: new Set(companyTasks.filter((t) => t.status === 'In Progress').flatMap((t) => t.assigneeIds)).size,
                   subtext: 'Team members actively assigned',
                   color: '#8b5cf6'
                 }
@@ -2148,7 +2147,7 @@ export const DashboardView: React.FC = () => {
                             ${p.spentBudget.toLocaleString()} / ${p.budget.toLocaleString()}
                           </td>
                           <td className="p-2.5 font-mono text-slate-600 border-b border-slate-200">
-                            {p.endDate || p.startDate || 'N/A'}
+                            {p.dueDate || p.startDate || 'N/A'}
                           </td>
                         </tr>
                       );

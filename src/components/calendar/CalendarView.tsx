@@ -142,11 +142,14 @@ export const CalendarView: React.FC = () => {
       title: taskTitle1,
       description: taskDesc,
       projectId: meeting.projectId,
+      companyId: projects.find((p) => p.id === meeting.projectId)?.companyId || 'comp_corp',
       status: 'To Do',
       priority: 'High',
       assigneeIds: [users[0]?.id || 'usr_pk'],
-      estimatedHours: 4,
+      reporterId: users[0]?.id || 'usr_pk',
+      startDate: meeting.date,
       dueDate: meeting.date,
+      estimatedHours: 4,
       tags: ['Meeting Task', 'Follow-up']
     });
 
@@ -415,7 +418,9 @@ export const CalendarView: React.FC = () => {
           }`}>
             <button
               onClick={() => setShowScheduleModal(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-white bg-[#0D1520]"
+              className={`absolute top-5 right-5 p-2 rounded-xl ${
+                theme === 'light' ? 'bg-slate-100 hover:bg-slate-200 text-slate-600' : 'bg-[#0D1520] hover:bg-slate-800 text-slate-400 hover:text-white'
+              }`}
             >
               <X className="w-4 h-4" />
             </button>
@@ -522,7 +527,9 @@ export const CalendarView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowScheduleModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 hover:text-white"
+                  className={`px-4 py-2 rounded-xl font-semibold text-xs ${
+                    theme === 'light' ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] text-slate-300 hover:text-white'
+                  }`}
                 >
                   Cancel
                 </button>

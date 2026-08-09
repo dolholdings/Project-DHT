@@ -158,6 +158,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     setIsAuthenticated,
     users,
     companies,
+    activeCompany,
     validateDomain,
     authorizedDomains,
     addAuthorizedDomain,
@@ -273,7 +274,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         undefined,
         undefined,
         'Failed protected admin secret key attempt',
-        'error'
+        'critical'
       );
     }
   };
@@ -482,14 +483,15 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+      style={{ opacity: 1 }}
+      className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto pointer-events-auto"
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.93, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.93, y: 20 }}
         transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        className={`border rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl my-auto relative ${
+        className={`border rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl my-auto relative z-10 ${
           isLight
             ? 'bg-white border-slate-200 text-slate-900'
             : 'bg-[#16222F] border-[#233549] text-white'
@@ -514,15 +516,18 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-1">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#0773BB] flex items-center justify-center text-white shadow-lg shadow-[#0773BB]/25">
-              <Building2 className="w-6 h-6 text-white" />
+              <span className="text-2xl">{activeCompany?.logo || '📊'}</span>
             </div>
           </div>
           <h2 className={`text-xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-            Dolphin Project Management
+            {activeCompany?.name || 'DGH Analytics Portal'}
           </h2>
           <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            Please enter your login details to access your workspace.
+            {activeCompany?.description || 'Enterprise Business Intelligence & Project Management Workspace'}
           </p>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0773BB]/15 border border-[#0773BB]/30 text-[10px] font-mono font-bold text-[#3BC0BB]">
+            <span>Domain: @{activeCompany?.domain || 'p.dghanalytics.com'}</span>
+          </div>
         </div>
 
         <AnimatePresence mode="wait">

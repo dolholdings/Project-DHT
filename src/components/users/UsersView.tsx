@@ -530,10 +530,8 @@ export const UsersView: React.FC = () => {
               }`}>
                 <tr>
                   <th className="p-3">User Profile</th>
-                  <th className="p-3">Corporate Email</th>
                   <th className="p-3">Company Entity</th>
                   <th className="p-3">Department</th>
-                  <th className="p-3">Assigned Password</th>
                   <th className="p-3">Access Level (Role Controller)</th>
                   <th className="p-3">Assigned Spaces</th>
                   <th className="p-3">Status</th>
@@ -576,14 +574,11 @@ export const UsersView: React.FC = () => {
                               </div>
                             )}
                             <div className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              ID: {u.id.slice(0, 10)}
+                              {u.email} • ID: {u.id.slice(0, 10)}
                             </div>
                           </div>
                         </div>
                       </td>
-
-                      {/* Email */}
-                      <td className="p-3 font-mono text-[#0773BB] font-semibold">{u.email}</td>
 
                       {/* Company Entity */}
                       <td className="p-3">
@@ -607,32 +602,6 @@ export const UsersView: React.FC = () => {
                           />
                         ) : (
                           u.department
-                        )}
-                      </td>
-
-                      {/* Assigned Password */}
-                      <td className="p-3 font-mono">
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            placeholder="New password"
-                            value={editPassword}
-                            onChange={(e) => setEditPassword(e.target.value)}
-                            className={`border rounded px-2 py-1 text-xs font-mono ${
-                              isLight
-                                ? 'bg-white border-[#0773BB] text-amber-800'
-                                : 'bg-[#0D1520] border-[#0773BB] text-amber-300'
-                            }`}
-                          />
-                        ) : (
-                          <span className={`px-2 py-0.5 rounded font-mono text-[11px] font-semibold flex items-center gap-1 w-fit ${
-                            isLight
-                              ? 'bg-amber-50 border border-amber-200 text-amber-800'
-                              : 'bg-[#0D1520] border border-[#233549] text-amber-300'
-                          }`}>
-                            <Lock className="w-3 h-3 text-amber-500 shrink-0" />
-                            {u.password || 'Dolphin@123'}
-                          </span>
                         )}
                       </td>
 
@@ -1680,19 +1649,21 @@ export const UsersView: React.FC = () => {
 
             <form onSubmit={handleAddUser} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Full Name *</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Full Name *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g., Hamdan Al-Nuaimi"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                   Corporate Email Address *
                 </label>
                 <input
@@ -1711,15 +1682,17 @@ export const UsersView: React.FC = () => {
                       }
                     }
                   }}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                 />
               </div>
 
               {/* Password Setting Field */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <label className={`font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    <Lock className="w-3.5 h-3.5 text-amber-500" />
                     <span>Assigned Password *</span>
                   </label>
                   <button
@@ -1738,14 +1711,16 @@ export const UsersView: React.FC = () => {
                   placeholder="e.g., Dolphin@2026 (or leave blank for auto Dolphin@123)"
                   value={assignedPassword}
                   onChange={(e) => setAssignedPassword(e.target.value)}
-                  className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-amber-300 font-mono focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-amber-600 font-bold' : 'bg-[#0D1520] border-[#233549] text-amber-300'
+                  }`}
                 />
               </div>
 
               {/* Company Selection or Custom Company Entry */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-semibold">Company Entity *</label>
+                  <label className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Company Entity *</label>
                   <button
                     type="button"
                     onClick={() => setIsCustomCompany(!isCustomCompany)}
@@ -1756,26 +1731,32 @@ export const UsersView: React.FC = () => {
                 </div>
 
                 {isCustomCompany ? (
-                  <div className="space-y-2 p-3 rounded-xl bg-[#0D1520] border border-[#0773BB]/50 animate-in fade-in">
+                  <div className={`space-y-2 p-3 rounded-xl border border-[#0773BB]/50 animate-in fade-in ${
+                    isLight ? 'bg-slate-50' : 'bg-[#0D1520]'
+                  }`}>
                     <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Company Name</label>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Company Name</label>
                       <input
                         type="text"
                         placeholder="e.g., Dolphin Cooling Systems LLC"
                         value={customCompanyName}
                         onChange={(e) => setCustomCompanyName(e.target.value)}
-                        className="w-full bg-[#16222F] border border-[#233549] rounded-lg px-2.5 py-1.5 text-white"
+                        className={`w-full border rounded-lg px-2.5 py-1.5 ${
+                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+                        }`}
                         required={isCustomCompany}
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">Company Domain (Optional)</label>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Company Domain (Optional)</label>
                       <input
                         type="text"
                         placeholder="e.g., dolcool.ae"
                         value={customCompanyDomain}
                         onChange={(e) => setCustomCompanyDomain(e.target.value)}
-                        className="w-full bg-[#16222F] border border-[#233549] rounded-lg px-2.5 py-1.5 text-white font-mono"
+                        className={`w-full border rounded-lg px-2.5 py-1.5 font-mono ${
+                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+                        }`}
                       />
                     </div>
                   </div>
@@ -1783,7 +1764,9 @@ export const UsersView: React.FC = () => {
                   <select
                     value={selectedCompanyId}
                     onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                    className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   >
                     <optgroup label="Internal Dolphin Entities">
                       {companies
@@ -1810,11 +1793,13 @@ export const UsersView: React.FC = () => {
               {/* Role & Department */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Access Level (Role) *</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Access Level (Role) *</label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as Role)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#0773BB]"
+                    className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   >
                     <option value="Viewer">Viewer (Read-Only Access)</option>
                     <option value="Team Member">Team Member (Standard Member)</option>
@@ -1824,35 +1809,39 @@ export const UsersView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Department</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Department</label>
                   <input
                     type="text"
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-2 text-white"
+                    className={`w-full border rounded-xl px-3 py-2 ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                     placeholder="e.g. Thermal Design, QA/QC"
                   />
                 </div>
               </div>
 
               {inviteError && (
-                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>{inviteError}</span>
                 </div>
               )}
 
               {inviteSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center">
+                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center">
                   {inviteSuccess}
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
+              <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
                 <button
                   type="button"
                   onClick={() => setShowInviteModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] text-slate-300'
+                  }`}
                 >
                   Cancel
                 </button>

@@ -70,6 +70,8 @@ export const AdminView: React.FC = () => {
     logActivity
   } = useApp();
 
+  const isLight = theme === 'light';
+
   const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'usage' | 'security'>('users');
 
   // Search & Filter state for Users Tab
@@ -304,19 +306,21 @@ export const AdminView: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
       {/* Top Banner & Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#16222F] border border-[#233549] rounded-2xl p-6 shadow-xl">
+      <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 border rounded-2xl p-6 shadow-xl ${
+        isLight ? 'bg-white border-slate-200 text-slate-900 shadow-sm' : 'bg-[#16222F] border-[#233549] text-white'
+      }`}>
         <div className="flex items-center gap-4">
           <div className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
             <ShieldAlert className="w-8 h-8" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-white tracking-tight">Tenant Administrator Portal</h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-mono font-bold">
+              <h1 className={`text-xl font-black tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>Tenant Administrator Portal</h1>
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-500 text-[11px] font-mono font-bold">
                 SUPER ADMIN
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
               Cross-domain tenant governance, multi-entity user access control & system resource monitoring.
             </p>
           </div>
@@ -334,18 +338,22 @@ export const AdminView: React.FC = () => {
       </div>
 
       {/* Admin Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-[#233549] pb-3 overflow-x-auto">
+      <div className={`flex items-center gap-2 border-b pb-3 overflow-x-auto ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeTab === 'users'
               ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
           <Users className="w-4 h-4" />
           <span>Tenant Users & Roles</span>
-          <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
+          <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+            isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+          }`}>
             {users.length}
           </span>
         </button>
@@ -355,12 +363,14 @@ export const AdminView: React.FC = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeTab === 'permissions'
               ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
-          <Globe className="w-4 h-4 text-emerald-400" />
+          <Globe className="w-4 h-4 text-emerald-500" />
           <span>Cross-Domain Governance</span>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
             {authorizedDomains.length} Domains
           </span>
         </button>
@@ -370,10 +380,12 @@ export const AdminView: React.FC = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeTab === 'usage'
               ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
-          <BarChart2 className="w-4 h-4 text-sky-400" />
+          <BarChart2 className="w-4 h-4 text-sky-500" />
           <span>System Usage & Telemetry</span>
         </button>
 
@@ -382,10 +394,12 @@ export const AdminView: React.FC = () => {
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
             activeTab === 'security'
               ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
           }`}
         >
-          <Lock className="w-4 h-4 text-amber-400" />
+          <Lock className="w-4 h-4 text-amber-500" />
           <span>System Health & Status</span>
         </button>
       </div>
@@ -394,7 +408,9 @@ export const AdminView: React.FC = () => {
       {activeTab === 'users' && (
         <div className="space-y-6 animate-in fade-in">
           {/* Controls Bar */}
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl p-5 space-y-4">
+          <div className={`border rounded-2xl p-5 space-y-4 ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
               {/* Search */}
               <div className="relative w-full md:w-80">
@@ -404,13 +420,15 @@ export const AdminView: React.FC = () => {
                   value={userSearch}
                   onChange={(e) => setUserSearch(e.target.value)}
                   placeholder="Search user name, email, department..."
-                  className="w-full pl-10 pr-4 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#0773BB] transition-all"
+                  className={`w-full pl-10 pr-4 py-2 border rounded-xl text-xs focus:outline-none focus:border-[#0773BB] transition-all ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400' : 'bg-[#0D1520] border-[#233549] text-white placeholder-slate-500'
+                  }`}
                 />
               </div>
 
               {/* Filters */}
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                <div className={`flex items-center gap-1.5 text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   <Filter className="w-3.5 h-3.5" />
                   <span>Filters:</span>
                 </div>
@@ -418,7 +436,9 @@ export const AdminView: React.FC = () => {
                 <select
                   value={companyFilter}
                   onChange={(e) => setCompanyFilter(e.target.value)}
-                  className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+                  className={`border rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                  }`}
                 >
                   <option value="all">All Tenant Companies</option>
                   {companies.map((c) => (
@@ -431,7 +451,9 @@ export const AdminView: React.FC = () => {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+                  className={`border rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                  }`}
                 >
                   <option value="all">All Roles</option>
                   <option value="Admin">Admin</option>
@@ -443,7 +465,9 @@ export const AdminView: React.FC = () => {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#0773BB]"
+                  className={`border rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                  }`}
                 >
                   <option value="all">All Statuses</option>
                   <option value="Active">Active</option>
@@ -456,11 +480,15 @@ export const AdminView: React.FC = () => {
           </div>
 
           {/* User List Table */}
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl overflow-hidden shadow-xl">
+          <div className={`border rounded-2xl overflow-hidden shadow-xl ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-[#0D1520] border-b border-[#233549] text-slate-400 font-mono uppercase tracking-wider text-[11px]">
+                  <tr className={`border-b font-mono uppercase tracking-wider text-[11px] ${
+                    isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+                  }`}>
                     <th className="py-3 px-4">User Profile</th>
                     <th className="py-3 px-4">Tenant Company & Domain</th>
                     <th className="py-3 px-4">Role & Privilege Level</th>
@@ -469,45 +497,45 @@ export const AdminView: React.FC = () => {
                     <th className="py-3 px-4 text-right">Admin Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#233549]">
+                <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-[#233549]'}`}>
                   {filteredUsers.length > 0 ? (
                     filteredUsers.map((u) => {
                       const userComp = companies.find((c) => c.id === u.companyId) || companies[0];
                       const isEditing = editingUserId === u.id;
 
                       let roleBadge = 'bg-slate-800 text-slate-300 border-slate-700';
-                      if (u.role === 'Admin') roleBadge = 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold';
+                      if (u.role === 'Admin') roleBadge = 'bg-amber-500/20 text-amber-500 border-amber-500/40 font-bold';
                       if (u.role === 'Project Manager') roleBadge = 'bg-[#0773BB]/20 text-[#0773BB] border-[#0773BB]/40 font-bold';
                       if (u.role === 'Team Member') roleBadge = 'bg-[#3BC0BB]/20 text-[#3BC0BB] border-[#3BC0BB]/40';
 
                       return (
-                        <tr key={u.id} className="hover:bg-[#1C2C3D]/60 transition-colors">
+                        <tr key={u.id} className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1C2C3D]/60'}`}>
                           {/* User Avatar & Info */}
                           <td className="py-3.5 px-4 align-top">
                             <div className="flex items-center gap-3">
                               <img
                                 src={u.avatar}
                                 alt={u.name}
-                                className="w-9 h-9 rounded-full object-cover border border-slate-700 shadow-sm"
+                                className="w-9 h-9 rounded-full object-cover border border-slate-400/40 shadow-sm"
                               />
                               <div>
-                                <div className="font-bold text-white text-xs flex items-center gap-1.5">
+                                <div className={`font-bold text-xs flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                                   <span>{u.name}</span>
                                   {u.id === currentUser.id && (
-                                    <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px] font-mono">
+                                    <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[9px] font-mono font-bold">
                                       YOU
                                     </span>
                                   )}
                                 </div>
-                                <div className="text-[11px] text-slate-400 font-mono mt-0.5">{u.email}</div>
+                                <div className={`text-[11px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{u.email}</div>
                               </div>
                             </div>
                           </td>
 
                           {/* Company & Domain */}
                           <td className="py-3.5 px-4 align-top">
-                            <div className="font-semibold text-slate-200">{userComp?.name}</div>
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono mt-0.5">
+                            <div className={`font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{userComp?.name}</div>
+                            <div className={`flex items-center gap-1.5 text-[10px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                               <Globe className="w-3 h-3 text-[#3BC0BB]" />
                               <span>@{userComp?.domain || u.email.split('@')[1]}</span>
                             </div>
@@ -519,7 +547,7 @@ export const AdminView: React.FC = () => {
                               <select
                                 value={editRole}
                                 onChange={(e) => setEditRole(e.target.value as Role)}
-                                className="bg-[#0D1520] border border-[#0773BB] rounded px-2 py-1 text-xs text-white"
+                                className={`border rounded px-2 py-1 text-xs ${isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#0773BB] text-white'}`}
                               >
                                 <option value="Admin">Admin</option>
                                 <option value="Project Manager">Project Manager</option>
@@ -541,24 +569,24 @@ export const AdminView: React.FC = () => {
                                   type="text"
                                   value={editDepartment}
                                   onChange={(e) => setEditDepartment(e.target.value)}
-                                  className="w-28 px-2 py-1 bg-[#0D1520] border border-[#233549] rounded text-xs text-white"
+                                  className={`w-28 px-2 py-1 border rounded text-xs ${isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'}`}
                                   placeholder="Department"
                                 />
-                                <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                <div className={`flex items-center gap-1 text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                                   <span>Rate: $</span>
                                   <input
                                     type="number"
                                     value={editRate}
                                     onChange={(e) => setEditRate(Number(e.target.value))}
-                                    className="w-16 px-1.5 py-0.5 bg-[#0D1520] border border-[#233549] rounded text-xs text-white"
+                                    className={`w-16 px-1.5 py-0.5 border rounded text-xs ${isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'}`}
                                   />
                                   <span>/hr</span>
                                 </div>
                               </div>
                             ) : (
                               <div>
-                                <div className="font-medium text-slate-300">{u.department}</div>
-                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                <div className={`font-medium ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>{u.department}</div>
+                                <div className={`text-[10px] font-mono mt-0.5 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
                                   ${u.hourlyRate}/hr • Cap: {u.maxWeeklyHours}h/wk
                                 </div>
                               </div>
@@ -571,15 +599,15 @@ export const AdminView: React.FC = () => {
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${
                                   u.status === 'Active'
-                                    ? 'bg-emerald-500/10 text-emerald-400'
-                                    : 'bg-slate-800 text-slate-400'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                    : isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'
                                 }`}
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'Active' ? 'bg-emerald-400' : 'bg-slate-500'}`}></span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
                                 <span>{u.status}</span>
                               </span>
-                              <span className="text-[10px] text-emerald-400/80 font-mono flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                                 <span>Email Verified</span>
                               </span>
                             </div>
@@ -591,14 +619,14 @@ export const AdminView: React.FC = () => {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   onClick={() => handleSaveUserEdit(u.id)}
-                                  className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg text-xs font-bold transition-all"
+                                  className="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold transition-all"
                                   title="Save Changes"
                                 >
                                   <Check className="w-4 h-4" />
                                 </button>
                                 <button
                                   onClick={() => setEditingUserId(null)}
-                                  className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-lg text-xs transition-all"
+                                  className={`p-1.5 rounded-lg text-xs transition-all ${isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-400'}`}
                                   title="Cancel"
                                 >
                                   <X className="w-4 h-4" />
@@ -608,10 +636,14 @@ export const AdminView: React.FC = () => {
                               <div className="flex items-center justify-end gap-2">
                                 <button
                                   onClick={() => handleOpenSpaceAccessModal(u)}
-                                  className="p-1.5 bg-[#0D1520] hover:bg-[#1C2C3D] text-teal-300 border border-teal-500/30 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm"
+                                  className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm border ${
+                                    isLight
+                                      ? 'bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-300'
+                                      : 'bg-[#0D1520] hover:bg-[#1C2C3D] text-teal-300 border-teal-500/30'
+                                  }`}
                                   title="Configure Space & Project Access Permissions"
                                 >
-                                  <Lock className="w-3.5 h-3.5 text-teal-400" />
+                                  <Lock className="w-3.5 h-3.5 text-teal-500" />
                                   <span className="hidden sm:inline font-semibold">Space Access</span>
                                 </button>
 
@@ -622,10 +654,14 @@ export const AdminView: React.FC = () => {
                                     setEditDepartment(u.department);
                                     setEditRate(u.hourlyRate);
                                   }}
-                                  className="p-1.5 bg-[#0D1520] hover:bg-[#1C2C3D] text-slate-300 border border-[#233549] rounded-lg text-xs transition-all flex items-center gap-1"
+                                  className={`p-1.5 border rounded-lg text-xs transition-all flex items-center gap-1 ${
+                                    isLight
+                                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                      : 'bg-[#0D1520] hover:bg-[#1C2C3D] text-slate-300 border-[#233549]'
+                                  }`}
                                   title="Edit Role & Details"
                                 >
-                                  <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                                  <Edit2 className="w-3.5 h-3.5 text-amber-500" />
                                   <span className="hidden sm:inline">Edit Role</span>
                                 </button>
 
@@ -636,7 +672,7 @@ export const AdminView: React.FC = () => {
                                         deleteUser(u.id);
                                       }
                                     }}
-                                    className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs transition-all"
+                                    className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-lg text-xs transition-all"
                                     title="Deactivate User"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -651,8 +687,8 @@ export const AdminView: React.FC = () => {
                   ) : (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
-                        <Users className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                        <p className="font-bold text-white text-sm">No Tenant Users Found</p>
+                        <Users className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                        <p className={`font-bold text-sm ${isLight ? 'text-slate-800' : 'text-white'}`}>No Tenant Users Found</p>
                         <p className="text-xs text-slate-500">Try adjusting your search query or filter selection.</p>
                       </td>
                     </tr>
@@ -661,9 +697,11 @@ export const AdminView: React.FC = () => {
               </table>
             </div>
 
-            <div className="p-3 bg-[#0D1520] border-t border-[#233549] flex items-center justify-between text-xs text-slate-400">
+            <div className={`p-3 border-t flex items-center justify-between text-xs ${
+              isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+            }`}>
               <div>
-                Showing <strong className="text-white">{filteredUsers.length}</strong> of <strong className="text-white">{users.length}</strong> tenant users
+                Showing <strong className={isLight ? 'text-slate-900' : 'text-white'}>{filteredUsers.length}</strong> of <strong className={isLight ? 'text-slate-900' : 'text-white'}>{users.length}</strong> tenant users
               </div>
               <div className="text-[11px] text-slate-500 font-mono">Multi-Tenant RBAC Active</div>
             </div>
@@ -1038,53 +1076,59 @@ export const AdminView: React.FC = () => {
       {/* MODAL: INVITE TENANT USER */}
       {isInviteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#16222F] border border-[#233549] rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-[#233549]">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <div className={`border rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+          }`}>
+            <div className={`flex items-center justify-between pb-3 border-b ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+              <h3 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                 <UserPlus className="w-5 h-5 text-[#0773BB]" />
                 <span>Invite User to Tenant Portal</span>
               </h3>
               <button
                 onClick={() => setIsInviteModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className={`p-1 rounded-lg ${isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-400 hover:text-white'}`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {inviteError && (
-              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold">
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs font-semibold">
                 {inviteError}
               </div>
             )}
 
             {inviteSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold">
                 {inviteSuccess}
               </div>
             )}
 
             <form onSubmit={handleInviteSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Full Name</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Full Name</label>
                 <input
                   type="text"
                   value={newUserName}
                   onChange={(e) => setNewUserName(e.target.value)}
                   placeholder="e.g. Tariq Al-Mansoori"
-                  className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-white focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full px-3 py-2 border rounded-xl focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Corporate Email Address</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Corporate Email Address</label>
                 <input
                   type="email"
                   value={newUserEmail}
                   onChange={(e) => setNewUserEmail(e.target.value)}
                   placeholder="e.g. tariq@dolphingroup.ae"
-                  className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-white focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full px-3 py-2 border rounded-xl focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                   required
                 />
                 <p className="text-[10px] text-slate-500 mt-1">Must belong to a whitelisted corporate domain.</p>
@@ -1092,7 +1136,7 @@ export const AdminView: React.FC = () => {
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-400 font-semibold">Assigned Password</label>
+                  <label className={`block font-semibold ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Assigned Password</label>
                   <button
                     type="button"
                     onClick={() => {
@@ -1109,17 +1153,21 @@ export const AdminView: React.FC = () => {
                   value={newUserPassword}
                   onChange={(e) => setNewUserPassword(e.target.value)}
                   placeholder="e.g. Dolphin@2026 (or auto-generates Dolphin@123)"
-                  className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-amber-300 font-mono focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full px-3 py-2 border rounded-xl font-mono focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-amber-600 font-bold' : 'bg-[#0D1520] border-[#233549] text-amber-300'
+                  }`}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Assign Role</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Assign Role</label>
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as Role)}
-                    className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-white focus:outline-none focus:border-[#0773BB]"
+                    className={`w-full px-3 py-2 border rounded-xl focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   >
                     <option value="Admin">Admin</option>
                     <option value="Project Manager">Project Manager</option>
@@ -1129,22 +1177,26 @@ export const AdminView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1">Department</label>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Department</label>
                   <input
                     type="text"
                     value={newUserDept}
                     onChange={(e) => setNewUserDept(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-white focus:outline-none focus:border-[#0773BB]"
+                    className={`w-full px-3 py-2 border rounded-xl focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 font-semibold mb-1">Tenant Entity Association</label>
+                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-400'}`}>Tenant Entity Association</label>
                 <select
                   value={newUserCompany}
                   onChange={(e) => setNewUserCompany(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#0D1520] border border-[#233549] rounded-xl text-white focus:outline-none focus:border-[#0773BB]"
+                  className={`w-full px-3 py-2 border rounded-xl focus:outline-none focus:border-[#0773BB] ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                  }`}
                 >
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1154,11 +1206,11 @@ export const AdminView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
+              <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
                 <button
                   type="button"
                   onClick={() => setIsInviteModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium"
+                  className={`px-4 py-2 rounded-xl font-medium ${isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'}`}
                 >
                   Cancel
                 </button>
@@ -1177,20 +1229,24 @@ export const AdminView: React.FC = () => {
       {/* Granular Space & Project Access Permissions Modal */}
       {spaceAccessUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-          <div className="w-full max-w-2xl bg-[#121E2B] border border-[#223548] rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95">
+          <div className={`w-full max-w-2xl border rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#121E2B] border-[#223548] text-white'
+          }`}>
             {/* Header */}
-            <div className="p-5 border-b border-[#223548] bg-[#182738] flex items-center justify-between">
+            <div className={`p-5 border-b flex items-center justify-between ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182738] border-[#223548]'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/40">
+                <div className="p-2.5 rounded-2xl bg-teal-500/20 text-teal-600 dark:text-teal-400 border border-teal-500/40">
                   <Lock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-extrabold text-white">
+                  <h3 className={`text-sm font-extrabold ${isLight ? 'text-slate-900' : 'text-white'}`}>
                     Manage Space & Project Access
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                     Control workspace boundaries and specific project spaces for{' '}
-                    <span className="text-teal-300 font-semibold">{spaceAccessUser.name}</span> ({spaceAccessUser.email})
+                    <span className="text-teal-600 dark:text-teal-300 font-semibold">{spaceAccessUser.name}</span> ({spaceAccessUser.email})
                   </p>
                 </div>
               </div>
@@ -1198,7 +1254,9 @@ export const AdminView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSpaceAccessUser(null)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+                className={`p-2 rounded-xl transition-colors ${
+                  isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-600' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+                }`}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1206,8 +1264,8 @@ export const AdminView: React.FC = () => {
 
             {/* Saved Notification */}
             {accessSavedMessage && (
-              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <div className="mx-6 mt-4 p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 <span>{accessSavedMessage}</span>
               </div>
             )}
@@ -1215,27 +1273,31 @@ export const AdminView: React.FC = () => {
             {/* Modal Body */}
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
               {/* User Overview Bar */}
-              <div className="p-3.5 rounded-2xl bg-[#182738] border border-[#223548] flex items-center justify-between">
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182738] border-[#223548]'
+              }`}>
                 <div className="flex items-center gap-3">
                   <img
                     src={spaceAccessUser.avatar}
                     alt={spaceAccessUser.name}
-                    className="w-10 h-10 rounded-full object-cover border border-slate-700"
+                    className="w-10 h-10 rounded-full object-cover border border-slate-300 dark:border-slate-700"
                   />
                   <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <div className={`text-xs font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                       <span>{spaceAccessUser.name}</span>
-                      <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[9px]">
+                      <span className={`px-2 py-0.5 rounded font-mono text-[9px] ${
+                        isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+                      }`}>
                         {spaceAccessUser.role}
                       </span>
                     </div>
-                    <div className="text-[11px] text-slate-400 font-mono">{spaceAccessUser.email}</div>
+                    <div className={`text-[11px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>{spaceAccessUser.email}</div>
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono font-bold">Granted Projects</div>
-                  <div className="text-xs font-black text-teal-400 font-mono">
+                  <div className={`text-[10px] uppercase font-mono font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Granted Projects</div>
+                  <div className="text-xs font-black text-teal-600 dark:text-teal-400 font-mono">
                     {selectedProjectIds.length} / {projects.length} Projects
                   </div>
                 </div>
@@ -1243,14 +1305,16 @@ export const AdminView: React.FC = () => {
 
               {/* Step 1: Company / Workspace Entity */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                <label className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                  <Building2 className="w-3.5 h-3.5 text-sky-500" />
                   Primary Tenant Entity / Workspace
                 </label>
                 <select
                   value={selectedUserCompanyId}
                   onChange={(e) => setSelectedUserCompanyId(e.target.value)}
-                  className="w-full text-xs font-semibold rounded-xl border border-[#223548] bg-[#182738] text-white px-3.5 py-2.5 focus:outline-none focus:border-teal-500"
+                  className={`w-full text-xs font-semibold rounded-xl border px-3.5 py-2.5 focus:outline-none focus:border-teal-500 ${
+                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#182738] border-[#223548] text-white'
+                  }`}
                 >
                   {companies.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -1258,15 +1322,15 @@ export const AdminView: React.FC = () => {
                     </option>
                   ))}
                 </select>
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px] text-slate-500">
                   Defines the user's primary organizational workspace domain.
                 </p>
               </div>
 
               {/* Step 2: Granular Project Space Permissions */}
-              <div className="space-y-2 pt-2 border-t border-[#223548]">
+              <div className={`space-y-2 pt-2 border-t ${isLight ? 'border-slate-200' : 'border-[#223548]'}`}>
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-bold text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <label className="text-[11px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1.5">
                     <ShieldCheck className="w-3.5 h-3.5" />
                     Allowed Project Spaces
                   </label>
@@ -1274,15 +1338,15 @@ export const AdminView: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleSelectAllProjects}
-                      className="text-[10px] font-bold text-teal-400 hover:text-teal-300 hover:underline"
+                      className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:underline"
                     >
                       Select All
                     </button>
-                    <span className="text-slate-600">|</span>
+                    <span className="text-slate-400">|</span>
                     <button
                       type="button"
                       onClick={handleDeselectAllProjects}
-                      className="text-[10px] font-bold text-slate-400 hover:text-slate-300 hover:underline"
+                      className="text-[10px] font-bold text-slate-500 hover:text-slate-700 hover:underline"
                     >
                       Deselect All
                     </button>
@@ -1300,15 +1364,15 @@ export const AdminView: React.FC = () => {
                         onClick={() => handleToggleProjectAccess(p.id)}
                         className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-start gap-3 ${
                           isSelected
-                            ? 'bg-teal-500/10 border-teal-500/50 shadow-md'
-                            : 'bg-[#182738]/50 border-[#223548] opacity-60 hover:opacity-100 hover:bg-[#182738]'
+                            ? (isLight ? 'bg-teal-500/10 border-teal-500 shadow-sm' : 'bg-teal-500/10 border-teal-500/50 shadow-md')
+                            : (isLight ? 'bg-slate-50 border-slate-200 hover:bg-slate-100' : 'bg-[#182738]/50 border-[#223548] opacity-60 hover:opacity-100 hover:bg-[#182738]')
                         }`}
                       >
                         <div
                           className={`w-4 h-4 mt-0.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
                             isSelected
                               ? 'bg-teal-500 border-teal-400 text-slate-950'
-                              : 'border-slate-600 bg-slate-800'
+                              : (isLight ? 'border-slate-300 bg-white' : 'border-slate-600 bg-slate-800')
                           }`}
                         >
                           {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -1316,12 +1380,14 @@ export const AdminView: React.FC = () => {
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-[9px] font-mono font-bold">
+                            <span className={`px-1.5 py-0.2 rounded font-mono text-[9px] font-bold ${
+                              isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+                            }`}>
                               {p.code}
                             </span>
-                            <span className="text-xs font-bold text-white truncate">{p.title}</span>
+                            <span className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>{p.title}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                          <div className="text-[10px] text-slate-500 mt-0.5 truncate">
                             {comp?.name || 'Workspace'} • {p.category}
                           </div>
                         </div>
@@ -1332,8 +1398,8 @@ export const AdminView: React.FC = () => {
               </div>
 
               {/* Explanatory Notice */}
-              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2.5">
-                <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[11px] leading-relaxed flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">Access Enforcement Note:</span> Non-admin users (Team Members & Viewers) will strictly see tasks, documents, and Gantt timelines only for the project spaces selected above. Admins retain overall tenant visibility.
                 </div>
@@ -1341,11 +1407,15 @@ export const AdminView: React.FC = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-[#223548] bg-[#182738] flex items-center justify-end gap-3">
+            <div className={`p-4 border-t flex items-center justify-end gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182738] border-[#223548]'
+            }`}>
               <button
                 type="button"
                 onClick={() => setSpaceAccessUser(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
               >
                 Cancel
               </button>

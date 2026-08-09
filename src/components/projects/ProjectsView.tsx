@@ -111,7 +111,6 @@ export const ProjectsView: React.FC = () => {
     const isAccessible =
       currentUser?.role === 'Admin' ||
       p.managerId === currentUser?.id ||
-      p.manager?.id === currentUser?.id ||
       (p.members && p.members.includes(currentUser?.id || '')) ||
       (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']));
 

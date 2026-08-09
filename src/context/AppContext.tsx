@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth, googleProvider, testFirestoreConnection, handleFirestoreError, OperationType } from '../lib/firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -189,7 +189,7 @@ interface AppContextType {
 
   // Logs & Notifications & Rules
   activityLogs: ActivityLog[];
-  logActivity: (action: string, target: string, type?: ActivityLog['type'], projectId?: string, taskId?: string) => void;
+  logActivity: (action: string, target: string, type?: ActivityLog['type'], projectId?: string, taskId?: string, details?: string, severity?: ActivityLog['severity'], ipAddress?: string) => void;
   clearActivityLogs: () => void;
   isActivityDrawerOpen: boolean;
   setIsActivityDrawerOpen: (open: boolean) => void;
@@ -267,48 +267,97 @@ function saveToStorage<T>(key: string, value: T): void {
   }
 }
 
+// Synchronous DOM theme modifier to eliminate Flash of Unstyled Content (FOUC)
+function applyThemeToDOM(dolphinTheme: DolphinTheme, theme: 'dark' | 'light') {
+  if (typeof document === 'undefined') return;
+  const isLight = dolphinTheme === 'light' || theme === 'light';
+  const activeDolphin = isLight ? 'light' : dolphinTheme;
+
+  document.documentElement.setAttribute('data-theme', activeDolphin);
+  if (isLight) {
+    document.documentElement.classList.add('light-theme', 'light');
+  } else {
+    document.documentElement.classList.remove('light-theme', 'light');
+  }
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [dolphinTheme, setDolphinThemeState] = useState<DolphinTheme>(() => loadFromStorage<DolphinTheme>('dolphin_theme_mode', 'ocean-deep'));
+  const [dolphinTheme, setDolphinThemeState] = useState<DolphinTheme>(() => {
+    const savedDolphin = loadFromStorage<DolphinTheme>('dolphin_theme_mode', 'ocean-deep');
+    const savedPm = loadFromStorage<'dark' | 'light'>('pm_theme', 'dark');
+    const currentUserStored = loadFromStorage<User | null>('dolphin_current_user', null);
+    const userTheme = currentUserStored?.id
+      ? loadFromStorage<DolphinTheme | null>(`dolphin_user_theme_${currentUserStored.id}`, null) || currentUserStored.theme
+      : null;
+
+    let resolvedDolphin: DolphinTheme = userTheme || savedDolphin;
+    if (!userTheme && (savedPm === 'light' || savedDolphin === 'light')) {
+      resolvedDolphin = 'light';
+    }
+
+    const resolvedBase = resolvedDolphin === 'light' ? 'light' : 'dark';
+    // Synchronously mutate document attributes prior to initial component tree render
+    applyThemeToDOM(resolvedDolphin, resolvedBase);
+    return resolvedDolphin;
+  });
+
   const [theme, setThemeState] = useState<'dark' | 'light'>(() => {
-    const saved = loadFromStorage<DolphinTheme>('dolphin_theme_mode', 'ocean-deep');
-    return saved === 'light' ? 'light' : 'dark';
+    const isLight = dolphinTheme === 'light';
+    const resolvedBase = isLight ? 'light' : 'dark';
+    applyThemeToDOM(dolphinTheme, resolvedBase);
+    return resolvedBase;
   });
   const [authorizedDomains, setAuthorizedDomains] = useState<string[]>(() => loadFromStorage('pm_auth_domains', [...APPROVED_DOMAINS, 'gmail.com']));
 
   const setDolphinTheme = (newDolphinTheme: DolphinTheme) => {
     setDolphinThemeState(newDolphinTheme);
-    localStorage.setItem('dolphin_theme_mode', JSON.stringify(newDolphinTheme));
     const isLight = newDolphinTheme === 'light';
     const baseTheme = isLight ? 'light' : 'dark';
     setThemeState(baseTheme);
+
+    applyThemeToDOM(newDolphinTheme, baseTheme);
+
+    localStorage.setItem('dolphin_theme_mode', JSON.stringify(newDolphinTheme));
     localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+
+    if (currentUser?.id) {
+      localStorage.setItem(`dolphin_user_theme_${currentUser.id}`, JSON.stringify(newDolphinTheme));
+      setCurrentUser((prev) => (prev ? { ...prev, theme: newDolphinTheme } : prev));
+      updateUserInFirestore(currentUser.id, { theme: newDolphinTheme }).catch((err) => {
+        console.warn('Firestore user theme sync notice:', err);
+      });
+    }
   };
 
   const setTheme = (newTheme: 'dark' | 'light') => {
     setThemeState(newTheme);
+    const nextDolphin = newTheme === 'light' ? 'light' : (dolphinTheme === 'light' ? 'ocean-deep' : dolphinTheme);
+    setDolphinThemeState(nextDolphin);
+
+    applyThemeToDOM(nextDolphin, newTheme);
+
     localStorage.setItem('pm_theme', JSON.stringify(newTheme));
-    if (newTheme === 'light') {
-      setDolphinThemeState('light');
-      localStorage.setItem('dolphin_theme_mode', JSON.stringify('light'));
-    } else if (dolphinTheme === 'light') {
-      setDolphinThemeState('ocean-deep');
-      localStorage.setItem('dolphin_theme_mode', JSON.stringify('ocean-deep'));
+    localStorage.setItem('dolphin_theme_mode', JSON.stringify(nextDolphin));
+
+    if (currentUser?.id) {
+      localStorage.setItem(`dolphin_user_theme_${currentUser.id}`, JSON.stringify(nextDolphin));
+      setCurrentUser((prev) => (prev ? { ...prev, theme: nextDolphin } : prev));
+      updateUserInFirestore(currentUser.id, { theme: nextDolphin }).catch((err) => {
+        console.warn('Firestore user theme sync notice:', err);
+      });
     }
   };
 
   const toggleTheme = () => {
-    const nextDolphin = dolphinTheme === 'light' ? 'ocean-deep' : 'light';
+    const isCurrentlyLight = dolphinTheme === 'light' || theme === 'light';
+    const nextDolphin = isCurrentlyLight ? 'ocean-deep' : 'light';
     setDolphinTheme(nextDolphin);
   };
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', dolphinTheme);
-    if (dolphinTheme === 'light') {
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme');
-    }
-  }, [dolphinTheme]);
+  // Synchronize theme to DOM synchronously before browser paint cycle (prevents FOUC)
+  useLayoutEffect(() => {
+    applyThemeToDOM(dolphinTheme, theme);
+  }, [dolphinTheme, theme]);
 
   const addAuthorizedDomain = (domain: string) => {
     const clean = domain.toLowerCase().trim().replace(/^@/, '');
@@ -343,7 +392,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const match = INITIAL_COMPANIES.find((c) => c.id === storedActive.id || c.domain === storedActive.domain);
     return match || INITIAL_COMPANIES[0];
   });
-  const [users, setUsers] = useState<User[]>(() => loadFromStorage('dolphin_users', INITIAL_USERS));
+  const [deletedUserIds, setDeletedUserIds] = useState<string[]>(() =>
+    loadFromStorage('dolphin_deleted_user_ids', [])
+  );
+  const [users, setUsers] = useState<User[]>(() => {
+    const deleted: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
+    const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
+    return loaded.filter((u) => !deleted.includes(u.id));
+  });
   const [currentUser, setCurrentUser] = useState<User>(() => loadFromStorage('dolphin_current_user', INITIAL_USERS[0]));
   const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
     try {
@@ -351,11 +407,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (sessionAuth !== null) {
         return JSON.parse(sessionAuth);
       }
+      const localAuth = localStorage.getItem('dolphin_is_authenticated');
+      if (localAuth !== null) {
+        return JSON.parse(localAuth);
+      }
     } catch (e) {
       // Fallback
     }
     return false;
   });
+
+  // Synchronize theme with user profile & database preferences when currentUser is updated
+  useLayoutEffect(() => {
+    if (currentUser?.id) {
+      const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
+      const savedUserTheme = loadFromStorage<DolphinTheme | null>(userThemeKey, null) || currentUser.theme;
+      if (savedUserTheme && savedUserTheme !== dolphinTheme) {
+        setDolphinThemeState(savedUserTheme);
+        const isLight = savedUserTheme === 'light';
+        const baseTheme = isLight ? 'light' : 'dark';
+        setThemeState(baseTheme);
+        applyThemeToDOM(savedUserTheme, baseTheme);
+        localStorage.setItem('dolphin_theme_mode', JSON.stringify(savedUserTheme));
+        localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+      }
+    }
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location && window.location.hostname) {
@@ -371,6 +448,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setIsAuthenticated = (authStatus: boolean) => {
     setIsAuthenticatedState(authStatus);
+    if (authStatus && currentUser?.id) {
+      const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
+      const savedUserTheme = loadFromStorage<DolphinTheme | null>(userThemeKey, null) || currentUser.theme;
+      if (savedUserTheme) {
+        setDolphinThemeState(savedUserTheme);
+        const isLight = savedUserTheme === 'light';
+        const baseTheme = isLight ? 'light' : 'dark';
+        setThemeState(baseTheme);
+        applyThemeToDOM(savedUserTheme, baseTheme);
+        localStorage.setItem('dolphin_theme_mode', JSON.stringify(savedUserTheme));
+        localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+      }
+    }
     try {
       sessionStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
       localStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
@@ -453,14 +543,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Subscribe to real-time Firestore updates for Users
     const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
+      const currentDeletedIds: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
+
       if (remoteUsers && remoteUsers.length > 0) {
         setUsers((prev) => {
           const userMap = new Map<string, User>();
-          INITIAL_USERS.forEach((u) => userMap.set(u.id, u));
-          prev.forEach((u) => userMap.set(u.id, u));
-          remoteUsers.forEach((u) => userMap.set(u.id, u));
+          
+          INITIAL_USERS.forEach((u) => {
+            if (!currentDeletedIds.includes(u.id)) {
+              userMap.set(u.id, u);
+            }
+          });
+
+          prev.forEach((u) => {
+            if (!currentDeletedIds.includes(u.id)) {
+              userMap.set(u.id, u);
+            }
+          });
+
+          remoteUsers.forEach((u) => {
+            if (!currentDeletedIds.includes(u.id)) {
+              userMap.set(u.id, u);
+            }
+          });
+
           return Array.from(userMap.values());
         });
+
+        if (currentUser?.id) {
+          const matchedRemote = remoteUsers.find((ru) => ru.id === currentUser.id);
+          if (matchedRemote?.theme) {
+            const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
+            localStorage.setItem(userThemeKey, JSON.stringify(matchedRemote.theme));
+            setDolphinThemeState(matchedRemote.theme);
+            const isLight = matchedRemote.theme === 'light';
+            const baseTheme = isLight ? 'light' : 'dark';
+            setThemeState(baseTheme);
+            applyThemeToDOM(matchedRemote.theme, baseTheme);
+          }
+        }
+      } else {
+        setUsers((prev) => prev.filter((u) => !currentDeletedIds.includes(u.id)));
       }
     });
 
@@ -962,8 +1085,24 @@ ${currentUser?.name || 'Workspace Administrator'}`,
 
   const deleteUser = (userId: string) => {
     const u = users.find((x) => x.id === userId);
-    setUsers((prev) => prev.filter((x) => x.id !== userId));
+
+    // Save ID to deleted list in state and localStorage
+    setDeletedUserIds((prev) => {
+      const next = prev.includes(userId) ? prev : [...prev, userId];
+      localStorage.setItem('dolphin_deleted_user_ids', JSON.stringify(next));
+      return next;
+    });
+
+    // Update users state and localStorage
+    setUsers((prev) => {
+      const updated = prev.filter((x) => x.id !== userId);
+      localStorage.setItem('dolphin_users', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Delete from Firestore
     deleteUserFromFirestore(userId);
+
     if (u) {
       logActivity('deactivated tenant user', `${u.name} (${u.email})`, 'permission', undefined, undefined, 'User account removed from tenant directory', 'warning');
     }
@@ -1605,6 +1744,20 @@ Log into your Dolphin workspace dashboard to review the task.`,
     setSubtasks((prev) =>
       prev.map((s) => (s.id === subtaskId ? { ...s, completed: !s.completed } : s))
     );
+  };
+
+  const addTaskComment = (taskId: string, content: string) => {
+    const newComment: TaskComment = {
+      id: `cmt_${Date.now()}`,
+      taskId,
+      userId: currentUser ? currentUser.id : 'usr_pk',
+      userName: currentUser ? currentUser.name : 'Workspace User',
+      userAvatar: currentUser ? currentUser.avatar : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      content,
+      createdAt: new Date().toISOString()
+    };
+    setTaskComments((prev) => [...prev, newComment]);
+    logActivity('added task comment', content.slice(0, 30), 'task', undefined, taskId);
   };
 
   // Dependencies & Predecessors / Successors
@@ -2513,6 +2666,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         rollbackTemplateVersion,
         tasks,
         subtasks,
+        taskComments,
         dependencies,
         addTask,
         updateTask,
@@ -2520,6 +2674,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         deleteTask,
         addSubtask,
         toggleSubtask,
+        addTaskComment,
         addDependency,
         removeDependency,
         recalculateProjectTimeline,

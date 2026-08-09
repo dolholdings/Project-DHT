@@ -41,7 +41,6 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({ onClose })
     theme,
     setActiveTab,
     setSelectedProjectId,
-    setSelectedTaskId,
     logActivity,
     clearActivityLogs
   } = useApp();
@@ -166,21 +165,11 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({ onClose })
 
   // Navigate to task or project when clicking log card
   const handleNavigateFromLog = (log: ActivityLog) => {
-    if (log.taskId) {
-      const taskExists = tasks.some((t) => t.id === log.taskId);
-      if (taskExists) {
-        setSelectedTaskId(log.taskId);
-        if (log.projectId) setSelectedProjectId(log.projectId);
-        setActiveTab('tasks');
-        onClose();
-        return;
-      }
-    }
     if (log.projectId) {
       const projExists = projects.some((p) => p.id === log.projectId);
       if (projExists) {
         setSelectedProjectId(log.projectId);
-        setActiveTab('projects');
+        setActiveTab('tasks');
         onClose();
       }
     }

@@ -158,7 +158,7 @@ export const BudgetTrackingWidget: React.FC<BudgetTrackingWidgetProps> = ({
     return projects.map((p) => {
       const projTasks = tasks.filter((t) => t.projectId === p.id);
       const estHours = projTasks.reduce((s, t) => s + (t.estimatedHours || 0), 0);
-      const actHours = projTasks.reduce((s, t) => s + (t.actualHours || 0), 0);
+      const actHours = projTasks.reduce((s, t) => s + (t.loggedHours || 0), 0);
       const costPerHour = p.budget > 0 && estHours > 0 ? p.budget / estHours : 85;
       const estimatedCost = Math.round(estHours * costPerHour);
       const actualCost = Math.round(actHours * costPerHour);

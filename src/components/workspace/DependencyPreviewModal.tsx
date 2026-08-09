@@ -585,7 +585,7 @@ export const DependencyPreviewModal: React.FC<DependencyPreviewModalProps> = ({
                     <span className="font-bold text-white text-sm">Node Inspector</span>
                   </div>
                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    selectedNode.task.priority === 'High' || selectedNode.task.priority === 'Critical'
+                    selectedNode.task.priority === 'High' || selectedNode.task.priority === 'Urgent'
                       ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                       : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                   }`}>

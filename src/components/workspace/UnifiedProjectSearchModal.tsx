@@ -200,7 +200,7 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
         subtitle: `Template Blueprint • ${tpl.category} • ${tpl.tasks?.length || 0} Preset Tasks`,
         description: tpl.description || 'Reusable workspace project configuration blueprint',
         categoryTag: tpl.category,
-        date: tpl.updatedAt || tpl.createdAt,
+        date: tpl.createdAt,
         matchedTokens: [
           tpl.name.toLowerCase(),
           tpl.category.toLowerCase(),
@@ -219,7 +219,7 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
     const q = query.trim().toLowerCase();
     if (!q) {
       return searchIndex.filter((item) => {
-        if (categoryFilter !== 'all' && item.type !== categoryFilter) return false;
+        if (categoryFilter !== 'all' && item.type !== categoryFilter.replace(/s$/, '')) return false;
         if (selectedProjectIdFilter !== 'all' && item.projectId !== selectedProjectIdFilter) return false;
         return true;
       }).slice(0, 15);
@@ -229,7 +229,7 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
 
     return searchIndex
       .filter((item) => {
-        if (categoryFilter !== 'all' && item.type !== categoryFilter) return false;
+        if (categoryFilter !== 'all' && item.type !== categoryFilter.replace(/s$/, '')) return false;
         if (selectedProjectIdFilter !== 'all' && item.projectId !== selectedProjectIdFilter) return false;
 
         return terms.every((term) =>

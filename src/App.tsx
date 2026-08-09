@@ -44,8 +44,10 @@ const MainLayout: React.FC = () => {
   // Force Sign In Gatekeeper when hitting the site unauthenticated
   if (!isAuthenticated) {
     return (
-      <div className={`min-h-screen ${theme === 'light' ? 'bg-slate-100' : 'bg-[#0D1520]'} flex items-center justify-center p-4 font-sans`}>
-        <LoginModal isGatekeeper={true} onClose={() => {}} />
+      <div className={`min-h-screen ${theme === 'light' ? 'bg-slate-100' : 'bg-[#0D1520]'} flex items-center justify-center p-4 font-sans relative z-50`}>
+        <AnimatePresence mode="wait">
+          <LoginModal key="gatekeeper-login-modal" isGatekeeper={true} onClose={() => {}} />
+        </AnimatePresence>
       </div>
     );
   }
