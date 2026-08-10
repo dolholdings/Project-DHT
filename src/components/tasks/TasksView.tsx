@@ -52,7 +52,7 @@ import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '..
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
-import { getSpaceRole, canEditSpace } from '../../lib/permissions';
+import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks } from '../../lib/permissions';
 
 export const TasksView: React.FC = () => {
   const {
@@ -85,9 +85,17 @@ export const TasksView: React.FC = () => {
 
   const isLight = theme === 'light';
 
+  const accessibleProjects = useMemo(() => {
+    return getAccessibleProjects(currentUser, projects);
+  }, [currentUser, projects]);
+
+  const accessibleTasks = useMemo(() => {
+    return getAccessibleTasks(currentUser, tasks, projects);
+  }, [currentUser, tasks, projects]);
+
   const currentProject = useMemo(() => {
-    return projects.find((p) => p.id === (selectedProjectId || projects[0]?.id)) || null;
-  }, [projects, selectedProjectId]);
+    return accessibleProjects.find((p) => p.id === (selectedProjectId || accessibleProjects[0]?.id)) || null;
+  }, [accessibleProjects, selectedProjectId]);
 
   const currentSpaceRole = useMemo(() => {
     return getSpaceRole(currentUser, currentProject);
@@ -303,9 +311,23 @@ export const TasksView: React.FC = () => {
     return calculatePriorityScore(t, dependencies, tasks).score;
   };
 
+  const PRIORITY_RANK: Record<string, number> = {
+    Urgent: 4,
+    High: 3,
+    Medium: 2,
+    Low: 1
+  };
+
   const sortTasksList = (list: Task[]) => {
-    if (!sortBySmartPriority && priorityRecommendations.length === 0) return list;
-    return [...list].sort((a, b) => getTaskSmartScore(b) - getTaskSmartScore(a));
+    return [...list].sort((a, b) => {
+      // Priority rank weight comparison first (Urgent > High > Medium > Low)
+      const weightA = PRIORITY_RANK[a.priority] || 1;
+      const weightB = PRIORITY_RANK[b.priority] || 1;
+      if (weightB !== weightA) {
+        return weightB - weightA;
+      }
+      return getTaskSmartScore(b) - getTaskSmartScore(a);
+    });
   };
 
   // Helper functions for predecessors & successors
@@ -343,7 +365,7 @@ export const TasksView: React.FC = () => {
   const [manualNote, setManualNote] = useState('');
 
   // Filter tasks
-  const filteredTasks = tasks.filter((t) => {
+  const filteredTasks = accessibleTasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
     if (selectedListFilter && t.listName !== selectedListFilter) return false;
     if (searchQuery) {
@@ -785,6 +807,7 @@ export const TasksView: React.FC = () => {
                     <tr>
                       <th className="p-3 pl-6">Name</th>
                       <th className="p-3">Assignee</th>
+                      <th className="p-3 text-center">Priority</th>
                       <th className="p-3 text-center">Priority Score</th>
                       <th className="p-3">Due date</th>
                       <th className="p-3 text-right">Logged/Est</th>
@@ -860,6 +883,28 @@ export const TasksView: React.FC = () => {
                             </div>
                           </td>
 
+                          {/* Color-Coded Priority Selector */}
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={t.priority}
+                              onChange={(e) => updateTask(t.id, { priority: e.target.value as Priority })}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
+                                t.priority === 'Urgent'
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : t.priority === 'High'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : t.priority === 'Medium'
+                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
+                              }`}
+                            >
+                              <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
+                              <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
+                              <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
+                              <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
+                            </select>
+                          </td>
+
                           {/* Priority Score Badge Cell */}
                           <td className="p-3 text-center">
                             <span
@@ -878,8 +923,14 @@ export const TasksView: React.FC = () => {
                             </span>
                           </td>
 
-                          <td className="p-3 font-mono text-rose-400 font-bold">
-                            {t.dueDate}
+                          <td className="p-3 font-mono text-rose-400 font-bold" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="date"
+                              value={t.dueDate || ''}
+                              onChange={(e) => updateTask(t.id, { dueDate: e.target.value })}
+                              className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#0D1520] text-rose-300 font-bold rounded px-1 py-0.5 font-mono text-xs cursor-pointer focus:outline-none transition-colors"
+                              title="Click to change due date"
+                            />
                           </td>
 
                           <td className="p-3 text-right font-mono">
@@ -995,6 +1046,7 @@ export const TasksView: React.FC = () => {
                     <tr>
                       <th className="p-3 pl-6">Name</th>
                       <th className="p-3">Assignee</th>
+                      <th className="p-3 text-center">Priority</th>
                       <th className="p-3 text-center">Priority Score</th>
                       <th className="p-3">Due date</th>
                       <th className="p-3 text-right">Logged/Est</th>
@@ -1070,6 +1122,28 @@ export const TasksView: React.FC = () => {
                             </div>
                           </td>
 
+                          {/* Color-Coded Priority Selector */}
+                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={t.priority}
+                              onChange={(e) => updateTask(t.id, { priority: e.target.value as Priority })}
+                              className={`text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
+                                t.priority === 'Urgent'
+                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                                  : t.priority === 'High'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : t.priority === 'Medium'
+                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                  : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
+                              }`}
+                            >
+                              <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
+                              <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
+                              <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
+                              <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
+                            </select>
+                          </td>
+
                           {/* Priority Score Badge Cell */}
                           <td className="p-3 text-center">
                             <span
@@ -1088,12 +1162,14 @@ export const TasksView: React.FC = () => {
                             </span>
                           </td>
 
-                          <td className="p-3 font-mono text-slate-400">
-                            {t.dueDate ? (
-                              <span className="text-rose-400 font-bold">{t.dueDate}</span>
-                            ) : (
-                              <CalendarIcon className="w-4 h-4 text-slate-500" />
-                            )}
+                          <td className="p-3 font-mono text-slate-400" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="date"
+                              value={t.dueDate || ''}
+                              onChange={(e) => updateTask(t.id, { dueDate: e.target.value })}
+                              className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#0D1520] text-rose-300 font-bold rounded px-1 py-0.5 font-mono text-xs cursor-pointer focus:outline-none transition-colors"
+                              title="Click to change due date"
+                            />
                           </td>
 
                           <td className="p-3 text-right font-mono">
@@ -1292,6 +1368,35 @@ export const TasksView: React.FC = () => {
                       <li key={idx} className="text-slate-300">{r}</li>
                     ))}
                   </ul>
+                </div>
+              </div>
+
+              {/* Schedule Dates: Start Date & Due Date */}
+              <div className="grid grid-cols-2 gap-3 text-xs p-3 rounded-xl bg-[#0D1520] border border-[#233549]">
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+                    <CalendarIcon className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                    <span>Start Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={activeTask.startDate || ''}
+                    onChange={(e) => updateTask(activeTask.id, { startDate: e.target.value })}
+                    className="w-full bg-[#16222F] border border-[#233549] text-slate-200 rounded-lg px-2.5 py-1.5 font-mono text-xs focus:border-[#3BC0BB] focus:outline-none cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
+                    <CalendarIcon className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Due Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={activeTask.dueDate || ''}
+                    onChange={(e) => updateTask(activeTask.id, { dueDate: e.target.value })}
+                    className="w-full bg-[#16222F] border border-rose-500/40 text-rose-300 font-bold rounded-lg px-2.5 py-1.5 font-mono text-xs focus:border-[#3BC0BB] focus:outline-none cursor-pointer"
+                  />
                 </div>
               </div>
 

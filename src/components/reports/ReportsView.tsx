@@ -128,6 +128,8 @@ const D3TeamVelocityGauge: React.FC<{ value: number; isLight: boolean }> = ({ va
   return <svg ref={svgRef} className="w-full max-w-[240px] h-[150px] mx-auto shrink-0" />;
 };
 
+import { getAccessibleProjects, getAccessibleTasks } from '../../lib/permissions';
+
 export const ReportsView: React.FC = () => {
   const { projects, tasks, timeEntries, companies, activeCompany, theme, currentUser, users, customFields } = useApp();
   const isLight = theme === 'light';
@@ -144,21 +146,29 @@ export const ReportsView: React.FC = () => {
   const [sprintDays, setSprintDays] = useState<7 | 14 | 21 | 30>(14);
   const [burndownMetric, setBurndownMetric] = useState<'tasks' | 'hours'>('tasks');
 
+  const accessibleProjects = useMemo(() => {
+    return getAccessibleProjects(currentUser, projects);
+  }, [currentUser, projects]);
+
+  const accessibleTasks = useMemo(() => {
+    return getAccessibleTasks(currentUser, tasks, projects);
+  }, [currentUser, tasks, projects]);
+
   // Filter projects & tasks by selected company & project
   const relevantProjects = useMemo(() => {
-    return projects.filter((p) => {
+    return accessibleProjects.filter((p) => {
       if (selectedCompanyId !== 'all' && p.companyId !== selectedCompanyId) return false;
       return true;
     });
-  }, [projects, selectedCompanyId]);
+  }, [accessibleProjects, selectedCompanyId]);
 
   const relevantTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    return accessibleTasks.filter((t) => {
       if (selectedCompanyId !== 'all' && t.companyId !== selectedCompanyId) return false;
       if (selectedProjectId !== 'all' && t.projectId !== selectedProjectId) return false;
       return true;
     });
-  }, [tasks, selectedCompanyId, selectedProjectId]);
+  }, [accessibleTasks, selectedCompanyId, selectedProjectId]);
 
   // Process tasks with accurate completion timestamps
   const tasksWithTimestamps = useMemo(() => {

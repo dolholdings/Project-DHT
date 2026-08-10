@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Users,
   Clock,
@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { User, Task } from '../../types';
+import { getAccessibleTasks } from '../../lib/permissions';
 
 // Helper to determine the Teal-to-Red heat gradient based on capacity percentage
 export interface HeatColor {
@@ -114,8 +115,12 @@ export const getHeatColor = (percent: number, isLight: boolean): HeatColor => {
 const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export const WorkloadView: React.FC = () => {
-  const { users, tasks, updateTask, updateUser, theme } = useApp();
+  const { users, tasks, projects, updateTask, updateUser, theme, currentUser } = useApp();
   const isLight = theme === 'light';
+
+  const accessibleTasks = useMemo(() => {
+    return getAccessibleTasks(currentUser, tasks, projects);
+  }, [currentUser, tasks, projects]);
 
   // Local state for controls
   const [selectedDept, setSelectedDept] = useState<string>('All');
@@ -153,7 +158,7 @@ export const WorkloadView: React.FC = () => {
 
   // Task Reassignment Handler
   const handleTaskReassign = (taskId: string, targetUserId: string, fromUserId?: string) => {
-    const taskToMove = tasks.find((t) => t.id === taskId);
+    const taskToMove = accessibleTasks.find((t) => t.id === taskId);
     if (!taskToMove) return;
 
     const targetUser = users.find((u) => u.id === targetUserId);
@@ -260,7 +265,7 @@ export const WorkloadView: React.FC = () => {
 
   // Process user workload statistics
   const userStats = users.map((u) => {
-    const userTasks = tasks.filter((t) => t.assigneeIds.includes(u.id) && t.status !== 'Done');
+    const userTasks = accessibleTasks.filter((t) => t.assigneeIds.includes(u.id) && t.status !== 'Done');
     const totalAssignedHours = userTasks.reduce((acc, curr) => acc + (curr.estimatedHours || 0), 0);
     const maxHours = u.maxWeeklyHours || 40;
     const capacityPercent = Math.round((totalAssignedHours / maxHours) * 100);

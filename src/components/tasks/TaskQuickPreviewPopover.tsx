@@ -231,8 +231,27 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
                 )}
               </div>
 
-              {/* Quick Status Selector dropdown inside popover */}
-              <div className="shrink-0">
+              {/* Quick Status & Priority Selectors inside popover */}
+              <div className="shrink-0 flex items-center gap-1.5">
+                <select
+                  value={task.priority}
+                  onChange={(e) => updateTask(task.id, { priority: e.target.value as Priority })}
+                  className={`text-[10px] font-mono font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
+                    task.priority === 'Urgent'
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      : task.priority === 'High'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : task.priority === 'Medium'
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                      : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
+                  }`}
+                >
+                  <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
+                  <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
+                  <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
+                  <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
+                </select>
+
                 <select
                   value={task.status}
                   onChange={(e) => updateTask(task.id, { status: e.target.value as TaskStatus })}
@@ -318,15 +337,23 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   {/* Due Date Card */}
                   <div className="p-2 rounded-xl bg-[#16222F] border border-[#233549] space-y-1">
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-[#3BC0BB]" />
-                      <span>Timeline Target</span>
-                    </div>
-                    {dueInfo && (
-                      <span className={`inline-block text-[10px] font-mono font-bold px-2 py-0.5 rounded border ${dueInfo.color}`}>
-                        {dueInfo.text}
+                    <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-[#3BC0BB]" />
+                        <span>Due Date</span>
                       </span>
-                    )}
+                      {dueInfo && (
+                        <span className={`inline-block text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${dueInfo.color}`}>
+                          {dueInfo.text}
+                        </span>
+                      )}
+                    </div>
+                    <input
+                      type="date"
+                      value={task.dueDate || ''}
+                      onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
+                      className="w-full bg-[#0D1520] border border-[#233549] text-rose-300 font-mono font-bold text-xs rounded px-2 py-0.5 focus:outline-none focus:border-[#3BC0BB] cursor-pointer"
+                    />
                   </div>
 
                   {/* Logged Hours vs Estimated */}

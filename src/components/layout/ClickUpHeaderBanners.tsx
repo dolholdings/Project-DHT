@@ -26,6 +26,7 @@ import {
   Clock,
   Menu,
   Mail,
+  Trash2,
   LogOut
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -40,7 +41,7 @@ export const ClickUpHeaderBanners: React.FC<{
   onOpenLoginModal?: () => void;
   isMobile?: boolean;
 }> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, onOpenLoginModal, isMobile }) => {
-  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout } = useApp();
+  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout, clearAllData } = useApp();
   
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
@@ -203,6 +204,21 @@ export const ClickUpHeaderBanners: React.FC<{
             >
               <UserCheck className="w-3.5 h-3.5 text-[#3BC0BB]" />
               <span className="hidden sm:inline">Sign In / Switch User</span>
+            </button>
+          )}
+
+          {currentUser?.role === 'Admin' && (
+            <button
+              onClick={() => {
+                if (window.confirm('Clear all demo/dummy data to start fresh for production entries? This will empty all sample tasks, subtasks, files, and activity logs.')) {
+                  clearAllData();
+                }
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-xs transition-all"
+              title="Clear all demo data for a clean fresh production workspace"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">Clear Demo Data</span>
             </button>
           )}
 

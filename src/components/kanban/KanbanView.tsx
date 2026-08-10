@@ -1,22 +1,39 @@
-import React from 'react';
-import { Columns, Plus, AlertCircle, Clock, CheckCircle2, GripVertical, Move, Printer } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Columns, Plus, AlertCircle, Clock, CheckCircle2, GripVertical, Move, Printer, ArrowUpDown, Flame, Zap } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useApp } from '../../context/AppContext';
-import { TaskStatus, Task } from '../../types';
+import { TaskStatus, Task, Priority } from '../../types';
 import { TaskQuickPreviewPopover } from '../tasks/TaskQuickPreviewPopover';
 import { DolphinTooltip } from '../common/DolphinTooltip';
+import { getAccessibleTasks, getAccessibleProjects } from '../../lib/permissions';
 
 const SafeDraggable = Draggable as React.FC<any>;
 const SafeDroppable = Droppable as React.FC<any>;
 
+const PRIORITY_RANK: Record<Priority, number> = {
+  Urgent: 4,
+  High: 3,
+  Medium: 2,
+  Low: 1
+};
+
 export const KanbanView: React.FC = () => {
-  const { tasks, updateTask, reorderTasks, users, activeCompany, projects, selectedProjectId, theme } = useApp();
+  const { tasks, updateTask, reorderTasks, users, activeCompany, projects, selectedProjectId, theme, currentUser } = useApp();
+  const [sortByPriority, setSortByPriority] = useState(true);
 
   const statuses: TaskStatus[] = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
 
-  const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
+  const accessibleProjects = useMemo(() => {
+    return getAccessibleProjects(currentUser, projects);
+  }, [currentUser, projects]);
 
-  const filteredTasks = tasks.filter((t) => {
+  const accessibleTasks = useMemo(() => {
+    return getAccessibleTasks(currentUser, tasks, projects);
+  }, [currentUser, tasks, projects]);
+
+  const activeProject = accessibleProjects.find((p) => p.id === selectedProjectId) || accessibleProjects[0];
+
+  const filteredTasks = accessibleTasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
     return t.companyId === activeCompany.id;
   });
@@ -132,6 +149,20 @@ export const KanbanView: React.FC = () => {
         <div className="flex items-center gap-2 no-print">
           <button
             type="button"
+            onClick={() => setSortByPriority(!sortByPriority)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer ${
+              sortByPriority
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                : 'bg-slate-700/60 text-slate-300 border-slate-600/60 hover:bg-slate-700'
+            }`}
+            title="Toggle ordering tasks inside Kanban columns by Priority (Urgent > High > Medium > Low)"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
+            <span>Priority Order: {sortByPriority ? 'ON' : 'OFF'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 border border-slate-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
             title="Export formatted A4 Landscape Executive Report PDF"
@@ -159,7 +190,14 @@ export const KanbanView: React.FC = () => {
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4 kanban-board-grid">
           {statuses.map((status) => {
-            const colTasks = filteredTasks.filter((t) => t.status === status);
+            let colTasks = filteredTasks.filter((t) => t.status === status);
+            if (sortByPriority) {
+              colTasks = [...colTasks].sort((a, b) => {
+                const wA = PRIORITY_RANK[a.priority] || 1;
+                const wB = PRIORITY_RANK[b.priority] || 1;
+                return wB - wA;
+              });
+            }
 
             return (
               <div
@@ -244,17 +282,28 @@ export const KanbanView: React.FC = () => {
                                         <GripVertical className="w-4 h-4" />
                                       </div>
                                     </DolphinTooltip>
-                                    <span
-                                      className={`text-[9px] font-bold px-2 py-0.5 rounded ${
+                                    <select
+                                      value={task.priority}
+                                      onChange={(e) =>
+                                        updateTask(task.id, {
+                                          priority: e.target.value as Priority,
+                                        })
+                                      }
+                                      className={`text-[9px] font-bold px-2 py-0.5 rounded border focus:outline-none cursor-pointer transition-colors ${
                                         task.priority === 'Urgent'
-                                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                                           : task.priority === 'High'
-                                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                          : 'bg-slate-700/40 text-slate-300'
+                                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                          : task.priority === 'Medium'
+                                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                                          : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
                                       }`}
                                     >
-                                      {task.priority}
-                                    </span>
+                                      <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
+                                      <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
+                                      <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
+                                      <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
+                                    </select>
                                   </div>
 
                                   <select
@@ -337,7 +386,15 @@ export const KanbanView: React.FC = () => {
                                     </select>
                                   </div>
 
-                                  <div>{task.dueDate}</div>
+                                  <div className="no-print">
+                                    <input
+                                      type="date"
+                                      value={task.dueDate || ''}
+                                      onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
+                                      className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#16222F] text-rose-300 font-bold font-mono text-[10px] rounded px-1 py-0.5 cursor-pointer focus:outline-none transition-colors"
+                                      title="Click to edit due date"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             )}

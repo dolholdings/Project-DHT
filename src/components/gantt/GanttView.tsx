@@ -82,7 +82,63 @@ export const GanttView: React.FC = () => {
   });
   const [hoveredDropTaskId, setHoveredDropTaskId] = useState<string | null>(null);
 
+  // Task Bar Timeline Dragging State (Direct Date Shifting & Auto-Cascading)
+  interface TaskBarDragState {
+    isDragging: boolean;
+    taskId: string | null;
+    mode: 'move' | 'resize-start' | 'resize-end';
+    startScreenX: number;
+    initialStart: string;
+    initialDue: string;
+    previewDaysDelta: number;
+  }
+
+  const [barDragState, setBarDragState] = useState<TaskBarDragState>({
+    isDragging: false,
+    taskId: null,
+    mode: 'move',
+    startScreenX: 0,
+    initialStart: '',
+    initialDue: '',
+    previewDaysDelta: 0
+  });
+
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const addDaysHelper = (dateStr: string, days: number): string => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const handleShiftTaskDate = (taskId: string, newStart: string, newDue: string) => {
+    updateTask(taskId, { startDate: newStart, dueDate: newDue });
+    const res = recalculateProjectTimeline(selectedProjectId);
+    const taskTitle = projectTasks.find((t) => t.id === taskId)?.title || 'Task';
+
+    if (res.adjustedCount > 0) {
+      setToastMsg(
+        `Moved "${taskTitle}" timeline (${newStart} ➔ ${newDue}). Automatically shifted ${res.adjustedCount} child task start date(s) to respect Finish-to-Start dependency constraints!`
+      );
+    } else {
+      setToastMsg(`Updated "${taskTitle}" timeline (${newStart} ➔ ${newDue}). Dependent child schedules are aligned.`);
+    }
+    setTimeout(() => setToastMsg(null), 5000);
+  };
+
+  const handleStartBarDrag = (e: React.MouseEvent, task: Task, mode: 'move' | 'resize-start' | 'resize-end') => {
+    e.stopPropagation();
+    setBarDragState({
+      isDragging: true,
+      taskId: task.id,
+      mode,
+      startScreenX: e.clientX,
+      initialStart: task.startDate,
+      initialDue: task.dueDate,
+      previewDaysDelta: 0
+    });
+  };
 
   // Listen for Escape key to exit draw mode or clear source selection
   useEffect(() => {
@@ -313,46 +369,95 @@ export const GanttView: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragState.isDragging || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    if (dragState.isDragging && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
 
-    setDragState((prev) => ({
-      ...prev,
-      currentPos: { x, y }
-    }));
+      setDragState((prev) => ({
+        ...prev,
+        currentPos: { x, y }
+      }));
+    }
+
+    if (barDragState.isDragging && containerRef.current) {
+      const canvasWidth = containerRef.current.clientWidth * 0.75;
+      const totalDays = zoomLevel === 'weeks' ? 84 : 180;
+      const pixelsPerDay = Math.max(1, canvasWidth / totalDays);
+      const deltaX = e.clientX - barDragState.startScreenX;
+      const daysDelta = Math.round(deltaX / pixelsPerDay);
+
+      setBarDragState((prev) => ({
+        ...prev,
+        previewDaysDelta: daysDelta
+      }));
+    }
   };
 
   const handleMouseUp = () => {
-    if (!dragState.isDragging) return;
-
-    if (dragState.sourceTaskId && hoveredDropTaskId && dragState.sourceTaskId !== hoveredDropTaskId) {
-      // Create Finish-to-Start link (hoveredDropTaskId depends on sourceTaskId)
-      const success = addDependency(hoveredDropTaskId, dragState.sourceTaskId);
-      if (success) {
-        const res = recalculateProjectTimeline(selectedProjectId);
-        const sourceName = projectTasks.find((t) => t.id === dragState.sourceTaskId)?.title;
-        const targetName = projectTasks.find((t) => t.id === hoveredDropTaskId)?.title;
-        setToastMsg(
-          `D3 Link Created: "${targetName}" now depends on "${sourceName}". ${
-            res.adjustedCount > 0 ? `Auto-adjusted ${res.adjustedCount} timelines.` : ''
-          }`
-        );
-        setTimeout(() => setToastMsg(null), 5000);
-      } else {
-        setToastMsg('Link already exists or creates a circular dependency.');
-        setTimeout(() => setToastMsg(null), 3000);
+    if (dragState.isDragging) {
+      if (dragState.sourceTaskId && hoveredDropTaskId && dragState.sourceTaskId !== hoveredDropTaskId) {
+        // Create Finish-to-Start link (hoveredDropTaskId depends on sourceTaskId)
+        const success = addDependency(hoveredDropTaskId, dragState.sourceTaskId);
+        if (success) {
+          const res = recalculateProjectTimeline(selectedProjectId);
+          const sourceName = projectTasks.find((t) => t.id === dragState.sourceTaskId)?.title;
+          const targetName = projectTasks.find((t) => t.id === hoveredDropTaskId)?.title;
+          setToastMsg(
+            `Dependency Link Created: "${targetName}" now depends on parent "${sourceName}". ${
+              res.adjustedCount > 0 ? `Automatically shifted ${res.adjustedCount} child task start dates!` : ''
+            }`
+          );
+          setTimeout(() => setToastMsg(null), 5000);
+        } else {
+          setToastMsg('Link already exists or creates a circular dependency loop.');
+          setTimeout(() => setToastMsg(null), 3000);
+        }
       }
+
+      setDragState({
+        isDragging: false,
+        sourceTaskId: null,
+        startPos: null,
+        currentPos: null
+      });
+      setHoveredDropTaskId(null);
     }
 
-    setDragState({
-      isDragging: false,
-      sourceTaskId: null,
-      startPos: null,
-      currentPos: null
-    });
-    setHoveredDropTaskId(null);
+    if (barDragState.isDragging && barDragState.taskId) {
+      const days = barDragState.previewDaysDelta;
+      if (days !== 0) {
+        let newStart = barDragState.initialStart;
+        let newDue = barDragState.initialDue;
+
+        if (barDragState.mode === 'move') {
+          newStart = addDaysHelper(barDragState.initialStart, days);
+          newDue = addDaysHelper(barDragState.initialDue, days);
+        } else if (barDragState.mode === 'resize-end') {
+          newDue = addDaysHelper(barDragState.initialDue, days);
+          if (new Date(newDue).getTime() <= new Date(newStart).getTime()) {
+            newDue = addDaysHelper(newStart, 1);
+          }
+        } else if (barDragState.mode === 'resize-start') {
+          newStart = addDaysHelper(barDragState.initialStart, days);
+          if (new Date(newStart).getTime() >= new Date(newDue).getTime()) {
+            newStart = addDaysHelper(newDue, -1);
+          }
+        }
+
+        handleShiftTaskDate(barDragState.taskId, newStart, newDue);
+      }
+
+      setBarDragState({
+        isDragging: false,
+        taskId: null,
+        mode: 'move',
+        startScreenX: 0,
+        initialStart: '',
+        initialDue: '',
+        previewDaysDelta: 0
+      });
+    }
   };
 
   return (
@@ -800,60 +905,151 @@ export const GanttView: React.FC = () => {
 
       {/* Selected Task Inspector Banner */}
       {selectedTask ? (
-        <div className="p-4 rounded-xl bg-[#0773BB]/15 border border-[#0773BB]/40 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-[#0773BB] text-white flex items-center justify-center font-bold">
-              <Workflow className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">Selected Task:</span>
-                <span className="text-xs font-extrabold text-[#3BC0BB]">{selectedTask.title}</span>
-                <span className="px-2 py-0.5 rounded bg-black/40 font-mono text-[10px] text-slate-300">
-                  {selectedTask.startDate} ➔ {selectedTask.dueDate}
-                </span>
-                {isTaskCritical(selectedTask) && (
-                  <span className="px-2 py-0.5 rounded bg-rose-500/30 border border-rose-500/60 text-rose-200 text-[10px] font-bold flex items-center gap-1">
-                    <Diamond className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
-                    <span>CRITICAL PATH MILESTONE</span>
+        <div className="p-4 rounded-xl bg-[#0773BB]/15 border border-[#0773BB]/40 flex flex-col space-y-3 animate-in fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-[#0773BB] text-white flex items-center justify-center font-bold shrink-0">
+                <Workflow className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-white">Selected Parent / Task:</span>
+                  <span className="text-xs font-extrabold text-[#3BC0BB]">{selectedTask.title}</span>
+                  <span className="px-2 py-0.5 rounded bg-black/40 font-mono text-[10px] text-slate-300">
+                    {selectedTask.startDate} ➔ {selectedTask.dueDate}
                   </span>
-                )}
+                  {isTaskCritical(selectedTask) && (
+                    <span className="px-2 py-0.5 rounded bg-rose-500/30 border border-rose-500/60 text-rose-200 text-[10px] font-bold flex items-center gap-1">
+                      <Diamond className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
+                      <span>CRITICAL PATH MILESTONE</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 mt-1">
+                  <span>
+                    <strong className="text-[#3BC0BB]">{incomingDeps.length}</strong> Predecessor(s)
+                  </span>
+                  <span>•</span>
+                  <span>
+                    <strong className="text-amber-400">{outgoingDeps.length}</strong> Child Task(s) (Auto-Shift on Parent Move)
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-4 text-[11px] text-slate-300 mt-1">
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Quick Toggle Critical Path / Milestone Button */}
+              <button
+                type="button"
+                onClick={(e) => handleToggleCriticalPath(selectedTask, e)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow border ${
+                  isTaskCritical(selectedTask)
+                    ? 'bg-rose-500/20 border-rose-500/50 text-rose-200 hover:bg-rose-500/30'
+                    : 'bg-amber-500/20 border-amber-500/50 text-amber-200 hover:bg-amber-500/30'
+                }`}
+              >
+                <Diamond className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
                 <span>
-                  <strong className="text-[#3BC0BB]">{incomingDeps.length}</strong> Predecessor(s) (Must Finish Before)
+                  {isTaskCritical(selectedTask) ? 'Remove Critical Path' : 'Flag as Critical Path Milestone'}
                 </span>
-                <span>•</span>
-                <span>
-                  <strong className="text-amber-400">{outgoingDeps.length}</strong> Successor(s) (Blocked Until Finish)
-                </span>
-              </div>
+              </button>
+
+              <button
+                onClick={() => setSelectedTaskId(null)}
+                className="px-3 py-1.5 rounded-lg bg-[#233549] hover:bg-[#2d445d] text-slate-300 hover:text-white text-xs font-semibold"
+              >
+                Clear Selection
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Quick Toggle Critical Path / Milestone Button */}
-            <button
-              type="button"
-              onClick={(e) => handleToggleCriticalPath(selectedTask, e)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow border ${
-                isTaskCritical(selectedTask)
-                  ? 'bg-rose-500/20 border-rose-500/50 text-rose-200 hover:bg-rose-500/30'
-                  : 'bg-amber-500/20 border-amber-500/50 text-amber-200 hover:bg-amber-500/30'
-              }`}
-            >
-              <Diamond className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-              <span>
-                {isTaskCritical(selectedTask) ? 'Remove Critical Path' : 'Flag as Critical Path Milestone'}
-              </span>
-            </button>
+          {/* Quick Date Shift & Child Cascade Controls */}
+          <div className="p-3 rounded-lg bg-[#0D1520]/80 border border-[#233549] flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">Move Timeline:</span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newStart = addDaysHelper(selectedTask.startDate, -7);
+                    const newDue = addDaysHelper(selectedTask.dueDate, -7);
+                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
+                  }}
+                  className="px-2 py-1 rounded bg-[#16222F] hover:bg-[#233549] text-slate-200 text-[11px] font-mono border border-[#233549]"
+                  title="Shift timeline back 7 days"
+                >
+                  -7d
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newStart = addDaysHelper(selectedTask.startDate, -1);
+                    const newDue = addDaysHelper(selectedTask.dueDate, -1);
+                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
+                  }}
+                  className="px-2 py-1 rounded bg-[#16222F] hover:bg-[#233549] text-slate-200 text-[11px] font-mono border border-[#233549]"
+                  title="Shift timeline back 1 day"
+                >
+                  -1d
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newStart = addDaysHelper(selectedTask.startDate, 1);
+                    const newDue = addDaysHelper(selectedTask.dueDate, 1);
+                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
+                  }}
+                  className="px-2 py-1 rounded bg-[#0773BB]/30 hover:bg-[#0773BB]/50 text-cyan-200 text-[11px] font-mono border border-[#0773BB]/50 font-bold"
+                  title="Shift timeline forward 1 day"
+                >
+                  +1d
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newStart = addDaysHelper(selectedTask.startDate, 7);
+                    const newDue = addDaysHelper(selectedTask.dueDate, 7);
+                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
+                  }}
+                  className="px-2 py-1 rounded bg-[#0773BB]/30 hover:bg-[#0773BB]/50 text-cyan-200 text-[11px] font-mono border border-[#0773BB]/50 font-bold"
+                  title="Shift timeline forward 7 days"
+                >
+                  +7d
+                </button>
+              </div>
 
-            <button
-              onClick={() => setSelectedTaskId(null)}
-              className="px-3 py-1.5 rounded-lg bg-[#233549] hover:bg-[#2d445d] text-slate-300 hover:text-white text-xs font-semibold"
-            >
-              Clear Selection
-            </button>
+              <div className="h-4 w-px bg-[#233549] mx-1 hidden sm:block" />
+
+              {/* Direct Date Editors */}
+              <div className="flex items-center gap-2">
+                <label className="text-[10px] text-slate-400 font-mono">Start:</label>
+                <input
+                  type="date"
+                  value={selectedTask.startDate}
+                  onChange={(e) => {
+                    if (e.target.value) handleShiftTaskDate(selectedTask.id, e.target.value, selectedTask.dueDate);
+                  }}
+                  className="bg-[#16222F] border border-[#233549] rounded px-2 py-0.5 text-slate-200 text-[11px] font-mono focus:outline-none focus:border-[#3BC0BB]"
+                />
+
+                <label className="text-[10px] text-slate-400 font-mono">Due:</label>
+                <input
+                  type="date"
+                  value={selectedTask.dueDate}
+                  onChange={(e) => {
+                    if (e.target.value) handleShiftTaskDate(selectedTask.id, selectedTask.startDate, e.target.value);
+                  }}
+                  className="bg-[#16222F] border border-[#233549] rounded px-2 py-0.5 text-slate-200 text-[11px] font-mono focus:outline-none focus:border-[#3BC0BB]"
+                />
+              </div>
+            </div>
+
+            {outgoingDeps.length > 0 && (
+              <div className="flex items-center gap-1.5 text-amber-300 font-mono text-[10px] bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-md">
+                <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+                <span>Auto-Cascade Active: Moving parent due date shifts {outgoingDeps.length} child task start date(s)</span>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -1262,67 +1458,101 @@ export const GanttView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Right Timeline Bar Stage with D3 Drag Connection Handles */}
-                <div className="col-span-9 relative h-10 bg-[#16222F]/60 rounded-lg flex items-center px-1 border border-[#233549]/50 gantt-bar-bg-print">
-                  {/* Task Bar */}
-                  <div
-                    className={`absolute h-7 rounded-lg shadow-lg flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all ${
-                      isHighlighted
-                        ? 'bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 border-2 border-amber-300 shadow-xl shadow-rose-600/50 ring-2 ring-rose-500/40'
-                        : isMilestone
-                        ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 border-2 border-amber-300 shadow-md shadow-amber-500/40'
-                        : t.status === 'Done'
-                        ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
-                        : t.priority === 'Urgent'
-                        ? 'bg-gradient-to-r from-rose-600 to-amber-500'
-                        : 'bg-gradient-to-r from-[#0773BB] to-[#3BC0BB]'
-                    }`}
-                    style={{ left: offset.left, width: offset.width }}
-                    title={`${t.title} (${t.startDate} to ${t.dueDate}) ${isCritical ? '— CRITICAL PATH MILESTONE' : ''}`}
-                  >
-                    <div className="flex items-center gap-1 truncate max-w-[140px]">
-                      {(isCritical || isMilestone) && (
-                        <Diamond className="w-3.5 h-3.5 text-amber-200 fill-amber-300 shrink-0 filter drop-shadow animate-pulse" />
-                      )}
-                      <span className="truncate">{t.title}</span>
-                    </div>
-
-                    <span className="font-mono text-[9px] bg-black/30 px-1 rounded shrink-0">
-                      {t.status}
-                    </span>
-
-                    {/* Milestone Diamond Marker Pin on Right Edge */}
-                    {(isCritical || isMilestone) && (
+                  {/* Right Timeline Bar Stage with D3 Drag Connection Handles */}
+                  <div className="col-span-9 relative h-10 bg-[#16222F]/60 rounded-lg flex items-center px-1 border border-[#233549]/50 gantt-bar-bg-print">
+                    {/* Live Dragging Ghost Preview Badge */}
+                    {barDragState.isDragging && barDragState.taskId === t.id && barDragState.previewDaysDelta !== 0 && (
                       <div
-                        onClick={(e) => handleToggleCriticalPath(t, e)}
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 w-5.5 h-5.5 rotate-45 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 border-2 border-rose-950 shadow-xl shadow-amber-400/90 flex items-center justify-center z-20 hover:scale-125 transition-transform group/ms cursor-pointer"
-                        title={`Critical Milestone Marker: ${t.title} (Due: ${t.dueDate})`}
+                        className="absolute -top-7 z-40 px-2 py-0.5 rounded bg-amber-400 text-black font-mono font-extrabold text-[10px] shadow-lg border border-black animate-pulse flex items-center gap-1"
+                        style={{ left: offset.left }}
                       >
-                        <div className="w-1.5 h-1.5 bg-rose-950 rounded-full" />
+                        <Zap className="w-3 h-3 fill-black shrink-0" />
+                        <span>
+                          {barDragState.mode === 'move'
+                            ? `${addDaysHelper(t.startDate, barDragState.previewDaysDelta)} ➔ ${addDaysHelper(t.dueDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`
+                            : barDragState.mode === 'resize-end'
+                            ? `Due: ${addDaysHelper(t.dueDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`
+                            : `Start: ${addDaysHelper(t.startDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`}
+                        </span>
                       </div>
                     )}
 
-                    {/* Connector Output Port Circle (Right Side of Bar) */}
+                    {/* Task Bar */}
                     <div
-                      onMouseDown={(e) => handleStartDragLink(e, t)}
-                      title="Click & Drag to link dependency to another task"
-                      className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-amber-400 border-2 border-black cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center shadow-md z-30 pointer-events-auto no-print"
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
-                    </div>
-
-                    {/* Connector Input Port Circle (Left Side of Bar) */}
-                    <div
-                      className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-black transition-transform flex items-center justify-center shadow-md z-30 no-print ${
-                        isHoveredTarget
-                          ? 'bg-emerald-400 scale-125 ring-4 ring-emerald-500/30'
-                          : 'bg-[#3BC0BB]'
+                      onMouseDown={(e) => handleStartBarDrag(e, t, 'move')}
+                      className={`absolute h-7 rounded-lg shadow-lg flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all cursor-grab active:cursor-grabbing group/bar ${
+                        barDragState.isDragging && barDragState.taskId === t.id
+                          ? 'ring-4 ring-amber-400/80 scale-[1.02] z-30 shadow-2xl'
+                          : isHighlighted
+                          ? 'bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 border-2 border-amber-300 shadow-xl shadow-rose-600/50 ring-2 ring-rose-500/40'
+                          : isMilestone
+                          ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 border-2 border-amber-300 shadow-md shadow-amber-500/40'
+                          : t.status === 'Done'
+                          ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
+                          : t.priority === 'Urgent'
+                          ? 'bg-gradient-to-r from-rose-600 to-amber-500'
+                          : 'bg-gradient-to-r from-[#0773BB] to-[#3BC0BB]'
                       }`}
+                      style={{ left: offset.left, width: offset.width }}
+                      title={`${t.title} (${t.startDate} to ${t.dueDate}) — Drag bar left/right to move timeline. Drag end handles to resize duration.`}
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
+                      {/* Left Resize Handle */}
+                      <div
+                        onMouseDown={(e) => handleStartBarDrag(e, t, 'resize-start')}
+                        title="Drag left edge to resize start date"
+                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-l-lg z-30 opacity-0 group-hover/bar:opacity-100 transition-opacity"
+                      />
+
+                      <div className="flex items-center gap-1 truncate max-w-[140px] pointer-events-none">
+                        {(isCritical || isMilestone) && (
+                          <Diamond className="w-3.5 h-3.5 text-amber-200 fill-amber-300 shrink-0 filter drop-shadow animate-pulse" />
+                        )}
+                        <span className="truncate">{t.title}</span>
+                      </div>
+
+                      <span className="font-mono text-[9px] bg-black/30 px-1 rounded shrink-0 pointer-events-none">
+                        {t.startDate} ➔ {t.dueDate}
+                      </span>
+
+                      {/* Right Resize Handle */}
+                      <div
+                        onMouseDown={(e) => handleStartBarDrag(e, t, 'resize-end')}
+                        title="Drag right edge to resize due date (auto-shifts child tasks)"
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-r-lg z-30 opacity-0 group-hover/bar:opacity-100 transition-opacity"
+                      />
+
+                      {/* Milestone Diamond Marker Pin on Right Edge */}
+                      {(isCritical || isMilestone) && (
+                        <div
+                          onClick={(e) => handleToggleCriticalPath(t, e)}
+                          className="absolute -right-3 top-1/2 -translate-y-1/2 w-5.5 h-5.5 rotate-45 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 border-2 border-rose-950 shadow-xl shadow-amber-400/90 flex items-center justify-center z-20 hover:scale-125 transition-transform group/ms cursor-pointer"
+                          title={`Critical Milestone Marker: ${t.title} (Due: ${t.dueDate})`}
+                        >
+                          <div className="w-1.5 h-1.5 bg-rose-950 rounded-full" />
+                        </div>
+                      )}
+
+                      {/* Connector Output Port Circle (Right Side of Bar) */}
+                      <div
+                        onMouseDown={(e) => handleStartDragLink(e, t)}
+                        title="Click & Drag to link dependency to a child task"
+                        className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-amber-400 border-2 border-black cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center shadow-md z-30 pointer-events-auto no-print"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
+                      </div>
+
+                      {/* Connector Input Port Circle (Left Side of Bar) */}
+                      <div
+                        className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-black transition-transform flex items-center justify-center shadow-md z-30 no-print ${
+                          isHoveredTarget
+                            ? 'bg-emerald-400 scale-125 ring-4 ring-emerald-500/30'
+                            : 'bg-[#3BC0BB]'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
+                      </div>
                     </div>
                   </div>
-                </div>
               </div>
             );
           })}

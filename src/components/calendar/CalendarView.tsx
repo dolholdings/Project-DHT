@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CalendarDays,
   ChevronLeft,
@@ -23,6 +23,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { getAccessibleTasks, getAccessibleProjects } from '../../lib/permissions';
 
 interface Meeting {
   id: string;
@@ -40,9 +41,17 @@ interface Meeting {
 }
 
 export const CalendarView: React.FC = () => {
-  const { tasks, projects, users, addTask, theme } = useApp();
+  const { tasks, projects, users, addTask, theme, currentUser } = useApp();
   const [activeTab, setActiveTab] = useState<'meetings' | 'calendar'>('meetings');
   const [currentMonth, setCurrentMonth] = useState('August 2026');
+
+  const accessibleProjects = useMemo(() => {
+    return getAccessibleProjects(currentUser, projects);
+  }, [currentUser, projects]);
+
+  const accessibleTasks = useMemo(() => {
+    return getAccessibleTasks(currentUser, tasks, projects);
+  }, [currentUser, tasks, projects]);
 
   // Initial Meetings State
   const [meetings, setMeetings] = useState<Meeting[]>(() => {
@@ -383,7 +392,7 @@ export const CalendarView: React.FC = () => {
             <div className="grid grid-cols-7 gap-2">
               {days.map((d) => {
                 const dateStr = `2026-08-${d.toString().padStart(2, '0')}`;
-                const dayTasks = tasks.filter((t) => t.dueDate === dateStr);
+                const dayTasks = accessibleTasks.filter((t) => t.dueDate === dateStr);
                 const dayMeetings = meetings.filter((m) => m.date === dateStr);
 
                 return (
