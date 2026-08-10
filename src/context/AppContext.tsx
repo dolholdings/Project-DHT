@@ -236,6 +236,7 @@ interface AppContextType {
   toggleStarEmail: (emailId: string) => void;
   toggleUnreadEmail: (emailId: string) => void;
   deleteEmailThread: (emailId: string) => void;
+  clearEmailThreads: () => void;
 
   // Active View State
   activeTab: string;
@@ -2254,6 +2255,23 @@ Log into your workspace dashboard to review the task details.`,
     return count;
   };
 
+  // Background utility: Auto-prune system notifications older than 30 days
+  useEffect(() => {
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    setNotifications((prev) => {
+      const filtered = prev.filter((n) => {
+        if (!n.createdAt) return true;
+        const createdTime = new Date(n.createdAt).getTime();
+        return now - createdTime < thirtyDaysMs;
+      });
+      if (filtered.length !== prev.length) {
+        saveToStorage('dolphin_notifs', filtered);
+      }
+      return filtered;
+    });
+  }, []);
+
   // Notifications & Snooze Engine
   const markNotificationRead = (id: string) => {
     setNotifications((prev) => {
@@ -2770,6 +2788,12 @@ Please log into your workspace dashboard to update task status or adjust target 
     logActivity('deleted email thread', emailId, 'system');
   };
 
+  const clearEmailThreads = () => {
+    setEmailThreads([]);
+    localStorage.removeItem('dolphin_emails');
+    logActivity('cleared inbox emails', 'Emptied sample email threads', 'system');
+  };
+
   // Clear all old sample data to start fresh with real projects and activities
   const clearAllData = () => {
     setProjects([]);
@@ -2780,6 +2804,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     setTimeEntries([]);
     setActivityLogs([]);
     setNotifications([]);
+    setEmailThreads([]);
     setSelectedProjectId(null);
 
     // Clear local storage
@@ -2791,6 +2816,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     localStorage.removeItem('dolphin_time_entries');
     localStorage.removeItem('dolphin_logs');
     localStorage.removeItem('dolphin_notifs');
+    localStorage.removeItem('dolphin_emails');
 
     // Clear Firestore if connected
     clearAllFirestoreData();
@@ -2897,6 +2923,7 @@ Please log into your workspace dashboard to update task status or adjust target 
         toggleStarEmail,
         toggleUnreadEmail,
         deleteEmailThread,
+        clearEmailThreads,
         activeTab,
         setActiveTab,
         selectedProjectId,

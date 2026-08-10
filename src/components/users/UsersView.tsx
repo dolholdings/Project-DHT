@@ -330,37 +330,41 @@ export const UsersView: React.FC = () => {
             <span>Remove Old Data</span>
           </button>
 
-          <button
-            onClick={() => setShowCompanyModal(true)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
-              isLight
-                ? 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-800'
-                : 'bg-[#16222F] hover:bg-[#1A2838] border border-[#233549] text-white'
-            }`}
-          >
-            <Building2 className="w-4 h-4 text-[#3BC0BB]" />
-            <span>Register Company</span>
-          </button>
+          {currentUser?.role === 'Admin' && (
+            <>
+              <button
+                onClick={() => setShowCompanyModal(true)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
+                  isLight
+                    ? 'bg-white hover:bg-slate-50 border border-slate-300 text-slate-800'
+                    : 'bg-[#16222F] hover:bg-[#1A2838] border border-[#233549] text-white'
+                }`}
+              >
+                <Building2 className="w-4 h-4 text-[#3BC0BB]" />
+                <span>Register Company</span>
+              </button>
 
-          <button
-            onClick={() => {
-              setShowWorkspaceInviteModal(true);
-              setWsInviteError('');
-              setWsInviteSuccess('');
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-lg shadow-[#3BC0BB]/20 transition-all"
-          >
-            <FolderKanban className="w-4 h-4" />
-            <span>Invite to Workspace</span>
-          </button>
+              <button
+                onClick={() => {
+                  setShowWorkspaceInviteModal(true);
+                  setWsInviteError('');
+                  setWsInviteSuccess('');
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-lg shadow-[#3BC0BB]/20 transition-all"
+              >
+                <FolderKanban className="w-4 h-4" />
+                <span>Invite to Workspace</span>
+              </button>
 
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Invite Users</span>
-          </button>
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Invite Users</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -499,25 +503,29 @@ export const UsersView: React.FC = () => {
                 ))}
               </select>
 
-              <button
-                onClick={() => {
-                  setShowWorkspaceInviteModal(true);
-                  setWsInviteError('');
-                  setWsInviteSuccess('');
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-md transition-all shrink-0 ml-2"
-              >
-                <FolderKanban className="w-4 h-4" />
-                <span>Invite to Workspace</span>
-              </button>
+              {currentUser?.role === 'Admin' && (
+                <>
+                  <button
+                    onClick={() => {
+                      setShowWorkspaceInviteModal(true);
+                      setWsInviteError('');
+                      setWsInviteSuccess('');
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-md transition-all shrink-0 ml-2"
+                  >
+                    <FolderKanban className="w-4 h-4" />
+                    <span>Invite to Workspace</span>
+                  </button>
 
-              <button
-                onClick={() => setShowInviteModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-1"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>+ Add User</span>
-              </button>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-1"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ Add User</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

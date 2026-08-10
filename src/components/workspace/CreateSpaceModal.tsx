@@ -10,7 +10,7 @@ interface CreateSpaceModalProps {
 }
 
 export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onClose, onCreated }) => {
-  const { addProject, companies, users, activeCompany, setSelectedProjectId, setActiveTab, theme } = useApp();
+  const { addProject, companies, users, activeCompany, setSelectedProjectId, setActiveTab, theme, currentUser } = useApp();
 
   const [title, setTitle] = useState('');
   const [code, setCode] = useState('');
@@ -27,6 +27,10 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (currentUser?.role !== 'Admin') {
+      setErrorMsg('Only Workspace Administrators (Admin role) can create new spaces.');
+      return;
+    }
     if (!title.trim()) {
       setErrorMsg('Please enter a space name.');
       return;

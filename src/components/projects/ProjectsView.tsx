@@ -360,13 +360,15 @@ export const ProjectsView: React.FC = () => {
                 <span>Save as Template</span>
               </button>
 
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Blank Project</span>
-              </button>
+              {currentUser?.role === 'Admin' && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>New Blank Project</span>
+                </button>
+              )}
             </>
           ) : (
             <>

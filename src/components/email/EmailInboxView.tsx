@@ -52,6 +52,7 @@ export const EmailInboxView: React.FC = () => {
     toggleStarEmail,
     toggleUnreadEmail,
     deleteEmailThread,
+    clearEmailThreads,
     projects,
     tasks,
     currentUser,
@@ -274,6 +275,26 @@ Your corporate email dispatch pipeline is fully operational!`,
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#3BC0BB]' : ''}`} />
           </button>
+
+          {emailThreads.length > 0 && (
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to clear all sample emails from the inbox?')) {
+                  clearEmailThreads();
+                  setSelectedEmailId(null);
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-semibold text-xs transition-all ${
+                theme === 'light'
+                  ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                  : 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300'
+              }`}
+              title="Clear all sample/dummy email threads"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Clear Sample Inbox</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowGatewayModal(true)}

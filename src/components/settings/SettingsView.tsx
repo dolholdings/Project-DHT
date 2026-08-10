@@ -72,7 +72,10 @@ export const SettingsView: React.FC = () => {
     customFields,
     addCustomField,
     updateCustomField,
-    deleteCustomField
+    deleteCustomField,
+    clearActivityLogs,
+    clearEmailThreads,
+    clearAllData
   } = useApp();
 
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
@@ -513,6 +516,18 @@ SET FOREIGN_KEY_CHECKS = 1;
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              if (window.confirm('WARNING: Are you sure you want to reset all sample data (projects, tasks, activities, emails)? This will start your workspace completely fresh.')) {
+                clearAllData();
+              }
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold shadow-md transition-all"
+            title="Wipe all sample tasks, projects, emails and logs to start fresh"
+          >
+            <Trash2 className="w-4 h-4 text-rose-400" />
+            <span>Reset Sample Data</span>
+          </button>
+          <button
             onClick={handleExportJSON}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0662A0] text-white text-xs font-semibold shadow-lg shadow-[#0773BB]/20 transition-all"
           >
@@ -651,6 +666,20 @@ SET FOREIGN_KEY_CHECKS = 1;
               </div>
 
               <div className="flex items-center gap-2">
+                {activityLogs.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to clear all activity audit logs?')) {
+                        clearActivityLogs();
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all shadow-md"
+                    title="Clear all recorded audit activity logs"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    <span>Clear Activity Logs</span>
+                  </button>
+                )}
                 <button
                   onClick={handleExportAuditLogsCSV}
                   className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold transition-all shadow-md"

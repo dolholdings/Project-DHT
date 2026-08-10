@@ -19,7 +19,8 @@ import {
   Play,
   Share2,
   ExternalLink,
-  Layers
+  Layers,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -44,50 +45,68 @@ export const CalendarView: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState('August 2026');
 
   // Initial Meetings State
-  const [meetings, setMeetings] = useState<Meeting[]>([
-    {
-      id: 'meet_1',
-      title: 'Sharjah Plant 4 DEWA Hydrostatic Compliance Review',
-      projectId: projects[0]?.id || 'proj_chairman',
-      date: '2026-08-06',
-      time: '14:00',
-      duration: '45 mins',
-      host: 'Tareq Al-Dolphin',
-      attendees: ['Suhail Ahmed', 'Fatima Zohra', 'Karim Al-Hassan'],
-      meetingUrl: 'https://meet.dolphin-global.com/plant4-dewa-sync',
-      agenda: 'Final inspection review of 25 BAR hydrostatic pressure gauges and signing DEWA compliance certificate.',
-      notes: 'Pressure test passed at 26.5 BAR for 4 hours continuous. Audit team requested signed calibration certificate.',
-      status: 'Upcoming'
-    },
-    {
-      id: 'meet_2',
-      title: 'Aramco Heat Exchanger Tube-Bundle Calibrations',
-      projectId: projects[1]?.id || 'proj_1',
-      date: '2026-08-07',
-      time: '10:30',
-      duration: '60 mins',
-      host: 'Suhail Ahmed',
-      attendees: ['Omar Farooq', 'Aisha Siddiqui'],
-      meetingUrl: 'https://meet.dolphin-global.com/aramco-he-sync',
-      agenda: 'Review titanium tube bundle welding tolerances and third-party NDT X-ray reports.',
-      notes: 'NDT inspection non-destructive test report approved by Aramco surveyor.',
-      status: 'Upcoming'
-    },
-    {
-      id: 'meet_3',
-      title: 'Group IT Infrastructure & ClickUp Workflow Sync',
-      projectId: projects[2]?.id || 'proj_2',
-      date: '2026-08-08',
-      time: '16:00',
-      duration: '30 mins',
-      host: 'Fatima Zohra',
-      attendees: ['Tareq Al-Dolphin', 'Zayd Al-Mansoor'],
-      meetingUrl: 'https://meet.dolphin-global.com/group-it-clickup',
-      agenda: 'Deploy multi-domain whitelist security rules and automated email-to-task gateway.',
-      notes: 'SMTP gateway verified. Transactional email notification alerts working across all subsidiaries.',
-      status: 'Completed'
+  const [meetings, setMeetings] = useState<Meeting[]>(() => {
+    try {
+      const stored = localStorage.getItem('dolphin_calendar_meetings');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {}
+    return [
+      {
+        id: 'meet_1',
+        title: 'Sharjah Plant 4 DEWA Hydrostatic Compliance Review',
+        projectId: projects[0]?.id || 'proj_chairman',
+        date: '2026-08-06',
+        time: '14:00',
+        duration: '45 mins',
+        host: 'Tareq Al-Dolphin',
+        attendees: ['Suhail Ahmed', 'Fatima Zohra', 'Karim Al-Hassan'],
+        meetingUrl: 'https://meet.dolphin-global.com/plant4-dewa-sync',
+        agenda: 'Final inspection review of 25 BAR hydrostatic pressure gauges and signing DEWA compliance certificate.',
+        notes: 'Pressure test passed at 26.5 BAR for 4 hours continuous. Audit team requested signed calibration certificate.',
+        status: 'Upcoming'
+      },
+      {
+        id: 'meet_2',
+        title: 'Aramco Heat Exchanger Tube-Bundle Calibrations',
+        projectId: projects[1]?.id || 'proj_1',
+        date: '2026-08-07',
+        time: '10:30',
+        duration: '60 mins',
+        host: 'Suhail Ahmed',
+        attendees: ['Omar Farooq', 'Aisha Siddiqui'],
+        meetingUrl: 'https://meet.dolphin-global.com/aramco-he-sync',
+        agenda: 'Review titanium tube bundle welding tolerances and third-party NDT X-ray reports.',
+        notes: 'NDT inspection non-destructive test report approved by Aramco surveyor.',
+        status: 'Upcoming'
+      },
+      {
+        id: 'meet_3',
+        title: 'Group IT Infrastructure & ClickUp Workflow Sync',
+        projectId: projects[2]?.id || 'proj_2',
+        date: '2026-08-08',
+        time: '16:00',
+        duration: '30 mins',
+        host: 'Fatima Zohra',
+        attendees: ['Tareq Al-Dolphin', 'Zayd Al-Mansoor'],
+        meetingUrl: 'https://meet.dolphin-global.com/group-it-clickup',
+        agenda: 'Deploy multi-domain whitelist security rules and automated email-to-task gateway.',
+        notes: 'SMTP gateway verified. Transactional email notification alerts working across all subsidiaries.',
+        status: 'Completed'
+      }
+    ];
+  });
+
+  const handleClearMeetings = () => {
+    if (window.confirm('Are you sure you want to clear all sample meetings?')) {
+      setMeetings([]);
+      localStorage.removeItem('dolphin_calendar_meetings');
     }
-  ]);
+  };
+
+  const updateMeetings = (newMeetings: Meeting[]) => {
+    setMeetings(newMeetings);
+    localStorage.setItem('dolphin_calendar_meetings', JSON.stringify(newMeetings));
+  };
 
   // Schedule Modal State
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -126,7 +145,7 @@ export const CalendarView: React.FC = () => {
       status: 'Upcoming'
     };
 
-    setMeetings([newMeeting, ...meetings]);
+    updateMeetings([newMeeting, ...meetings]);
     setShowScheduleModal(false);
     setMTitle('');
     setMAgenda('');
@@ -204,6 +223,21 @@ export const CalendarView: React.FC = () => {
               <span>Calendar Schedule</span>
             </button>
           </div>
+
+          {meetings.length > 0 && (
+            <button
+              onClick={handleClearMeetings}
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                theme === 'light'
+                  ? 'bg-rose-50 hover:bg-rose-100 border-rose-200 text-rose-700'
+                  : 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300'
+              }`}
+              title="Clear sample meetings"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>Clear Sample Meetings</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowScheduleModal(true)}

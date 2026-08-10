@@ -97,7 +97,8 @@ export const WorkspaceManager: React.FC = () => {
     saveProjectAsTemplate,
     instantiateProjectFromTemplate,
     deleteProjectTemplate,
-    rollbackTemplateVersion
+    rollbackTemplateVersion,
+    currentUser
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -521,13 +522,15 @@ export const WorkspaceManager: React.FC = () => {
               <kbd className="px-1.5 py-0.5 rounded bg-slate-900/80 text-[10px] font-mono text-slate-300 border border-slate-700 ml-1">⌘K</kbd>
             </button>
 
-            <button
-              onClick={() => setShowCreateSpaceModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs shadow-md shadow-[#0773BB]/20 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create New Space / Project</span>
-            </button>
+            {currentUser?.role === 'Admin' && (
+              <button
+                onClick={() => setShowCreateSpaceModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs shadow-md shadow-[#0773BB]/20 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Space / Project</span>
+              </button>
+            )}
 
             <button
               onClick={() => setShowTemplatesModal(true)}
