@@ -13,6 +13,7 @@ import {
   Activity,
   UserCheck,
   Table as TableIcon,
+  LayoutDashboard,
   Plus,
   X,
   Search,
@@ -39,11 +40,12 @@ export const ClickUpHeaderBanners: React.FC<{
   onOpenLoginModal?: () => void;
   isMobile?: boolean;
 }> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, onOpenLoginModal, isMobile }) => {
-  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout } = useApp();
+  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout } = useApp();
   
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
   const viewTabs = [
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'list', label: 'List', icon: List },
     { id: 'board', label: 'Board', icon: Kanban },
     { id: 'team', label: 'Team', icon: Users },
@@ -117,13 +119,33 @@ export const ClickUpHeaderBanners: React.FC<{
           <span className="text-slate-400 font-semibold">Workspace</span>
           <span className="text-slate-500">/</span>
           <button
-            onClick={() => setSelectedProjectId(null)}
+            onClick={() => {
+              setSelectedProjectId(null);
+              setSelectedListFilter(null);
+            }}
             className={`flex items-center gap-1 font-bold text-sm transition-colors ${
               theme === 'light' ? 'hover:text-[#0D9488]' : 'hover:text-[#3BC0BB]'
             }`}
           >
             <span>{projects.find((p) => p.id === selectedProjectId)?.title || 'All Spaces & Projects'}</span>
           </button>
+          {selectedListFilter && (
+            <>
+              <span className="text-slate-500">/</span>
+              <span className={`px-2 py-0.5 rounded-md font-extrabold text-xs flex items-center gap-1 shadow-2xs ${
+                theme === 'light' ? 'bg-[#0D9488]/15 text-[#0D9488]' : 'bg-[#3BC0BB]/20 text-[#3BC0BB]'
+              }`}>
+                <span>List: {selectedListFilter}</span>
+                <button
+                  onClick={() => setSelectedListFilter(null)}
+                  className="hover:opacity-80 p-0.5"
+                  title="Clear List Filter"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            </>
+          )}
         </div>
 
         {/* Right ClickUp Utility Actions */}

@@ -801,11 +801,17 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
                         <td className="p-2.5 font-mono text-slate-300">
                           <div className="flex items-center gap-1.5">
                             <span>{task.dueDate}</span>
-                            {task.dueDate < new Date().toISOString().split('T')[0] && task.status !== 'Done' && (
-                              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-mono font-bold" title="Overdue task schedule will be imported as-is into workspace">
-                                Overdue
-                              </span>
-                            )}
+                            {(() => {
+                              const todayStr = new Date().toISOString().split('T')[0];
+                              const isOverdue = task.dueDate < todayStr && task.status !== 'Done';
+                              if (!isOverdue) return null;
+                              const daysOverdue = Math.max(1, Math.floor((new Date(todayStr).getTime() - new Date(task.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+                              return (
+                                <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-mono font-bold" title="Overdue task schedule will be imported as-is into workspace. You can edit dates after importing.">
+                                  Overdue by {daysOverdue}d (Allowed)
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
                         <td className="p-2.5 font-mono text-slate-300">{task.estimatedHours}h</td>

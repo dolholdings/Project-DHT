@@ -9,7 +9,8 @@ import {
   Notification,
   AutomationRule,
   ProjectFile,
-  TimeEntry
+  TimeEntry,
+  CustomFieldDefinition
 } from '../types';
 
 export const INITIAL_COMPANIES: Company[] = [
@@ -163,10 +164,50 @@ export const INITIAL_USERS: User[] = [
     status: 'Offline',
     isEmailVerified: true,
     lastActive: new Date(Date.now() - 1440 * 60000).toISOString()
+  },
+  {
+    id: 'usr_sys_analyst',
+    name: 'System Analyst',
+    email: 'sys_analyst@dolrad.ae',
+    role: 'Project Manager',
+    companyId: 'comp_dml',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+    department: 'Systems & Analytics',
+    hourlyRate: 125,
+    maxWeeklyHours: 40,
+    status: 'Active',
+    isEmailVerified: true,
+    lastActive: new Date().toISOString()
   }
 ];
 
 export const INITIAL_PROJECTS: Project[] = [
+  {
+    id: 'proj_dm',
+    title: 'Digital Marketing',
+    code: 'DOL-MKT-01',
+    companyId: 'comp_corp',
+    description: 'Digital marketing campaigns, website optimization, SEO, social media, and brand strategy.',
+    status: 'In Progress',
+    progress: 60,
+    managerId: 'usr_1',
+    startDate: '2026-08-01',
+    dueDate: '2026-12-31',
+    budget: 150000,
+    spentBudget: 62000,
+    category: 'Digital Marketing',
+    members: ['usr_1', 'usr_2', 'usr_pk', 'usr_5'],
+    lists: [
+      'Chairman',
+      'SEO & Google Ads',
+      'Graphic Design',
+      'DolphinX',
+      'Exhibition',
+      'Social Media Marketing',
+      'Website Development',
+      'US activites'
+    ]
+  },
   {
     id: 'proj_1',
     title: 'Substation Cooling System Retrofit',
@@ -181,7 +222,8 @@ export const INITIAL_PROJECTS: Project[] = [
     budget: 450000,
     spentBudget: 180000,
     category: 'Industrial Manufacturing',
-    members: ['usr_1', 'usr_2', 'usr_pk', 'usr_5']
+    members: ['usr_1', 'usr_2', 'usr_pk', 'usr_5'],
+    lists: ['CAD Blueprints', 'Structural Racks', 'Site Installation']
   },
   {
     id: 'proj_2',
@@ -197,7 +239,8 @@ export const INITIAL_PROJECTS: Project[] = [
     budget: 320000,
     spentBudget: 95000,
     category: 'Radiator Production',
-    members: ['usr_2', 'usr_3', 'usr_4']
+    members: ['usr_2', 'usr_3', 'usr_4'],
+    lists: ['Robotics Setup', 'Leak Testing', 'QC Audit']
   },
   {
     id: 'proj_3',
@@ -213,11 +256,164 @@ export const INITIAL_PROJECTS: Project[] = [
     budget: 210000,
     spentBudget: 35000,
     category: 'Heat Exchanger',
-    members: ['usr_3', 'usr_5', 'usr_6']
+    members: ['usr_3', 'usr_5', 'usr_6'],
+    lists: ['CFD Simulations', 'Thermal Models', 'Client Sign-off']
   }
 ];
 
 export const INITIAL_TASKS: Task[] = [
+  {
+    id: 'task_dm_1',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'Chairman Strategic Briefing & Quarterly Presentation',
+    description: 'Prepare executive summary slides and brand positioning report for the chairman review.',
+    status: 'In Progress',
+    priority: 'Urgent',
+    assigneeIds: ['usr_1', 'usr_2'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-01',
+    dueDate: '2026-08-15',
+    estimatedHours: 20,
+    loggedHours: 12,
+    tags: ['Executive', 'Chairman', 'Strategy'],
+    listName: 'Chairman',
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-08T10:00:00Z'
+  },
+  {
+    id: 'task_dm_2',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'Google Ads Search Campaign Optimization & Keywords Audit',
+    description: 'Audit high-converting HVAC & radiator keywords and optimize ad copy CTR.',
+    status: 'In Progress',
+    priority: 'High',
+    assigneeIds: ['usr_pk'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-03',
+    dueDate: '2026-08-20',
+    estimatedHours: 35,
+    loggedHours: 22,
+    tags: ['PPC', 'SEO', 'Google Ads'],
+    listName: 'SEO & Google Ads',
+    createdAt: '2026-08-02T08:00:00Z',
+    updatedAt: '2026-08-08T11:00:00Z'
+  },
+  {
+    id: 'task_dm_3',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'Brand Identity Vector Assets & Trade Show Banner Assets',
+    description: 'Create high-resolution vector logos, product brochures, and 3D booth mockups.',
+    status: 'Done',
+    priority: 'Medium',
+    assigneeIds: ['usr_5'],
+    reporterId: 'usr_2',
+    startDate: '2026-08-01',
+    dueDate: '2026-08-07',
+    estimatedHours: 30,
+    loggedHours: 28,
+    tags: ['Design', 'Graphics', 'Branding'],
+    listName: 'Graphic Design',
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-07T16:00:00Z'
+  },
+  {
+    id: 'task_dm_4',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'DolphinX Portal UX Revamp & Interactive Product Configurator',
+    description: 'Implement responsive React UI for heat exchanger dimensioning tool on DolphinX portal.',
+    status: 'In Progress',
+    priority: 'High',
+    assigneeIds: ['usr_2', 'usr_3'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-05',
+    dueDate: '2026-08-25',
+    estimatedHours: 50,
+    loggedHours: 20,
+    tags: ['DolphinX', 'Portal', 'Frontend'],
+    listName: 'DolphinX',
+    createdAt: '2026-08-04T08:00:00Z',
+    updatedAt: '2026-08-09T08:00:00Z'
+  },
+  {
+    id: 'task_dm_5',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'Industrial Expo 2026 Stall Logistics & Lead Capture System',
+    description: 'Coordinate stall space booking, AV equipment, and digital lead capture tablet forms.',
+    status: 'To Do',
+    priority: 'Medium',
+    assigneeIds: ['usr_4'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-10',
+    dueDate: '2026-09-05',
+    estimatedHours: 25,
+    loggedHours: 5,
+    tags: ['Exhibition', 'Events', 'Logistics'],
+    listName: 'Exhibition',
+    createdAt: '2026-08-05T08:00:00Z',
+    updatedAt: '2026-08-08T12:00:00Z'
+  },
+  {
+    id: 'task_dm_6',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'LinkedIn B2B Content Calendar & Video Reels Production',
+    description: 'Schedule 12 technical engineering posts and produce factory floor automation reels.',
+    status: 'In Progress',
+    priority: 'Medium',
+    assigneeIds: ['usr_pk'],
+    reporterId: 'usr_2',
+    startDate: '2026-08-01',
+    dueDate: '2026-08-31',
+    estimatedHours: 40,
+    loggedHours: 18,
+    tags: ['Social Media', 'Content', 'LinkedIn'],
+    listName: 'Social Media Marketing',
+    createdAt: '2026-08-01T08:00:00Z',
+    updatedAt: '2026-08-08T14:00:00Z'
+  },
+  {
+    id: 'task_dm_7',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'Corporate Website CMS Upgrade & Speed Optimization',
+    description: 'Migrate legacy pages, compress media assets, and target 95+ Google Lighthouse score.',
+    status: 'In Review',
+    priority: 'High',
+    assigneeIds: ['usr_2'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-02',
+    dueDate: '2026-08-14',
+    estimatedHours: 45,
+    loggedHours: 40,
+    tags: ['Website', 'Performance', 'CMS'],
+    listName: 'Website Development',
+    createdAt: '2026-08-02T08:00:00Z',
+    updatedAt: '2026-08-08T15:00:00Z'
+  },
+  {
+    id: 'task_dm_8',
+    projectId: 'proj_dm',
+    companyId: 'comp_corp',
+    title: 'US Regional Market Expansion Strategy & Partner Outreach',
+    description: 'Initiate targeted outreach to US Midwest industrial distributors and regional HVAC partners.',
+    status: 'To Do',
+    priority: 'Urgent',
+    assigneeIds: ['usr_1', 'usr_6'],
+    reporterId: 'usr_1',
+    startDate: '2026-08-12',
+    dueDate: '2026-09-15',
+    estimatedHours: 35,
+    loggedHours: 2,
+    tags: ['US Market', 'Outreach', 'Expansion'],
+    listName: 'US activites',
+    createdAt: '2026-08-06T08:00:00Z',
+    updatedAt: '2026-08-08T16:00:00Z'
+  },
   {
     id: 'task_sub_1',
     projectId: 'proj_1',
@@ -603,4 +799,32 @@ export const INITIAL_FILES: ProjectFile[] = [
 ];
 
 export const INITIAL_TIME_ENTRIES: TimeEntry[] = [];
+
+export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [
+  {
+    id: 'cf_cost_center',
+    name: 'Cost Center Code',
+    type: 'text',
+    description: 'ERP Cost Center for accounting audit',
+    defaultValue: 'CC-9001',
+    required: false
+  },
+  {
+    id: 'cf_risk_rating',
+    name: 'Risk Level',
+    type: 'dropdown',
+    options: ['Low', 'Medium', 'High', 'Critical'],
+    description: 'Project risk matrix level',
+    defaultValue: 'Low',
+    required: true
+  },
+  {
+    id: 'cf_audit_id',
+    name: 'Audit Reference No',
+    type: 'number',
+    description: 'Numeric audit compliance registration ID',
+    defaultValue: 1001,
+    required: false
+  }
+];
 

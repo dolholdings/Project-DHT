@@ -21,10 +21,12 @@ import {
   Layers,
   ArrowUpRight,
   Circle,
-  ExternalLink
+  ExternalLink,
+  Sliders
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Subtask, ProjectFile, User, Project } from '../../types';
+import { AssigneePicker } from './AssigneePicker';
 
 export interface TaskQuickPreviewPopoverProps {
   task: Task;
@@ -50,7 +52,8 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
     tasks,
     toggleSubtask,
     updateTask,
-    theme
+    theme,
+    customFields
   } = useApp();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -293,33 +296,22 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
 
                 {/* Assignees Section */}
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <UserIcon className="w-3 h-3 text-[#3BC0BB]" />
-                    Assigned Team Members ({taskAssignees.length})
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <UserIcon className="w-3 h-3 text-[#3BC0BB]" />
+                      Assigned Team Members ({taskAssignees.length})
+                    </span>
+                  </div>
 
-                  {taskAssignees.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {taskAssignees.map((assignee) => (
-                        <div
-                          key={assignee.id}
-                          className="flex items-center gap-2 p-1.5 rounded-xl bg-[#16222F] border border-[#233549] text-xs pr-3"
-                        >
-                          <img
-                            src={assignee.avatar}
-                            alt={assignee.name}
-                            className="w-6 h-6 rounded-full object-cover border border-[#3BC0BB]/40"
-                          />
-                          <div className="min-w-0">
-                            <div className="font-bold text-white text-[11px] truncate">{assignee.name}</div>
-                            <div className="text-[9px] text-slate-400 truncate">{assignee.department || assignee.role}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-slate-400 text-xs italic">No team members assigned</div>
-                  )}
+                  <div className="pt-0.5">
+                    <AssigneePicker
+                      assigneeIds={task.assigneeIds || []}
+                      users={users}
+                      onUpdateAssignees={(newIds) => updateTask(task.id, { assigneeIds: newIds })}
+                      size="sm"
+                      showLabel={true}
+                    />
+                  </div>
                 </div>
 
                 {/* Dates & Effort Progress */}
@@ -361,6 +353,63 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
                     </div>
                   </div>
                 </div>
+
+                {/* Custom Fields in Popover */}
+                {customFields.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#233549]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                        <Sliders className="w-3 h-3 text-[#3BC0BB]" />
+                        Custom Fields ({customFields.length})
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 bg-[#16222F]/60 p-2.5 rounded-xl border border-[#233549]">
+                      {customFields.map((cf) => {
+                        const val = task.customFields?.[cf.id] ?? (cf.defaultValue ?? '');
+                        return (
+                          <div key={cf.id} className="flex items-center justify-between text-xs gap-2">
+                            <span className="text-slate-400 font-semibold truncate max-w-[120px]" title={cf.name}>
+                              {cf.name}:
+                            </span>
+                            {cf.type === 'dropdown' ? (
+                              <select
+                                value={String(val)}
+                                onChange={(e) => {
+                                  const updated = { ...(task.customFields || {}), [cf.id]: e.target.value };
+                                  updateTask(task.id, { customFields: updated });
+                                }}
+                                className="bg-[#0D1520] border border-[#233549] text-white text-[11px] rounded px-2 py-0.5 focus:outline-none font-medium"
+                              >
+                                <option value="">-- None --</option>
+                                {cf.options?.map((opt, i) => (
+                                  <option key={i} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type={cf.type === 'number' ? 'number' : 'text'}
+                                value={val}
+                                placeholder="Empty"
+                                onChange={(e) => {
+                                  const v =
+                                    cf.type === 'number'
+                                      ? e.target.value === ''
+                                        ? ''
+                                        : Number(e.target.value)
+                                      : e.target.value;
+                                  const updated = { ...(task.customFields || {}), [cf.id]: v };
+                                  updateTask(task.id, { customFields: updated });
+                                }}
+                                className="bg-[#0D1520] border border-[#233549] text-white text-[11px] rounded px-2 py-0.5 w-28 focus:outline-none font-medium"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Dependencies or Blockers Notice */}
                 {isBlocked && (

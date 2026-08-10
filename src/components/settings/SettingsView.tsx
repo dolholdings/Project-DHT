@@ -40,10 +40,13 @@ import {
   Eye,
   EyeOff,
   Layout,
-  Monitor
+  Monitor,
+  Sliders,
+  Edit2,
+  X
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { ActivityLog, DolphinTheme } from '../../types';
+import { ActivityLog, DolphinTheme, CustomFieldDefinition, CustomFieldType } from '../../types';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -65,11 +68,83 @@ export const SettingsView: React.FC = () => {
     setTheme,
     dolphinTheme,
     setDolphinTheme,
-    currentUser
+    currentUser,
+    customFields,
+    addCustomField,
+    updateCustomField,
+    deleteCustomField
   } = useApp();
 
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'appearance' | 'firebase' | 'export' | 'platform' | 'godaddy' | 'sql'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'appearance' | 'custom_fields' | 'firebase' | 'export' | 'platform' | 'godaddy' | 'sql'>('audit');
+
+  // Custom Field Manager Modal State
+  const [isCfModalOpen, setIsCfModalOpen] = useState(false);
+  const [editingCf, setEditingCf] = useState<CustomFieldDefinition | null>(null);
+  const [cfName, setCfName] = useState('');
+  const [cfType, setCfType] = useState<CustomFieldType>('text');
+  const [cfDescription, setCfDescription] = useState('');
+  const [cfDefaultValue, setCfDefaultValue] = useState('');
+  const [cfOptionsStr, setCfOptionsStr] = useState('');
+  const [cfRequired, setCfRequired] = useState(false);
+
+  const handleOpenCreateCf = () => {
+    setEditingCf(null);
+    setCfName('');
+    setCfType('text');
+    setCfDescription('');
+    setCfDefaultValue('');
+    setCfOptionsStr('');
+    setCfRequired(false);
+    setIsCfModalOpen(true);
+  };
+
+  const handleOpenEditCf = (cf: CustomFieldDefinition) => {
+    setEditingCf(cf);
+    setCfName(cf.name);
+    setCfType(cf.type);
+    setCfDescription(cf.description || '');
+    setCfDefaultValue(cf.defaultValue !== undefined ? String(cf.defaultValue) : '');
+    setCfOptionsStr(cf.options ? cf.options.join(', ') : '');
+    setCfRequired(!!cf.required);
+    setIsCfModalOpen(true);
+  };
+
+  const handleSaveCf = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cfName.trim()) return;
+
+    const optionsArray = cfType === 'dropdown'
+      ? cfOptionsStr.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+
+    let parsedDefault: string | number | undefined = cfDefaultValue.trim() || undefined;
+    if (cfType === 'number' && parsedDefault !== undefined) {
+      parsedDefault = Number(parsedDefault) || 0;
+    }
+
+    if (editingCf) {
+      updateCustomField(editingCf.id, {
+        name: cfName.trim(),
+        type: cfType,
+        description: cfDescription.trim() || undefined,
+        defaultValue: parsedDefault,
+        options: optionsArray,
+        required: cfRequired
+      });
+    } else {
+      addCustomField({
+        name: cfName.trim(),
+        type: cfType,
+        description: cfDescription.trim() || undefined,
+        defaultValue: parsedDefault,
+        options: optionsArray,
+        required: cfRequired
+      });
+    }
+
+    setIsCfModalOpen(false);
+  };
 
   // Theme Preview State
   const [showThemePreview, setShowThemePreview] = useState<boolean>(true);
@@ -474,6 +549,21 @@ SET FOREIGN_KEY_CHECKS = 1;
         >
           <Palette className="w-4 h-4 text-[#3BC0BB]" />
           <span>Theme & Appearance</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('custom_fields')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeSubTab === 'custom_fields'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-[#3BC0BB]" />
+          <span>Task Custom Fields</span>
+          <span className="px-2 py-0.5 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] font-mono text-[10px] font-bold border border-[#3BC0BB]/30">
+            {customFields.length}
+          </span>
         </button>
 
         <button
@@ -1788,6 +1878,251 @@ SET FOREIGN_KEY_CHECKS = 1;
               </ol>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Tab Content: Task Custom Fields Manager */}
+      {activeSubTab === 'custom_fields' && (
+        <div className="space-y-6">
+          <div className="p-6 rounded-2xl bg-[#16222F] border border-[#233549] space-y-4 shadow-xl">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#233549] pb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-[#3BC0BB]" />
+                  <h3 className="text-lg font-bold text-white">Task Custom Fields Manager</h3>
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-mono text-xs font-bold">
+                    {customFields.length} Active
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Define enterprise custom task attributes (Text, Number, Dropdown) that automatically render in task details and export in CSV reports.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenCreateCf}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#0662A0] text-white text-xs font-bold shadow-lg shadow-[#0773BB]/20 transition-all self-start md:self-auto"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Custom Field</span>
+              </button>
+            </div>
+
+            {/* Custom Fields List */}
+            {customFields.length === 0 ? (
+              <div className="p-10 text-center rounded-xl bg-[#0D1520] border border-dashed border-[#233549] space-y-3">
+                <Sliders className="w-10 h-10 text-slate-500 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-300">No Custom Fields Defined</h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Click 'Add Custom Field' above to create dropdowns, numeric metrics, or text metadata for your tasks.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customFields.map((cf) => (
+                  <div
+                    key={cf.id}
+                    className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] hover:border-[#3BC0BB]/40 transition-all space-y-3 flex flex-col justify-between group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-white flex items-center gap-2">
+                          {cf.name}
+                          {cf.required && (
+                            <span className="text-rose-400 text-xs font-mono font-bold" title="Required field">*</span>
+                          )}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border uppercase ${
+                            cf.type === 'dropdown'
+                              ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                              : cf.type === 'number'
+                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                          }`}
+                        >
+                          {cf.type}
+                        </span>
+                      </div>
+
+                      {cf.description && (
+                        <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                          {cf.description}
+                        </p>
+                      )}
+
+                      {/* Dropdown Options or Default Values */}
+                      {cf.type === 'dropdown' && cf.options && cf.options.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">Dropdown Choices:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {cf.options.map((opt, i) => (
+                              <span
+                                key={i}
+                                className="px-2 py-0.5 rounded bg-[#16222F] border border-[#233549] text-[10px] font-mono text-slate-300"
+                              >
+                                {opt}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {cf.defaultValue !== undefined && (
+                        <div className="text-[11px] text-slate-400 pt-1 flex items-center gap-1 font-mono">
+                          <span className="text-slate-500">Default:</span>
+                          <span className="text-[#3BC0BB] font-semibold">{String(cf.defaultValue)}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#233549]">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditCf(cf)}
+                        className="px-2.5 py-1 rounded-lg bg-[#16222F] hover:bg-[#233549] text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-all"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteCustomField(cf.id)}
+                        className="px-2.5 py-1 rounded-lg bg-[#16222F] hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 text-slate-400 hover:text-rose-300 text-xs font-semibold flex items-center gap-1 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Modal / Form for Custom Field Creation & Editing */}
+          {isCfModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="w-full max-w-lg bg-[#16222F] border border-[#233549] rounded-2xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between border-b border-[#233549] pb-4">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-5 h-5 text-[#3BC0BB]" />
+                    <h3 className="text-base font-bold text-white">
+                      {editingCf ? 'Edit Custom Field' : 'Create Task Custom Field'}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setIsCfModalOpen(false)}
+                    className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-[#233549]"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCf} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">
+                      Field Name <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Cost Center Code, Risk Rating, Budget ID"
+                      value={cfName}
+                      onChange={(e) => setCfName(e.target.value)}
+                      className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Field Type</label>
+                      <select
+                        value={cfType}
+                        onChange={(e) => setCfType(e.target.value as CustomFieldType)}
+                        className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 font-bold focus:outline-none focus:border-[#3BC0BB]"
+                      >
+                        <option value="text">Text Input</option>
+                        <option value="number">Numeric Input</option>
+                        <option value="dropdown">Dropdown Select</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">Default Value</label>
+                      <input
+                        type={cfType === 'number' ? 'number' : 'text'}
+                        placeholder="Optional default..."
+                        value={cfDefaultValue}
+                        onChange={(e) => setCfDefaultValue(e.target.value)}
+                        className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB]"
+                      />
+                    </div>
+                  </div>
+
+                  {cfType === 'dropdown' && (
+                    <div>
+                      <label className="block text-slate-300 font-bold mb-1">
+                        Dropdown Options (comma separated) <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Low, Medium, High, Critical"
+                        value={cfOptionsStr}
+                        onChange={(e) => setCfOptionsStr(e.target.value)}
+                        className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB] font-mono text-xs"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        Enter choices separated by commas (e.g. "Low, Medium, High").
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1">Description / Help Text</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ERP Cost Center for financial tracking"
+                      value={cfDescription}
+                      onChange={(e) => setCfDescription(e.target.value)}
+                      className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB]"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="cfRequiredCheck"
+                      checked={cfRequired}
+                      onChange={(e) => setCfRequired(e.target.checked)}
+                      className="w-4 h-4 rounded border-[#233549] bg-[#0D1520] text-[#3BC0BB] focus:ring-[#3BC0BB]"
+                    />
+                    <label htmlFor="cfRequiredCheck" className="text-slate-300 font-semibold cursor-pointer">
+                      Mark as required field for tasks
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#233549]">
+                    <button
+                      type="button"
+                      onClick={() => setIsCfModalOpen(false)}
+                      className="px-4 py-2 rounded-xl bg-[#0D1520] hover:bg-[#233549] text-slate-300 text-xs font-semibold transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0662A0] text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20"
+                    >
+                      {editingCf ? 'Update Custom Field' : 'Create Custom Field'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

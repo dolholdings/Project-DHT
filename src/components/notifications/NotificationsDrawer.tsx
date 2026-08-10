@@ -14,7 +14,9 @@ import {
   ChevronRight,
   Sparkles,
   ExternalLink,
-  ChevronDown
+  ChevronDown,
+  Mail,
+  Send
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { SnoozeRecord } from '../../types';
@@ -33,13 +35,18 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
     unsnoozeTaskNotification,
     updateNotificationSettings,
     requestBrowserNotificationPermission,
+    triggerDailyOverdueCheck,
     setActiveTab,
     setSelectedProjectId,
+    theme,
   } = useApp();
+
+  const isLight = theme === 'light';
 
   const [activeTab, setActiveDrawerTab] = useState<'all' | 'snoozed' | 'settings'>('all');
   const [activeSnoozeDropdownId, setActiveSnoozeDropdownId] = useState<string | null>(null);
   const [customSnoozeTask, setCustomSnoozeTask] = useState<{ id: string; title: string } | null>(null);
+  const [dailyStatusMsg, setDailyStatusMsg] = useState<string | null>(null);
 
   const snoozedRecords: SnoozeRecord[] = Object.values(snoozedTasks);
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -65,43 +72,63 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end animate-in fade-in">
-      <div className="w-full max-w-md bg-[#16222F] border-l border-[#233549] h-full p-6 shadow-2xl flex flex-col justify-between">
+      <div className={`w-full max-w-md h-full p-6 shadow-2xl flex flex-col justify-between border-l ${
+        isLight
+          ? 'bg-white border-slate-200 text-slate-800'
+          : 'bg-[#16222F] border-[#233549] text-white'
+      }`}>
         <div className="space-y-4 flex-1 flex flex-col min-h-0">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#233549] pb-4">
-            <div className="flex items-center gap-2.5 text-white font-bold">
-              <div className="p-2 rounded-xl bg-[#0773BB]/20 border border-[#0773BB]/40 text-[#3BC0BB]">
+          <div className={`flex items-center justify-between border-b pb-4 ${
+            isLight ? 'border-slate-200' : 'border-[#233549]'
+          }`}>
+            <div className="flex items-center gap-2.5 font-bold">
+              <div className={`p-2 rounded-xl border ${
+                isLight ? 'bg-teal-50 border-teal-200 text-teal-700' : 'bg-[#0773BB]/20 border-[#0773BB]/40 text-[#3BC0BB]'
+              }`}>
                 <Bell className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">Notifications Center</h3>
-                <p className="text-[11px] text-slate-400 font-normal">
+                <h3 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Notifications Center</h3>
+                <p className={`text-[11px] font-normal ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   Due dates, reminders & snooze settings
                 </p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#233549] transition-all"
+              className={`p-1.5 rounded-lg transition-all ${
+                isLight
+                  ? 'text-slate-400 hover:text-slate-800 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-white hover:bg-[#233549]'
+              }`}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 p-1 rounded-xl bg-[#0D1520] border border-[#233549]">
+          <div className={`flex items-center gap-1 p-1 rounded-xl border ${
+            isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+          }`}>
             <button
               onClick={() => setActiveDrawerTab('all')}
               className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'all'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
+                  ? isLight
+                    ? 'bg-teal-700 text-white shadow-md'
+                    : 'bg-[#0773BB] text-white shadow-md'
+                  : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
               }`}
             >
               <Bell className="w-3.5 h-3.5" />
               <span>Active</span>
               {unreadCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-[#3BC0BB] text-black text-[10px] font-bold">
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  isLight ? 'bg-teal-100 text-teal-900' : 'bg-[#3BC0BB] text-black'
+                }`}>
                   {unreadCount}
                 </span>
               )}
@@ -111,14 +138,18 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
               onClick={() => setActiveDrawerTab('snoozed')}
               className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'snoozed'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
+                  ? isLight
+                    ? 'bg-teal-700 text-white shadow-md'
+                    : 'bg-[#0773BB] text-white shadow-md'
+                  : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
               }`}
             >
               <BellOff className="w-3.5 h-3.5" />
               <span>Snoozed</span>
               {snoozedRecords.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-500/30 text-amber-300 text-[10px] font-bold">
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500/30 text-amber-800 dark:text-amber-300 text-[10px] font-bold">
                   {snoozedRecords.length}
                 </span>
               )}
@@ -128,8 +159,12 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
               onClick={() => setActiveDrawerTab('settings')}
               className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
                 activeTab === 'settings'
-                  ? 'bg-[#0773BB] text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
+                  ? isLight
+                    ? 'bg-teal-700 text-white shadow-md'
+                    : 'bg-[#0773BB] text-white shadow-md'
+                  : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                    : 'text-slate-400 hover:text-white hover:bg-[#1A2838]'
               }`}
             >
               <Settings className="w-3.5 h-3.5" />
@@ -140,12 +175,12 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
           {/* TAB 1: ALL ACTIVE NOTIFICATIONS */}
           {activeTab === 'all' && (
             <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-              <div className="flex items-center justify-between text-[11px] text-slate-400 font-semibold px-1">
+              <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-semibold px-1">
                 <span>Recent Alerts ({notifications.length})</span>
                 {notifications.length > 0 && (
                   <button
                     onClick={clearAllNotifications}
-                    className="text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1"
+                    className="text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1"
                   >
                     <Trash2 className="w-3 h-3" />
                     <span>Clear All</span>
@@ -154,11 +189,13 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
               </div>
 
               {notifications.length === 0 ? (
-                <div className="p-8 text-center space-y-3 bg-[#0D1520] rounded-2xl border border-[#233549]">
-                  <CheckCircle2 className="w-8 h-8 text-[#3BC0BB] mx-auto opacity-80" />
+                <div className={`p-8 text-center space-y-3 rounded-2xl border ${
+                  isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+                }`}>
+                  <CheckCircle2 className={`w-8 h-8 mx-auto ${isLight ? 'text-teal-600' : 'text-[#3BC0BB] opacity-80'}`} />
                   <div>
-                    <h4 className="text-xs font-bold text-white">All Caught Up!</h4>
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <h4 className={`text-xs font-bold ${isLight ? 'text-slate-800' : 'text-white'}`}>All Caught Up!</h4>
+                    <p className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                       No pending task reminders or due alerts right now.
                     </p>
                   </div>
@@ -173,41 +210,59 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
                     <div
                       key={n.id}
                       className={`p-3.5 rounded-2xl border text-xs space-y-2.5 transition-all relative ${
-                        n.read
-                          ? 'bg-[#0D1520] border-[#233549] text-slate-400 opacity-80'
-                          : 'bg-[#0773BB]/10 border-[#0773BB] text-white shadow-lg'
+                        isLight
+                          ? n.read
+                            ? 'bg-slate-50 border-slate-200 text-slate-600 opacity-80'
+                            : n.type === 'overdue'
+                              ? 'bg-rose-50 border-rose-300 text-rose-950 shadow-md'
+                              : 'bg-teal-50/60 border-teal-200 text-slate-900 shadow-md'
+                          : n.read
+                            ? 'bg-[#0D1520] border-[#233549] text-slate-400 opacity-80'
+                            : 'bg-[#0773BB]/10 border-[#0773BB] text-white shadow-lg'
                       }`}
                     >
                       {/* Top Bar */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           {n.type === 'overdue' ? (
-                            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
                           ) : (
-                            <Clock className="w-4 h-4 text-[#3BC0BB] shrink-0" />
+                            <Clock className={`w-4 h-4 shrink-0 ${isLight ? 'text-teal-600' : 'text-[#3BC0BB]'}`} />
                           )}
-                          <span className="font-bold text-white truncate max-w-[210px]">
+                          <span className={`font-bold truncate max-w-[210px] ${
+                            isLight ? 'text-slate-900' : 'text-white'
+                          }`}>
                             {n.title}
                           </span>
                         </div>
 
                         {!n.read && (
-                          <span className="w-2 h-2 rounded-full bg-[#3BC0BB] shrink-0 mt-1"></span>
+                          <span className={`w-2 h-2 rounded-full shrink-0 mt-1 ${
+                            isLight ? 'bg-teal-600' : 'bg-[#3BC0BB]'
+                          }`}></span>
                         )}
                       </div>
 
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                      <p className={`text-[11px] leading-relaxed ${
+                        isLight ? 'text-slate-700' : 'text-slate-300'
+                      }`}>
                         {n.message}
                       </p>
 
                       {project && (
-                        <div className="text-[10px] text-slate-400 font-mono bg-[#0D1520] px-2 py-0.5 rounded border border-[#233549] inline-block">
+                        <div className={`text-[10px] font-mono px-2 py-0.5 rounded border inline-block ${
+                          isLight
+                            ? 'bg-white border-slate-200 text-slate-600'
+                            : 'bg-[#0D1520] border-[#233549] text-slate-400'
+                        }`}>
                           Project: {project.code} - {project.title}
                         </div>
                       )}
 
                       {/* Action Bar */}
-                      <div className="pt-2 border-t border-[#233549]/60 flex items-center justify-between gap-2">
+                      <div className={`pt-2 border-t flex items-center justify-between gap-2 ${
+                        isLight ? 'border-slate-200' : 'border-[#233549]/60'
+                      }`}>
                         {n.taskId ? (
                           <div className="relative">
                             <button
@@ -216,48 +271,68 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
                                   activeSnoozeDropdownId === n.id ? null : n.id
                                 )
                               }
-                              className="px-2.5 py-1 rounded-lg bg-[#16222F] hover:bg-[#233549] text-[11px] text-slate-300 hover:text-white border border-[#233549] font-medium flex items-center gap-1 transition-all"
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition-all border ${
+                                isLight
+                                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                                  : 'bg-[#16222F] hover:bg-[#233549] text-slate-300 hover:text-white border-[#233549]'
+                              }`}
                             >
-                              <BellOff className="w-3 h-3 text-[#3BC0BB]" />
+                              <BellOff className={`w-3 h-3 ${isLight ? 'text-teal-700' : 'text-[#3BC0BB]'}`} />
                               <span>{isSnoozed ? 'Resnooze' : 'Snooze'}</span>
-                              <ChevronDown className="w-3 h-3 text-slate-400" />
+                              <ChevronDown className="w-3 h-3 opacity-60" />
                             </button>
 
                             {activeSnoozeDropdownId === n.id && (
-                              <div className="absolute left-0 bottom-full mb-1 w-44 bg-[#16222F] border border-[#233549] rounded-xl shadow-2xl p-1.5 space-y-1 z-50">
+                              <div className={`absolute left-0 bottom-full mb-1 w-44 border rounded-xl shadow-2xl p-1.5 space-y-1 z-50 ${
+                                isLight
+                                  ? 'bg-white border-slate-200 text-slate-800 shadow-2xl'
+                                  : 'bg-[#16222F] border-[#233549] text-slate-300 shadow-2xl'
+                              }`}>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, '15m')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-xs text-slate-300"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs ${
+                                    isLight ? 'hover:bg-teal-50 hover:text-teal-900 text-slate-800' : 'hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-slate-300'
+                                  }`}
                                 >
                                   15 Minutes
                                 </button>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, '1h')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-xs text-slate-300"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs ${
+                                    isLight ? 'hover:bg-teal-50 hover:text-teal-900 text-slate-800' : 'hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-slate-300'
+                                  }`}
                                 >
                                   1 Hour
                                 </button>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, '4h')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-xs text-slate-300"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs ${
+                                    isLight ? 'hover:bg-teal-50 hover:text-teal-900 text-slate-800' : 'hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-slate-300'
+                                  }`}
                                 >
                                   4 Hours
                                 </button>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, '1d')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-xs text-slate-300"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs ${
+                                    isLight ? 'hover:bg-teal-50 hover:text-teal-900 text-slate-800' : 'hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-slate-300'
+                                  }`}
                                 >
                                   1 Day (Tomorrow)
                                 </button>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, '2d')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-xs text-slate-300"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs ${
+                                    isLight ? 'hover:bg-teal-50 hover:text-teal-900 text-slate-800' : 'hover:bg-[#0773BB]/20 hover:text-[#3BC0BB] text-slate-300'
+                                  }`}
                                 >
                                   2 Days
                                 </button>
                                 <button
                                   onClick={() => handleQuickSnooze(n.taskId!, 'custom')}
-                                  className="w-full text-left px-2 py-1 rounded hover:bg-[#3BC0BB]/20 hover:text-[#3BC0BB] text-xs text-slate-200 font-bold"
+                                  className={`w-full text-left px-2 py-1 rounded text-xs font-bold ${
+                                    isLight ? 'hover:bg-teal-100 text-teal-900' : 'hover:bg-[#3BC0BB]/20 text-[#3BC0BB] text-slate-200'
+                                  }`}
                                 >
                                   Custom Date...
                                 </button>
@@ -362,26 +437,81 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
 
           {/* TAB 3: NOTIFICATION SETTINGS */}
           {activeTab === 'settings' && (
-            <div className="flex-1 overflow-y-auto space-y-5 pr-1">
-              <div className="space-y-4 bg-[#0D1520] p-4 rounded-2xl border border-[#233549]">
-                <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-[#3BC0BB]" />
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+              {/* Daily Overdue Task Email Digest */}
+              <div className={`space-y-3 p-4 rounded-2xl border ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-white'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold flex items-center gap-2">
+                    <Mail className={`w-4 h-4 ${isLight ? 'text-teal-600' : 'text-[#3BC0BB]'}`} />
+                    <span>Daily Overdue Email Alerts</span>
+                  </h4>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isLight ? 'bg-teal-100 text-teal-800' : 'bg-[#3BC0BB]/20 text-[#3BC0BB]'
+                  }`}>
+                    Active Daily
+                  </span>
+                </div>
+                <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Automatically compiles & emails a daily digest of all overdue tasks to assigned team members and managers.
+                </p>
+
+                <div className="pt-1">
+                  <button
+                    onClick={() => {
+                      const res = triggerDailyOverdueCheck(true);
+                      setDailyStatusMsg(res.message);
+                      setTimeout(() => setDailyStatusMsg(null), 5000);
+                    }}
+                    className={`w-full py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all ${
+                      isLight
+                        ? 'bg-teal-700 hover:bg-teal-800 text-white'
+                        : 'bg-[#0773BB] hover:bg-[#0773BB]/80 text-white'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send Daily Overdue Email Report Now</span>
+                  </button>
+
+                  {dailyStatusMsg && (
+                    <div className={`mt-2 text-[11px] p-2 rounded-xl border text-center font-semibold animate-in fade-in ${
+                      isLight
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                    }`}>
+                      {dailyStatusMsg}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Browser Push Notifications */}
+              <div className={`space-y-4 p-4 rounded-2xl border ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-white'
+              }`}>
+                <h4 className="text-xs font-bold flex items-center gap-2">
+                  <ShieldCheck className={`w-4 h-4 ${isLight ? 'text-teal-600' : 'text-[#3BC0BB]'}`} />
                   <span>Browser & Desktop Notifications</span>
                 </h4>
 
-                <div className="flex items-center justify-between p-3 rounded-xl bg-[#16222F] border border-[#233549]">
+                <div className={`flex items-center justify-between p-3 rounded-xl border ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+                }`}>
                   <div>
-                    <div className="text-xs font-semibold text-white">
+                    <div className={`text-xs font-semibold ${isLight ? 'text-slate-800' : 'text-white'}`}>
                       Desktop Push Alerts
                     </div>
-                    <div className="text-[10px] text-slate-400">
-                      Permission Status: <span className="font-bold text-[#3BC0BB]">{currentPermission}</span>
+                    <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Permission Status: <span className={`font-bold ${isLight ? 'text-teal-700' : 'text-[#3BC0BB]'}`}>{currentPermission}</span>
                     </div>
                   </div>
 
                   <button
                     onClick={() => requestBrowserNotificationPermission()}
-                    className="px-3 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all"
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs shadow-md transition-all ${
+                      isLight ? 'bg-teal-700 hover:bg-teal-800 text-white' : 'bg-[#0773BB] hover:bg-[#0773BB]/80 text-white'
+                    }`}
                   >
                     {currentPermission === 'granted' ? 'Enabled ✓' : 'Enable Push'}
                   </button>
@@ -389,12 +519,14 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
               </div>
 
               {/* Lead Days Settings */}
-              <div className="space-y-3 bg-[#0D1520] p-4 rounded-2xl border border-[#233549]">
-                <h4 className="text-xs font-bold text-white flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#3BC0BB]" />
+              <div className={`space-y-3 p-4 rounded-2xl border ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-white'
+              }`}>
+                <h4 className="text-xs font-bold flex items-center gap-2">
+                  <Clock className={`w-4 h-4 ${isLight ? 'text-teal-600' : 'text-[#3BC0BB]'}`} />
                   <span>Due Date Reminder Lead Time</span>
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className={`text-[11px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
                   Trigger task notifications when tasks are due within this lead window:
                 </p>
 
@@ -405,8 +537,12 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
                       onClick={() => updateNotificationSettings({ leadDays: days })}
                       className={`py-2 rounded-xl text-xs font-bold transition-all border ${
                         notificationSettings.leadDays === days
-                          ? 'bg-[#0773BB] text-white border-[#3BC0BB]'
-                          : 'bg-[#16222F] text-slate-300 border-[#233549] hover:bg-[#233549]'
+                          ? isLight
+                            ? 'bg-teal-700 text-white border-teal-800'
+                            : 'bg-[#0773BB] text-white border-[#3BC0BB]'
+                          : isLight
+                            ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                            : 'bg-[#16222F] text-slate-300 border-[#233549] hover:bg-[#233549]'
                       }`}
                     >
                       {days} {days === 1 ? 'Day' : 'Days'}
@@ -416,10 +552,12 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
               </div>
 
               {/* Sound Alerts Settings */}
-              <div className="space-y-3 bg-[#0D1520] p-4 rounded-2xl border border-[#233549]">
+              <div className={`space-y-3 p-4 rounded-2xl border ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-800' : 'bg-[#0D1520] border-[#233549] text-white'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs font-bold text-white">
-                    <Volume2 className="w-4 h-4 text-[#3BC0BB]" />
+                  <div className="flex items-center gap-2 text-xs font-bold">
+                    <Volume2 className={`w-4 h-4 ${isLight ? 'text-teal-600' : 'text-[#3BC0BB]'}`} />
                     <span>Sound Alerts</span>
                   </div>
 
@@ -430,7 +568,9 @@ export const NotificationsDrawer: React.FC<{ onClose: () => void }> = ({ onClose
                       })
                     }
                     className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
-                      notificationSettings.soundAlerts ? 'bg-[#0773BB]' : 'bg-[#233549]'
+                      notificationSettings.soundAlerts
+                        ? isLight ? 'bg-teal-600' : 'bg-[#0773BB]'
+                        : isLight ? 'bg-slate-300' : 'bg-[#233549]'
                     }`}
                   >
                     <div

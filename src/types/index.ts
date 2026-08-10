@@ -63,6 +63,7 @@ export interface Project {
   category: 'Industrial Manufacturing' | 'HVAC Engineering' | 'Radiator Production' | 'Heat Exchanger' | 'Group IT' | 'Digital Marketing';
   members: string[]; // user ids
   memberRoles?: Record<string, SpaceRole>; // map of userId -> SpaceRole
+  lists?: string[]; // Array of list names under this Space/Project (e.g., 'Chairman', 'SEO & Google Ads', etc.)
 }
 
 export type TaskStatus = 'Backlog' | 'To Do' | 'In Progress' | 'In Review' | 'Done';
@@ -93,6 +94,18 @@ export interface RecurrenceConfig {
   autoRegenerateOnComplete?: boolean;
 }
 
+export type CustomFieldType = 'text' | 'number' | 'dropdown';
+
+export interface CustomFieldDefinition {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options?: string[]; // for dropdown
+  required?: boolean;
+  description?: string;
+  defaultValue?: string | number;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -117,8 +130,11 @@ export interface Task {
   isCriticalPath?: boolean; // Flagged as Critical Path
   isMilestone?: boolean;    // Flagged as Milestone
   recurrence?: RecurrenceConfig;
+  listName?: string; // ClickUp list name within the space (e.g., 'Website Development', 'SEO & Google Ads')
+  customFields?: Record<string, any>; // Mapping fieldId -> value
   createdAt: string;
   updatedAt: string;
+  completedAt?: string;
 }
 
 export interface TaskComment {

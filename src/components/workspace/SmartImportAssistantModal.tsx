@@ -1399,14 +1399,20 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
                         <td className="p-3 font-mono text-slate-400">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span>{t.startDate} ➔ {t.dueDate}</span>
-                            {t.dueDate < new Date().toISOString().split('T')[0] && t.status !== 'Done' && (
-                              <span
-                                className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono border border-rose-500/30 font-bold"
-                                title="Overdue task date preserved and allowed on import"
-                              >
-                                Overdue
-                              </span>
-                            )}
+                            {(() => {
+                              const todayStr = new Date().toISOString().split('T')[0];
+                              const isOverdue = t.dueDate < todayStr && t.status !== 'Done';
+                              if (!isOverdue) return null;
+                              const daysOverdue = Math.max(1, Math.floor((new Date(todayStr).getTime() - new Date(t.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+                              return (
+                                <span
+                                  className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[9px] font-mono border border-rose-500/30 font-bold"
+                                  title="Overdue task date preserved and allowed on import. You can edit dates after importing."
+                                >
+                                  Overdue by {daysOverdue}d (Allowed)
+                                </span>
+                              );
+                            })()}
                           </div>
                         </td>
 

@@ -262,27 +262,26 @@ html.light-theme .text-white:not(button *):not(.btn *):not(.badge *):not(.pill *
   color: #0F172A !important;
 }
 
-/* Preserve White Text inside Buttons / Badges / Pills / Action Elements */
-html.light-theme button *,
-html.light-theme .btn *,
-html.light-theme .badge *,
-html.light-theme .pill *,
-html.light-theme .bg-\[\#7B68EE\],
+/* Preserve White Text ONLY inside Primary/Accent/Dark Filled Elements */
+html.light-theme .btn-primary *,
+html.light-theme .btn-accent *,
+html.light-theme .badge-primary *,
+html.light-theme .pill-primary *,
 html.light-theme .bg-\[\#7B68EE\] *,
-html.light-theme .bg-\[\#0773BB\],
 html.light-theme .bg-\[\#0773BB\] *,
-html.light-theme .bg-indigo-600,
+html.light-theme .bg-\[\#0D9488\] *,
+html.light-theme .bg-\[\#00AEA9\] *,
 html.light-theme .bg-indigo-600 *,
-html.light-theme .bg-emerald-500,
 html.light-theme .bg-emerald-500 *,
-html.light-theme .bg-emerald-600,
 html.light-theme .bg-emerald-600 *,
-html.light-theme .bg-rose-500,
 html.light-theme .bg-rose-500 *,
-html.light-theme .bg-amber-500,
+html.light-theme .bg-rose-600 *,
 html.light-theme .bg-amber-500 *,
-.light-theme button *,
-[data-theme="light"] button * {
+html.light-theme .bg-slate-900 *,
+.light-theme .btn-primary *,
+.light-theme .bg-\[\#0773BB\] *,
+.light-theme .bg-\[\#0D9488\] *,
+[data-theme="light"] .btn-primary * {
   color: #FFFFFF !important;
 }
 

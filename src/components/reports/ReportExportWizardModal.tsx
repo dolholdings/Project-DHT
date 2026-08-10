@@ -26,6 +26,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import Papa from 'papaparse';
+import { useApp } from '../../context/AppContext';
 import { Project, Task, Company, User, Priority, TaskStatus } from '../../types';
 
 interface ReportExportWizardModalProps {
@@ -49,6 +50,7 @@ export const ReportExportWizardModal: React.FC<ReportExportWizardModalProps> = (
   currentUser,
   theme
 }) => {
+  const { customFields } = useApp();
   // Step indicator state (1: Format & Scope, 2: Date & Status Filters, 3: Sections & Preview)
   const [currentStep, setCurrentStep] = useState<number>(1);
 
@@ -298,9 +300,26 @@ export const ReportExportWizardModal: React.FC<ReportExportWizardModalProps> = (
     const taskDetailsSection = includedSections.taskBreakdown
       ? [
           ['DETAILED TASK INVENTORY'],
-          ['Task ID', 'Project Code', 'Task Deliverable Title', 'Status', 'Priority', 'Logged Hours', 'Est. Hours', 'Due Date', 'Milestone', 'Critical Path'],
+          [
+            'Task ID',
+            'Project Code',
+            'Task Deliverable Title',
+            'Status',
+            'Priority',
+            'Logged Hours',
+            'Est. Hours',
+            'Due Date',
+            'Milestone',
+            'Critical Path',
+            ...customFields.map((cf) => `Custom: ${cf.name}`)
+          ],
           ...filteredTasks.map((t) => {
             const proj = projects.find((p) => p.id === t.projectId);
+            const cfVals = customFields.map((cf) => {
+              const rawVal = t.customFields?.[cf.id] ?? (cf.defaultValue ?? '');
+              return `"${String(rawVal).replace(/"/g, '""')}"`;
+            });
+
             return [
               t.id,
               proj ? proj.code : t.projectId,
@@ -311,7 +330,8 @@ export const ReportExportWizardModal: React.FC<ReportExportWizardModalProps> = (
               t.estimatedHours || 0,
               t.dueDate || 'N/A',
               t.isMilestone ? 'YES' : 'NO',
-              t.isCriticalPath ? 'YES' : 'NO'
+              t.isCriticalPath ? 'YES' : 'NO',
+              ...cfVals
             ];
           })
         ]

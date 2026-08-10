@@ -1032,15 +1032,20 @@ app.post('/api/notifications/send-email', async (req, res) => {
     const smtpPass = smtpConfig?.pass || process.env.SMTP_PASS;
 
     if (smtpHost && smtpUser && smtpPass) {
-      providerUsed = `Custom SMTP (${smtpHost}:${smtpConfig?.port || 465})`;
+      const targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || 465);
+      const isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : targetPort === 465;
+      providerUsed = `Custom SMTP (${smtpHost}:${targetPort})`;
       try {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
-          port: Number(smtpConfig?.port || process.env.SMTP_PORT || 465),
-          secure: smtpConfig?.secure ?? true,
+          port: targetPort,
+          secure: isSecure,
           auth: {
             user: smtpUser,
             pass: smtpPass
+          },
+          tls: {
+            rejectUnauthorized: false
           }
         });
 

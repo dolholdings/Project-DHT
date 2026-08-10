@@ -55,6 +55,7 @@ import { BurnDownChartWidget } from './BurnDownChartWidget';
 import { TaskStatusDistributionWidget } from './TaskStatusDistributionWidget';
 import { PriorityRiskDistributionWidget } from './PriorityRiskDistributionWidget';
 import { D3CapacityVelocityGaugeWidget } from './D3CapacityVelocityGaugeWidget';
+import { ProjectSpaceDashboard } from './ProjectSpaceDashboard';
 import { QuickAddFAB } from '../common/QuickAddFAB';
 
 export interface ProjectHealthInfo {
@@ -284,7 +285,9 @@ export const DashboardView: React.FC = () => {
     currentUser,
     updateTask,
     dependencies,
-    theme
+    theme,
+    selectedProjectId,
+    setSelectedProjectId
   } = useApp();
 
   const [isCustomizeOpen, setCustomizeOpen] = useState(false);
@@ -586,6 +589,29 @@ export const DashboardView: React.FC = () => {
   );
 
   const isWidgetPinned = (id: string) => pinnedWidgetIds.has(id);
+
+  if (selectedProjectId) {
+    return (
+      <div className={`p-3.5 sm:p-6 space-y-4 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="text-slate-400">Active View: Space Dashboard</span>
+          </div>
+          <button
+            onClick={() => setSelectedProjectId(null)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+              theme === 'light'
+                ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                : 'bg-[#16222F] border-[#233549] text-slate-200 hover:bg-[#233549]'
+            }`}
+          >
+            ← Switch to All Workspace Dashboard
+          </button>
+        </div>
+        <ProjectSpaceDashboard />
+      </div>
+    );
+  }
 
   return (
     <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>

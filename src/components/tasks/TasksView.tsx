@@ -43,12 +43,15 @@ import {
   Check,
   ArrowUpDown,
   Eye,
-  Shield
+  Shield,
+  Download,
+  Sliders
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
+import { AssigneePicker } from './AssigneePicker';
 import { getSpaceRole, canEditSpace } from '../../lib/permissions';
 
 export const TasksView: React.FC = () => {
@@ -72,9 +75,12 @@ export const TasksView: React.FC = () => {
     logTimeManual,
     selectedProjectId,
     setSelectedProjectId,
+    selectedListFilter,
+    setSelectedListFilter,
     searchQuery,
     theme,
-    currentUser
+    currentUser,
+    customFields
   } = useApp();
 
   const isLight = theme === 'light';
@@ -339,6 +345,7 @@ export const TasksView: React.FC = () => {
   // Filter tasks
   const filteredTasks = tasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
+    if (selectedListFilter && t.listName !== selectedListFilter) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = t.title.toLowerCase().includes(q);
@@ -357,6 +364,86 @@ export const TasksView: React.FC = () => {
   const toDoTasks = sortTasksList(filteredTasks.filter((t) => t.status === 'To Do' || t.status === 'Backlog'));
   const doneTasks = sortTasksList(filteredTasks.filter((t) => t.status === 'Done' || t.status === 'In Review'));
 
+  // CSV Export for external auditing
+  const handleDownloadCsv = () => {
+    const exportTasksList = filteredTasks.length > 0 ? filteredTasks : tasks;
+
+    const cfHeaders = customFields.map((cf) => `Custom: ${cf.name}`);
+
+    const headers = [
+      'Task ID',
+      'Title',
+      'Space / Project',
+      'Status',
+      'Priority',
+      'Assignees',
+      'Reporter',
+      'Start Date',
+      'Due Date',
+      'Estimated Hours',
+      'Logged Hours',
+      'Tags',
+      'Milestone',
+      'Critical Path',
+      ...cfHeaders,
+      'Created At',
+      'Updated At'
+    ];
+
+    const rows = exportTasksList.map((t) => {
+      const proj = projects.find((p) => p.id === t.projectId);
+      const projName = proj ? `${proj.code} - ${proj.title}` : t.projectId;
+      const assigneesStr = (t.assigneeIds || [])
+        .map((aid) => {
+          const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+          return u ? u.name : aid;
+        })
+        .join('; ');
+      const reporterUser = users.find((u) => u.id === t.reporterId);
+      const reporterStr = reporterUser ? reporterUser.name : t.reporterId || 'System';
+      const tagsStr = (t.tags || []).join('; ');
+
+      const safeTitle = `"${(t.title || '').replace(/"/g, '""')}"`;
+
+      const cfValues = customFields.map((cf) => {
+        const rawVal = t.customFields?.[cf.id] ?? (cf.defaultValue ?? '');
+        return `"${String(rawVal).replace(/"/g, '""')}"`;
+      });
+
+      return [
+        t.id,
+        safeTitle,
+        `"${projName.replace(/"/g, '""')}"`,
+        t.status,
+        t.priority,
+        `"${assigneesStr.replace(/"/g, '""')}"`,
+        `"${reporterStr.replace(/"/g, '""')}"`,
+        t.startDate || '',
+        t.dueDate || '',
+        t.estimatedHours || 0,
+        t.loggedHours || 0,
+        `"${tagsStr.replace(/"/g, '""')}"`,
+        t.isMilestone ? 'Yes' : 'No',
+        t.isCriticalPath ? 'Yes' : 'No',
+        ...cfValues,
+        t.createdAt || '',
+        t.updatedAt || ''
+      ];
+    });
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    const projCode = currentProject?.code || 'all';
+    link.setAttribute('download', `tasks_export_${projCode}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleInlineAdd = (statusGroup: TaskStatus) => {
     if (!inlineTaskTitle.trim()) return;
     addTask({
@@ -372,6 +459,7 @@ export const TasksView: React.FC = () => {
       dueDate: '2025-08-30',
       estimatedHours: 10,
       tags: ['ClickUp', 'Task'],
+      listName: selectedListFilter || undefined
     });
     setInlineTaskTitle('');
     setInlineAddGroup(null);
@@ -547,6 +635,20 @@ export const TasksView: React.FC = () => {
             <span className="px-1.5 py-0.5 rounded-full bg-black/30 text-amber-100 text-[10px] font-mono font-extrabold">
               {unassignedTasks.length}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
+                : 'bg-[#0D1520] hover:bg-[#233549] border-[#233549] text-cyan-300'
+            }`}
+            title="Export current tasks view to CSV for external auditing"
+          >
+            <Download className="w-4 h-4 text-[#3BC0BB]" />
+            <span>Download CSV</span>
           </button>
 
           <button
@@ -738,35 +840,12 @@ export const TasksView: React.FC = () => {
 
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {assignee ? (
-                                <img
-                                  src={assignee.avatar}
-                                  alt={assignee.name}
-                                  className="w-6 h-6 rounded-full object-cover ring-1 ring-[#7B68EE] shrink-0"
-                                />
-                              ) : (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
-                                  Unassigned
-                                </span>
-                              )}
-                              <select
-                                value={t.assigneeIds[0] || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val) {
-                                    updateTask(t.id, { assigneeIds: [val] });
-                                  }
-                                }}
-                                className="bg-[#0D1520] border border-[#233549] text-xs text-slate-200 rounded-lg px-2 py-1 font-semibold focus:outline-none focus:border-[#7B68EE]"
-                              >
-                                <option value="">Unassigned</option>
-                                {users.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name} ({u.department})
-                                  </option>
-                                ))}
-                              </select>
-                              {(!t.assigneeIds || t.assigneeIds.length === 0 || !t.assigneeIds[0]) && (
+                              <AssigneePicker
+                                assigneeIds={t.assigneeIds || []}
+                                users={users}
+                                onUpdateAssignees={(newIds) => updateTask(t.id, { assigneeIds: newIds })}
+                              />
+                              {(!t.assigneeIds || t.assigneeIds.length === 0) && (
                                 <button
                                   type="button"
                                   onClick={() => handleSingleTaskSmartPriority(t)}
@@ -971,36 +1050,22 @@ export const TasksView: React.FC = () => {
 
                           <td className="p-3" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {assignee ? (
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <img
-                                    src={assignee.avatar}
-                                    alt={assignee.name}
-                                    className="w-6 h-6 rounded-full object-cover ring-1 ring-[#0773BB] shrink-0"
-                                    title={assignee.name}
-                                  />
-                                  <span className={`font-mono text-[11px] truncate max-w-[100px] ${
-                                    theme === 'light' ? 'text-slate-700' : 'text-slate-300'
-                                  }`}>
-                                    {assignee.name}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
-                                    Unassigned
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSingleTaskSmartPriority(t)}
-                                    disabled={singleAnalyzingTaskId === t.id}
-                                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
-                                    title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
-                                  >
-                                    <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
-                                    <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
-                                  </button>
-                                </div>
+                              <AssigneePicker
+                                assigneeIds={t.assigneeIds || []}
+                                users={users}
+                                onUpdateAssignees={(newIds) => updateTask(t.id, { assigneeIds: newIds })}
+                              />
+                              {(!t.assigneeIds || t.assigneeIds.length === 0) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSingleTaskSmartPriority(t)}
+                                  disabled={singleAnalyzingTaskId === t.id}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
+                                  title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
+                                >
+                                  <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
+                                  <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
+                                </button>
                               )}
                             </div>
                           </td>
@@ -1265,6 +1330,26 @@ export const TasksView: React.FC = () => {
               </div>
             </div>
 
+            {/* Assignees Section */}
+            <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 font-bold flex items-center gap-1.5">
+                  <UserIcon className="w-4 h-4 text-[#3BC0BB]" />
+                  Assigned Team Members ({activeTask.assigneeIds?.length || 0})
+                </span>
+                <span className="text-[10px] text-slate-400">Click to add or modify assignees</span>
+              </div>
+              <div className="pt-1">
+                <AssigneePicker
+                  assigneeIds={activeTask.assigneeIds || []}
+                  users={users}
+                  onUpdateAssignees={(newIds) => updateTask(activeTask.id, { assigneeIds: newIds })}
+                  size="md"
+                  showLabel={true}
+                />
+              </div>
+            </div>
+
             {/* Description */}
             <div className="text-xs space-y-1">
               <span className="text-slate-400 font-semibold">Description</span>
@@ -1272,6 +1357,82 @@ export const TasksView: React.FC = () => {
                 {activeTask.description}
               </p>
             </div>
+
+            {/* Task Custom Fields Section */}
+            {customFields.length > 0 && (
+              <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3 text-xs shadow-lg">
+                <div className="flex items-center justify-between border-b border-[#233549] pb-2">
+                  <div className="flex items-center gap-1.5 font-bold text-white">
+                    <Sliders className="w-4 h-4 text-[#3BC0BB]" />
+                    <span>Task Custom Fields</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {customFields.length} {customFields.length === 1 ? 'Field' : 'Fields'}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {customFields.map((cf) => {
+                    const currentVal = activeTask.customFields?.[cf.id] ?? (cf.defaultValue ?? '');
+                    return (
+                      <div key={cf.id} className="space-y-1">
+                        <label className="block text-slate-300 font-semibold text-xs flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            {cf.name}
+                            {cf.required && <span className="text-rose-400 font-bold">*</span>}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-mono uppercase bg-[#16222F] px-1.5 py-0.5 rounded border border-[#233549]">
+                            {cf.type}
+                          </span>
+                        </label>
+
+                        {cf.type === 'dropdown' ? (
+                          <select
+                            value={String(currentVal)}
+                            onChange={(e) => {
+                              const updatedCustomFields = {
+                                ...(activeTask.customFields || {}),
+                                [cf.id]: e.target.value
+                              };
+                              updateTask(activeTask.id, { customFields: updatedCustomFields });
+                            }}
+                            className="w-full bg-[#16222F] border border-[#233549] text-white rounded-xl px-3 py-2 font-semibold focus:outline-none focus:border-[#3BC0BB]"
+                          >
+                            <option value="">-- Select {cf.name} --</option>
+                            {cf.options?.map((opt, idx) => (
+                              <option key={idx} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={cf.type === 'number' ? 'number' : 'text'}
+                            value={currentVal}
+                            placeholder={cf.description || `Enter ${cf.name}...`}
+                            onChange={(e) => {
+                              const val =
+                                cf.type === 'number'
+                                  ? e.target.value === ''
+                                    ? ''
+                                    : Number(e.target.value)
+                                  : e.target.value;
+                              const updatedCustomFields = {
+                                ...(activeTask.customFields || {}),
+                                [cf.id]: val
+                              };
+                              updateTask(activeTask.id, { customFields: updatedCustomFields });
+                            }}
+                            className="w-full bg-[#16222F] border border-[#233549] text-white rounded-xl px-3 py-2 focus:outline-none focus:border-[#3BC0BB]"
+                          />
+                        )}
+                        {cf.description && <p className="text-[10px] text-slate-500">{cf.description}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Recurrence Settings in Drawer */}
             <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] space-y-2 text-xs">

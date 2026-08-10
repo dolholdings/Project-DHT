@@ -16,6 +16,27 @@ const TASKS_COLLECTION = 'tasks';
 const FILES_COLLECTION = 'files';
 const USERS_COLLECTION = 'users';
 
+// ==================== SANITIZATION FOR FIRESTORE ====================
+
+export function sanitizeForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return null as any;
+  }
+  if (Array.isArray(data)) {
+    return data.map((item) => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object' && !(data instanceof Date)) {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(data as Record<string, any>)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeForFirestore(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}
+
 // ==================== PROJECTS CRUD ====================
 
 export async function fetchProjectsFromFirestore(): Promise<Project[]> {
@@ -64,7 +85,7 @@ export function subscribeToProjects(onUpdate: (projects: Project[]) => void, onE
 export async function createProjectInFirestore(project: Project): Promise<void> {
   const docRef = doc(db, PROJECTS_COLLECTION, project.id);
   try {
-    await setDoc(docRef, project);
+    await setDoc(docRef, sanitizeForFirestore(project));
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `projects/${project.id}`);
   }
@@ -73,7 +94,7 @@ export async function createProjectInFirestore(project: Project): Promise<void> 
 export async function updateProjectInFirestore(id: string, updates: Partial<Project>): Promise<void> {
   const docRef = doc(db, PROJECTS_COLLECTION, id);
   try {
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeForFirestore(updates));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `projects/${id}`);
   }
@@ -131,7 +152,7 @@ export function subscribeToTasks(onUpdate: (tasks: Task[]) => void, onError?: (e
 export async function createTaskInFirestore(task: Task): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, task.id);
   try {
-    await setDoc(docRef, task);
+    await setDoc(docRef, sanitizeForFirestore(task));
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `tasks/${task.id}`);
   }
@@ -140,7 +161,7 @@ export async function createTaskInFirestore(task: Task): Promise<void> {
 export async function updateTaskInFirestore(id: string, updates: Partial<Task>): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
   try {
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeForFirestore(updates));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
   }
@@ -198,7 +219,7 @@ export function subscribeToFiles(onUpdate: (files: ProjectFile[]) => void, onErr
 export async function createFileInFirestore(file: ProjectFile): Promise<void> {
   const docRef = doc(db, FILES_COLLECTION, file.id);
   try {
-    await setDoc(docRef, file);
+    await setDoc(docRef, sanitizeForFirestore(file));
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `files/${file.id}`);
   }
@@ -207,7 +228,7 @@ export async function createFileInFirestore(file: ProjectFile): Promise<void> {
 export async function updateFileInFirestore(id: string, updates: Partial<ProjectFile>): Promise<void> {
   const docRef = doc(db, FILES_COLLECTION, id);
   try {
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeForFirestore(updates));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `files/${id}`);
   }
@@ -265,7 +286,7 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void, onError?: (e
 export async function createUserInFirestore(user: User): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, user.id);
   try {
-    await setDoc(docRef, user);
+    await setDoc(docRef, sanitizeForFirestore(user));
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `users/${user.id}`);
   }
@@ -274,7 +295,7 @@ export async function createUserInFirestore(user: User): Promise<void> {
 export async function updateUserInFirestore(id: string, updates: Partial<User>): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
   try {
-    await updateDoc(docRef, updates);
+    await updateDoc(docRef, sanitizeForFirestore(updates));
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
   }

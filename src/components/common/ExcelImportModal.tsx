@@ -705,6 +705,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               </span>
             </div>
 
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-center gap-2">
+              <span className="font-bold shrink-0">Note on Schedule:</span>
+              <span>
+                Overdue tasks (e.g. overdue by 244 days) are fully allowed and preserved during import. You can modify or reschedule task dates anytime after importing into your workspace.
+              </span>
+            </div>
+
             <div className={`max-h-56 overflow-y-auto rounded-xl border divide-y ${
               isLight ? 'bg-slate-50 border-slate-200 divide-slate-200' : 'bg-[#0D1520] border-[#233549] divide-[#233549]'
             }`}>
@@ -715,6 +722,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                 const parsedDue = dueVal ? parseImportDate(dueVal, '') : '';
                 const todayStr = new Date().toISOString().split('T')[0];
                 const isOverdue = parsedDue && parsedDue < todayStr && !/done|comp|100%/i.test(statusVal);
+                const daysOverdue = isOverdue
+                  ? Math.max(1, Math.floor((new Date(todayStr).getTime() - new Date(parsedDue).getTime()) / (1000 * 60 * 60 * 24)))
+                  : 0;
 
                 return (
                   <div key={idx} className="p-2.5 text-xs flex items-center justify-between font-mono">
@@ -727,8 +737,11 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
                         <div className="flex items-center gap-1">
                           <span className="text-slate-400">{parsedDue || dueVal}</span>
                           {isOverdue && (
-                            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-bold" title="Overdue schedule preserved on import">
-                              Overdue
+                            <span
+                              className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[9px] font-bold"
+                              title="Overdue task schedule preserved on import. You can edit dates after importing."
+                            >
+                              Overdue by {daysOverdue}d (Allowed)
                             </span>
                           )}
                         </div>

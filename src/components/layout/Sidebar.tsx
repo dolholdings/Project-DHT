@@ -30,7 +30,8 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
-  LogOut
+  LogOut,
+  ListTodo
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -56,6 +57,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     projects,
     selectedProjectId,
     setSelectedProjectId,
+    selectedListFilter,
+    setSelectedListFilter,
+    addListToProject,
     deleteProject,
     theme,
     logout,
@@ -67,6 +71,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [isSecondaryCollapsed, setIsSecondaryCollapsed] = useState(false);
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [expandedSpaceIds, setExpandedSpaceIds] = useState<Record<string, boolean>>({ proj_dm: true, proj_1: true });
+  const [newListSpaceId, setNewListSpaceId] = useState<string | null>(null);
+  const [newListTitle, setNewListTitle] = useState('');
 
   const isAdmin = currentUser?.role === 'Admin';
 
@@ -97,9 +104,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleProjectSelect = (projectId: string | null) => {
     setSelectedProjectId(projectId);
+    setSelectedListFilter(null);
     setActiveTab('tasks');
     if (isMobile && onMobileClose) {
       onMobileClose();
+    }
+  };
+
+  const handleListSelect = (projectId: string, listName: string) => {
+    setSelectedProjectId(projectId);
+    setSelectedListFilter(listName);
+    setActiveTab('tasks');
+    if (isMobile && onMobileClose) {
+      onMobileClose();
+    }
+  };
+
+  const toggleSpaceExpand = (e: React.MouseEvent, projectId: string) => {
+    e.stopPropagation();
+    setExpandedSpaceIds((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
+  };
+
+  const handleAddListSubmit = (projectId: string) => {
+    if (newListTitle.trim()) {
+      addListToProject(projectId, newListTitle.trim());
+      setNewListTitle('');
+      setNewListSpaceId(null);
     }
   };
 
@@ -635,52 +665,180 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ) : (
                         <>
                           {accessibleProjects.map((p) => {
-                            const isSelected = selectedProjectId === p.id;
-                            const taskCount = tasks.filter((t) => t.projectId === p.id).length;
+                            const isSpaceSelected = selectedProjectId === p.id && !selectedListFilter;
+                            const isExpanded = expandedSpaceIds[p.id] ?? true;
+                            const spaceTasks = tasks.filter((t) => t.projectId === p.id);
+                            const spaceTaskCount = spaceTasks.length;
+                            const lists = p.lists || [];
+
                             return (
-                              <div
-                                key={p.id}
-                                className={`group w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-                                  isSelected
-                                    ? theme === 'light'
-                                      ? 'bg-[#0D9488]/15 text-[#0D9488] font-bold border-l-2 border-l-[#0D9488]'
-                                      : 'bg-[#3BC0BB]/20 text-[#3BC0BB] font-bold border-l-2 border-l-[#3BC0BB]'
-                                    : theme === 'light'
-                                    ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
-                                    : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-                                }`}
-                                onClick={() => handleProjectSelect(p.id)}
-                              >
-                                <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                  <span className={`text-[10px] font-mono px-1 py-0.2 rounded shrink-0 ${
-                                    theme === 'light' ? 'bg-teal-100 text-[#0D9488] font-bold' : 'bg-slate-500/20 text-[#3BC0BB]'
-                                  }`}>
-                                    {p.code}
-                                  </span>
-                                  <span className="truncate">{p.title}</span>
+                              <div key={p.id} className="space-y-0.5 my-1">
+                                {/* Space Header Row */}
+                                <div
+                                  className={`group w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+                                    isSpaceSelected
+                                      ? theme === 'light'
+                                        ? 'bg-[#0D9488]/15 text-[#0D9488] font-bold border-l-2 border-l-[#0D9488]'
+                                        : 'bg-[#3BC0BB]/20 text-[#3BC0BB] font-bold border-l-2 border-l-[#3BC0BB]'
+                                      : theme === 'light'
+                                      ? 'text-slate-800 hover:text-slate-900 hover:bg-slate-200/60'
+                                      : 'text-slate-200 hover:text-white hover:bg-[#16222F]'
+                                  }`}
+                                  onClick={() => handleProjectSelect(p.id)}
+                                >
+                                  <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => toggleSpaceExpand(e, p.id)}
+                                      className={`p-0.5 rounded hover:bg-slate-500/20 ${
+                                        theme === 'light' ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-white'
+                                      }`}
+                                      title={isExpanded ? 'Collapse lists' : 'Expand lists'}
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                    <span className={`text-[9px] font-mono px-1 py-0.2 rounded shrink-0 font-bold ${
+                                      theme === 'light' ? 'bg-teal-100 text-[#0D9488]' : 'bg-slate-500/20 text-[#3BC0BB]'
+                                    }`}>
+                                      {p.code}
+                                    </span>
+                                    <span className="truncate font-semibold text-xs">{p.title}</span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0 ml-1">
+                                    <span className={`text-[10px] font-mono font-medium px-1.5 py-0.2 rounded-full ${
+                                      theme === 'light' ? 'bg-slate-200 text-slate-700' : 'bg-[#233549] text-slate-300'
+                                    }`}>
+                                      {spaceTaskCount}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setNewListSpaceId(p.id);
+                                      }}
+                                      className="hidden group-hover:block p-1 rounded hover:bg-[#0D9488]/20 text-[#0D9488] transition-all"
+                                      title="Add List to this Space"
+                                    >
+                                      <Plus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (window.confirm(`Are you sure you want to delete Space "${p.title}"?`)) {
+                                          deleteProject(p.id);
+                                          if (selectedProjectId === p.id) {
+                                            setSelectedProjectId(null);
+                                          }
+                                        }
+                                      }}
+                                      className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-500 transition-all"
+                                      title="Delete Space"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0 ml-1">
-                                  <span className={`text-[10px] font-mono group-hover:hidden ${theme === 'light' ? 'text-slate-500' : 'text-slate-500'}`}>
-                                    {taskCount}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (window.confirm(`Are you sure you want to delete Space/Project "${p.title}"? All associated tasks will be removed.`)) {
-                                        deleteProject(p.id);
-                                        if (selectedProjectId === p.id) {
-                                          setSelectedProjectId(null);
-                                        }
-                                      }
-                                    }}
-                                    className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-500 transition-all"
-                                    title="Delete Space / Project"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
+                                {/* Lists inside this Space */}
+                                {isExpanded && (
+                                  <div className="pl-4 space-y-0.5 border-l-2 border-slate-200/40 dark:border-slate-800/60 ml-2">
+                                    {lists.length === 0 ? (
+                                      <div className="text-[11px] text-slate-500 italic py-1 px-2">No lists yet</div>
+                                    ) : (
+                                      lists.map((listName) => {
+                                        const isListSelected =
+                                          selectedProjectId === p.id && selectedListFilter === listName;
+                                        const listTaskCount = spaceTasks.filter(
+                                          (t) => t.listName === listName
+                                        ).length;
+
+                                        return (
+                                          <button
+                                            key={listName}
+                                            onClick={() => handleListSelect(p.id, listName)}
+                                            className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-[11px] transition-all ${
+                                              isListSelected
+                                                ? theme === 'light'
+                                                  ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                                                  : 'bg-[#3BC0BB] text-slate-950 font-bold shadow-xs'
+                                                : theme === 'light'
+                                                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
+                                                : 'text-slate-400 hover:text-slate-100 hover:bg-[#16222F]'
+                                            }`}
+                                          >
+                                            <div className="flex items-center gap-1.5 truncate">
+                                              <ListTodo className="w-3 h-3 shrink-0 opacity-80" />
+                                              <span className="truncate">{listName}</span>
+                                            </div>
+                                            <span className={`text-[10px] font-mono px-1 rounded ${
+                                              isListSelected
+                                                ? 'bg-black/20 text-white'
+                                                : theme === 'light'
+                                                ? 'bg-slate-200/60 text-slate-600'
+                                                : 'bg-slate-800 text-slate-400'
+                                            }`}>
+                                              {listTaskCount}
+                                            </span>
+                                          </button>
+                                        );
+                                      })
+                                    )}
+
+                                    {/* Inline Add List Input or Button */}
+                                    {newListSpaceId === p.id ? (
+                                      <div className="flex items-center gap-1 py-1 px-1">
+                                        <input
+                                          type="text"
+                                          value={newListTitle}
+                                          onChange={(e) => setNewListTitle(e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleAddListSubmit(p.id);
+                                            if (e.key === 'Escape') setNewListSpaceId(null);
+                                          }}
+                                          placeholder="List name..."
+                                          autoFocus
+                                          className={`w-full text-xs px-2 py-1 rounded border outline-none ${
+                                            theme === 'light'
+                                              ? 'bg-white border-[#0D9488] text-slate-900'
+                                              : 'bg-[#16222F] border-[#3BC0BB] text-white'
+                                          }`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => handleAddListSubmit(p.id)}
+                                          className="p-1 bg-[#0D9488] text-white rounded text-xs hover:bg-[#0F766E]"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setNewListSpaceId(null)}
+                                          className="p-1 text-slate-400 hover:text-slate-200"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        onClick={() => setNewListSpaceId(p.id)}
+                                        className={`w-full flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded transition-all ${
+                                          theme === 'light'
+                                            ? 'text-[#0D9488] hover:bg-[#0D9488]/10'
+                                            : 'text-[#3BC0BB] hover:bg-[#3BC0BB]/10'
+                                        }`}
+                                      >
+                                        <Plus className="w-3 h-3" />
+                                        <span>+ List</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

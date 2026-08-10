@@ -28,7 +28,8 @@ import {
   TemplateTask,
   TemplateDependency,
   TemplateVersionRecord,
-  TemplateCleanupRules
+  TemplateCleanupRules,
+  CustomFieldDefinition
 } from '../types';
 
 import { INITIAL_TEMPLATES } from '../data/initialTemplates';
@@ -49,7 +50,8 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_AUTOMATIONS,
   INITIAL_FILES,
-  INITIAL_TIME_ENTRIES
+  INITIAL_TIME_ENTRIES,
+  INITIAL_CUSTOM_FIELDS
 } from '../data/initialData';
 import { INITIAL_EMAIL_THREADS, INITIAL_EMAIL_CONFIG } from '../data/initialEmailData';
 import {
@@ -127,6 +129,7 @@ interface AppContextType {
   addProject: (project: Omit<Project, 'id' | 'progress' | 'spentBudget'> | Project) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
+  addListToProject: (projectId: string, listName: string) => void;
   projectTemplates: ProjectTemplate[];
   saveProjectAsTemplate: (
     projectId: string,
@@ -172,6 +175,12 @@ interface AppContextType {
   removeDependency: (depId: string) => void;
   recalculateProjectTimeline: (projectId?: string) => { adjustedCount: number; updatedTasks: Task[] };
 
+  // Custom Fields
+  customFields: CustomFieldDefinition[];
+  addCustomField: (field: Omit<CustomFieldDefinition, 'id'>) => void;
+  updateCustomField: (id: string, updates: Partial<CustomFieldDefinition>) => void;
+  deleteCustomField: (id: string) => void;
+
   // Time Tracking
   timer: TimerState;
   startTimer: (taskId: string, taskTitle: string) => void;
@@ -204,6 +213,7 @@ interface AppContextType {
   updateNotificationSettings: (updates: Partial<NotificationSettings>) => void;
   requestBrowserNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
   triggerUpcomingDueCheck: () => void;
+  triggerDailyOverdueCheck: (forceSend?: boolean) => { success: boolean; count: number; emailsSent: number; message: string };
   automations: AutomationRule[];
   toggleAutomation: (id: string) => void;
   addAutomation: (rule: Omit<AutomationRule, 'id'>) => void;
@@ -232,6 +242,8 @@ interface AppContextType {
   setActiveTab: (tab: string) => void;
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
+  selectedListFilter: string | null;
+  setSelectedListFilter: (listName: string | null) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 
@@ -498,6 +510,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dependencies, setDependencies] = useState<TaskDependency[]>(() => loadFromStorage('dolphin_dependencies', INITIAL_DEPENDENCIES));
   const [files, setFiles] = useState<ProjectFile[]>(() => loadFromStorage('dolphin_files', INITIAL_FILES));
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => loadFromStorage('dolphin_time_entries', INITIAL_TIME_ENTRIES));
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>(() =>
+    loadFromStorage('dolphin_custom_fields', INITIAL_CUSTOM_FIELDS)
+  );
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => loadFromStorage('dolphin_logs', INITIAL_LOGS));
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('dolphin_notifs', INITIAL_NOTIFICATIONS));
   const [snoozedTasks, setSnoozedTasks] = useState<Record<string, SnoozeRecord>>(() => loadFromStorage('dolphin_snoozed_notifs', {}));
@@ -671,6 +686,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [timeEntries]);
 
   useEffect(() => {
+    localStorage.setItem('dolphin_custom_fields', JSON.stringify(customFields));
+  }, [customFields]);
+
+  useEffect(() => {
     localStorage.setItem('dolphin_logs', JSON.stringify(activityLogs));
   }, [activityLogs]);
 
@@ -698,7 +717,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedListFilter, setSelectedListFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const addListToProject = (projectId: string, listName: string) => {
+    const trimmed = listName.trim();
+    if (!trimmed) return;
+    setProjects((prev) =>
+      prev.map((p) => {
+        if (p.id === projectId) {
+          const currentLists = p.lists || [];
+          if (!currentLists.includes(trimmed)) {
+            const updatedLists = [...currentLists, trimmed];
+            const updatedProj = { ...p, lists: updatedLists };
+            if (firebaseConnected) {
+              updateProjectInFirestore(projectId, { lists: updatedLists }).catch(console.error);
+            }
+            return updatedProj;
+          }
+        }
+        return p;
+      })
+    );
+  };
   const [isCommandPaletteOpen, setCommandPaletteOpen] = useState<boolean>(false);
 
   const toggleCommandPalette = () => setCommandPaletteOpen((prev) => !prev);
@@ -1524,6 +1565,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       loggedHours: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      completedAt: taskData.status === 'Done' ? new Date().toISOString() : undefined,
     };
     setTasks((prev) => [newTask, ...prev]);
     logActivity('created task', newTask.title, 'task', newTask.projectId, newTask.id);
@@ -1532,25 +1574,25 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     if (newTask.assigneeIds && newTask.assigneeIds.length > 0) {
       const proj = projects.find((p) => p.id === newTask.projectId);
       newTask.assigneeIds.forEach((assigneeId) => {
-        const targetUser = users.find((u) => u.id === assigneeId);
-        if (targetUser) {
+        const targetUser = users.find((u) => u.id === assigneeId || u.email.toLowerCase() === assigneeId.toLowerCase());
+        const targetEmail = targetUser?.email || (assigneeId.includes('@') ? assigneeId : undefined);
+        if (targetEmail) {
           dispatchEmailNotification({
-            toEmail: targetUser.email,
-            toName: targetUser.name,
+            toEmail: targetEmail,
+            toName: targetUser?.name || targetEmail,
             subject: `New Task Assigned: "${newTask.title}"`,
-            body: `Hello ${targetUser.name},
+            body: `Hello ${targetUser?.name || targetEmail},
 
-You have been assigned to a new task in project "${proj?.title || 'Workspace'}".
+You have been assigned to task "${newTask.title}" in project "${proj?.title || 'Workspace'}".
 
-Task Title: ${newTask.title}
 Priority: ${newTask.priority}
 Start Date: ${newTask.startDate || 'Immediate'}
 Due Date: ${newTask.dueDate || 'N/A'}
 
-Description:
+Task Description:
 ${newTask.description || 'No detailed description provided.'}
 
-Log in to your workspace dashboard to view full details and track progress.`,
+Log in to your workspace dashboard to view full task details and track progress.`,
             category: 'Task Assignment',
             relatedTaskId: newTask.id,
             relatedProjectId: newTask.projectId
@@ -1590,32 +1632,41 @@ Log in to your workspace dashboard to view full details and track progress.`,
     setTasks((prev) =>
       prev.map((t) => {
         if (t.id === id) {
-          const updated = { ...t, ...updates, updatedAt: new Date().toISOString() };
+          const completedAtVal = updates.status === 'Done'
+            ? (t.completedAt || new Date().toISOString())
+            : (updates.status ? undefined : t.completedAt);
+          const updated = { ...t, ...updates, updatedAt: new Date().toISOString(), completedAt: completedAtVal };
           if (updates.status && updates.status !== t.status) {
             logActivity(`changed status of task "${t.title}" to`, updates.status, 'task', t.projectId, t.id);
 
-            // Trigger Email Notification if marked Done
+            // Trigger Email Notification if marked Done / Closed
             if (updates.status === 'Done') {
               const proj = projects.find((p) => p.id === t.projectId);
               const manager = users.find((u) => u.id === proj?.managerId) || currentUser;
-              const assigneeEmails = (t.assigneeIds || []).map((aid) => users.find((u) => u.id === aid)?.email).filter(Boolean) as string[];
-              const recipientEmails = Array.from(new Set([manager.email, ...assigneeEmails]));
+              const assigneeEmails = (t.assigneeIds || []).map((aid) => {
+                const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+                return u?.email || (aid.includes('@') ? aid : null);
+              }).filter(Boolean) as string[];
+              
+              const reporterUser = users.find((u) => u.id === t.reporterId);
+              const recipientEmails = Array.from(new Set([manager?.email, reporterUser?.email, ...assigneeEmails, currentUser?.email].filter(Boolean) as string[]));
 
               recipientEmails.forEach((targetEmail) => {
-                const targetUser = users.find((u) => u.email === targetEmail);
+                const targetUser = users.find((u) => u.email.toLowerCase() === targetEmail.toLowerCase());
                 dispatchEmailNotification({
                   toEmail: targetEmail,
-                  toName: targetUser?.name,
-                  subject: `Task Completed: "${t.title}"`,
-                  body: `Hello ${targetUser?.name || 'Team Member'},
+                  toName: targetUser?.name || targetEmail,
+                  subject: `Task Closed & Completed: "${t.title}"`,
+                  body: `Hello ${targetUser?.name || targetEmail},
 
-Task "${t.title}" has been completed and marked as Done!
+Task "${t.title}" has been officially CLOSED & marked as Completed!
 
 Project: ${proj?.title || 'Workspace'}
-Completed By: ${currentUser?.name || 'Team Member'}
-Date Completed: ${new Date().toLocaleDateString()}
+Status: Done / Closed
+Completed By: ${currentUser?.name || 'Workspace User'} (${currentUser?.email || 'user'})
+Completion Date: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
 
-Dependencies and project progress meters have been updated.`,
+Dependencies and project progress meters have been updated in the workspace.`,
                   category: 'Task Completion',
                   relatedTaskId: t.id,
                   relatedProjectId: t.projectId
@@ -1662,26 +1713,30 @@ Dependencies and project progress meters have been updated.`,
           }
 
           // Check for newly assigned users
-          if (updates.assigneeIds && oldTask) {
-            const oldAssignees = new Set(oldTask.assigneeIds || []);
+          if (updates.assigneeIds) {
+            const oldAssignees = new Set(t.assigneeIds || []);
             const newlyAdded = updates.assigneeIds.filter((aid) => !oldAssignees.has(aid));
             if (newlyAdded.length > 0) {
               const proj = projects.find((p) => p.id === t.projectId);
               newlyAdded.forEach((aid) => {
-                const targetUser = users.find((u) => u.id === aid);
-                if (targetUser) {
+                const targetUser = users.find((u) => u.id === aid || u.email.toLowerCase() === aid.toLowerCase());
+                const targetEmail = targetUser?.email || (aid.includes('@') ? aid : undefined);
+                if (targetEmail) {
                   dispatchEmailNotification({
-                    toEmail: targetUser.email,
-                    toName: targetUser.name,
+                    toEmail: targetEmail,
+                    toName: targetUser?.name || targetEmail,
                     subject: `Task Assigned: "${t.title}"`,
-                    body: `Hello ${targetUser.name},
+                    body: `Hello ${targetUser?.name || targetEmail},
 
 You have been assigned to task "${t.title}" in project "${proj?.title || 'Workspace'}".
 
 Priority: ${t.priority}
 Due Date: ${t.dueDate || 'N/A'}
 
-Log into your Dolphin workspace dashboard to review the task.`,
+Task Description:
+${t.description || 'No detailed description provided.'}
+
+Log into your workspace dashboard to review the task details.`,
                     category: 'Task Assignment',
                     relatedTaskId: t.id,
                     relatedProjectId: t.projectId
@@ -1715,6 +1770,31 @@ Log into your Dolphin workspace dashboard to review the task.`,
   const reorderTasks = (newTasks: Task[]) => {
     setTasks(newTasks);
     logActivity('reordered tasks in Kanban view', 'Updated task priority sequence', 'task');
+  };
+
+  // Custom Fields Management
+  const addCustomField = (field: Omit<CustomFieldDefinition, 'id'>) => {
+    const newField: CustomFieldDefinition = {
+      ...field,
+      id: `cf_${Date.now()}`
+    };
+    setCustomFields((prev) => [...prev, newField]);
+    logActivity('created custom field', `Created custom field "${newField.name}" (${newField.type})`, 'task');
+  };
+
+  const updateCustomField = (id: string, updates: Partial<CustomFieldDefinition>) => {
+    setCustomFields((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
+    );
+    logActivity('updated custom field', `Updated custom field configuration`, 'task');
+  };
+
+  const deleteCustomField = (id: string) => {
+    const target = customFields.find((f) => f.id === id);
+    setCustomFields((prev) => prev.filter((f) => f.id !== id));
+    if (target) {
+      logActivity('deleted custom field', `Deleted custom field "${target.name}"`, 'task');
+    }
   };
 
   const deleteTask = (id: string) => {
@@ -2397,11 +2477,100 @@ Log into your Dolphin workspace dashboard to review the task.`,
     });
   }, [tasks, snoozedTasks, notificationSettings, notifications, currentUser]);
 
+  const triggerDailyOverdueCheck = useCallback((forceSend: boolean = false) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const lastCheckDate = localStorage.getItem('dolphin_last_daily_overdue_check_date');
+
+    if (!forceSend && lastCheckDate === todayStr) {
+      return { success: true, count: 0, emailsSent: 0, message: 'Daily overdue check already completed today.' };
+    }
+
+    const overdueTasks = tasks.filter((t) => {
+      if (t.status === 'Done' || !t.dueDate) return false;
+      return t.dueDate < todayStr;
+    });
+
+    if (overdueTasks.length === 0) {
+      localStorage.setItem('dolphin_last_daily_overdue_check_date', todayStr);
+      return { success: true, count: 0, emailsSent: 0, message: 'No overdue tasks found today.' };
+    }
+
+    // Group overdue tasks by assigned user email
+    const userOverdueMap = new Map<string, { user?: User; tasks: Task[] }>();
+
+    overdueTasks.forEach((task) => {
+      const assignees = (task.assigneeIds && task.assigneeIds.length > 0)
+        ? task.assigneeIds
+        : [currentUser?.id || 'usr_1'];
+
+      assignees.forEach((aid) => {
+        const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+        const email = u?.email || (aid.includes('@') ? aid : currentUser?.email || 'dolphingroup786@gmail.com');
+
+        if (!userOverdueMap.has(email)) {
+          userOverdueMap.set(email, { user: u, tasks: [] });
+        }
+        const entry = userOverdueMap.get(email)!;
+        if (!entry.tasks.some((t) => t.id === task.id)) {
+          entry.tasks.push(task);
+        }
+      });
+    });
+
+    let emailsSent = 0;
+
+    userOverdueMap.forEach(({ user, tasks: userTasks }, recipientEmail) => {
+      const recipientName = user?.name || recipientEmail.split('@')[0];
+      const taskListText = userTasks
+        .map((t) => {
+          const proj = projects.find((p) => p.id === t.projectId);
+          return `- "${t.title}" | Space: ${proj?.title || 'Workspace'} | Priority: ${t.priority} | Due Date: ${t.dueDate}`;
+        })
+        .join('\n');
+
+      const bodyText = `Hello ${recipientName},
+
+This is your Daily Overdue Tasks Summary Notification from Dolphin Global Holdings Command Center.
+
+You currently have ${userTasks.length} OVERDUE task(s) requiring immediate attention:
+
+LIST OF OVERDUE TASKS:
+${taskListText}
+
+Please log into your workspace dashboard to update task status or adjust target deadlines.`;
+
+      dispatchEmailNotification({
+        toEmail: recipientEmail,
+        toName: recipientName,
+        subject: `Daily Overdue Tasks Alert: ${userTasks.length} Overdue Task(s) Pending`,
+        body: bodyText,
+        category: 'Overdue Alert',
+        relatedTaskId: userTasks[0]?.id,
+        relatedProjectId: userTasks[0]?.projectId
+      });
+
+      emailsSent++;
+    });
+
+    localStorage.setItem('dolphin_last_daily_overdue_check_date', todayStr);
+    logActivity('executed daily overdue tasks email alert', `Dispatched ${emailsSent} overdue notification email(s) for ${overdueTasks.length} overdue task(s)`, 'system');
+
+    return {
+      success: true,
+      count: overdueTasks.length,
+      emailsSent,
+      message: `Dispatched ${emailsSent} daily overdue notification email(s) for ${overdueTasks.length} overdue task(s).`
+    };
+  }, [tasks, users, projects, currentUser, dispatchEmailNotification, logActivity]);
+
   useEffect(() => {
     triggerUpcomingDueCheck();
+    if (tasks.length > 0) {
+      triggerDailyOverdueCheck(false);
+    }
     const interval = setInterval(triggerUpcomingDueCheck, 45000);
     return () => clearInterval(interval);
-  }, [triggerUpcomingDueCheck]);
+  }, [triggerUpcomingDueCheck, triggerDailyOverdueCheck, tasks.length]);
 
   // Automations
   const toggleAutomation = (id: string) => {
@@ -2659,6 +2828,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         addProject,
         updateProject,
         deleteProject,
+        addListToProject,
         projectTemplates,
         saveProjectAsTemplate,
         instantiateProjectFromTemplate,
@@ -2678,6 +2848,10 @@ Log into your Dolphin workspace dashboard to review the task.`,
         addDependency,
         removeDependency,
         recalculateProjectTimeline,
+        customFields,
+        addCustomField,
+        updateCustomField,
+        deleteCustomField,
         timer,
         startTimer,
         stopTimer,
@@ -2705,6 +2879,7 @@ Log into your Dolphin workspace dashboard to review the task.`,
         updateNotificationSettings,
         requestBrowserNotificationPermission,
         triggerUpcomingDueCheck,
+        triggerDailyOverdueCheck,
         automations,
         toggleAutomation,
         addAutomation,
@@ -2726,6 +2901,8 @@ Log into your Dolphin workspace dashboard to review the task.`,
         setActiveTab,
         selectedProjectId,
         setSelectedProjectId,
+        selectedListFilter,
+        setSelectedListFilter,
         searchQuery,
         setSearchQuery,
         isCommandPaletteOpen,
