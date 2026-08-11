@@ -49,38 +49,7 @@ interface VoiceMessage {
 export const TeamChatView: React.FC = () => {
   const { users, currentUser, activeCompany, companies, theme, projects, addTask } = useApp();
 
-  const [messages, setMessages] = useState<VoiceMessage[]>([
-    {
-      id: 'm1',
-      sender: 'Suhail Ahmed',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
-      text: 'Robotic welding calibrations for Sharjah Plant 4 completed. @Tareq please review the ISO hydrostatic test logs.',
-      time: '10:15 AM'
-    },
-    {
-      id: 'm2',
-      sender: 'Tareq Al-Dolphin',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
-      text: 'Great work Suhail! I approved the third-party survey for Aramco Heat Exchangers as well.',
-      time: '10:22 AM'
-    },
-    {
-      id: 'm3',
-      sender: 'Fatima Zohra',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=150',
-      text: 'Voice Memo (00:24)',
-      time: '10:30 AM',
-      isVoiceMemo: true,
-      audioUrl: 'https://cdn.freesound.org/previews/567/567204_11861866-lq.mp3',
-      transcription: 'Voice Memo: Please inspect the hydrostatic test pressure gauges at Sharjah Plant 4 and sign off on the DEWA compliance certificate before 4 PM today.',
-      taskTitle: 'Inspect Plant 4 Hydrostatic Gauges & Sign DEWA Cert',
-      taskDescription: 'Voice Memo Transcript:\n"Please inspect the hydrostatic test pressure gauges at Sharjah Plant 4 and sign off on the DEWA compliance certificate before 4 PM today."\n\nAction Required: Verify 25 BAR pressure stability and upload signed compliance document to project vault.',
-      priority: 'Urgent',
-      suggestedAssignee: 'Suhail Ahmed',
-      estimatedHours: 4,
-      tags: ['Voice Memo', 'DEWA Audit', 'Plant 4', 'Urgent']
-    }
-  ]);
+  const [messages, setMessages] = useState<VoiceMessage[]>([]);
 
   const [inputMsg, setInputMsg] = useState('');
 

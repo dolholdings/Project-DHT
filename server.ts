@@ -1032,8 +1032,8 @@ app.post('/api/notifications/send-email', async (req, res) => {
     const smtpPass = smtpConfig?.pass || process.env.SMTP_PASS;
 
     if (smtpHost && smtpUser && smtpPass) {
-      const targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || 465);
-      const isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : targetPort === 465;
+      let targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || 465);
+      let isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : targetPort === 465;
       providerUsed = `Custom SMTP (${smtpHost}:${targetPort})`;
       try {
         const transporter = nodemailer.createTransport({
@@ -1046,7 +1046,10 @@ app.post('/api/notifications/send-email', async (req, res) => {
           },
           tls: {
             rejectUnauthorized: false
-          }
+          },
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 8000
         });
 
         await transporter.sendMail({
@@ -1056,10 +1059,49 @@ app.post('/api/notifications/send-email', async (req, res) => {
           html: htmlContent,
           text: templateData?.description || subject
         });
+        deliveryStatus = 'DELIVERED';
       } catch (smtpErr: any) {
-        console.warn('Live SMTP delivery note:', smtpErr.message);
-        providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
-        deliveryStatus = 'QUEUED';
+        console.warn('Live SMTP initial attempt note:', smtpErr.message);
+        // If wrong version number or TLS handshake error occurs, retry automatically with STARTTLS (secure: false) or alternative port
+        const isTlsError = smtpErr.message?.includes('wrong version number') || smtpErr.message?.includes('SSL routines') || smtpErr.code === 'ESOCKET';
+        if (isTlsError) {
+          try {
+            const fallbackPort = targetPort === 465 ? 587 : targetPort;
+            console.log(`Retrying SMTP via STARTTLS (port ${fallbackPort}, secure: false)...`);
+            const fallbackTransporter = nodemailer.createTransport({
+              host: smtpHost,
+              port: fallbackPort,
+              secure: false,
+              auth: {
+                user: smtpUser,
+                pass: smtpPass
+              },
+              tls: {
+                rejectUnauthorized: false
+              },
+              connectionTimeout: 8000,
+              greetingTimeout: 8000,
+              socketTimeout: 8000
+            });
+
+            await fallbackTransporter.sendMail({
+              from: smtpConfig?.fromEmail || process.env.SMTP_FROM || '"Dolphin Command Center" <notifications@dolphingroup.ae>',
+              to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+              subject: `[Dolphin] ${subject}`,
+              html: htmlContent,
+              text: templateData?.description || subject
+            });
+            deliveryStatus = 'DELIVERED';
+            providerUsed = `Custom SMTP (${smtpHost}:${fallbackPort} STARTTLS)`;
+          } catch (retryErr: any) {
+            console.warn('Live SMTP delivery note (retry failed):', retryErr.message);
+            providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
+            deliveryStatus = 'QUEUED';
+          }
+        } else {
+          providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
+          deliveryStatus = 'QUEUED';
+        }
       }
     } else if (apiKey) {
       providerUsed = 'SendGrid API v3';

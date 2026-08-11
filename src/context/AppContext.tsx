@@ -497,17 +497,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
   const [tasks, setTasks] = useState<Task[]>(() => loadFromStorage('dolphin_tasks', INITIAL_TASKS));
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => loadFromStorage('dolphin_subtasks', INITIAL_SUBTASKS));
-  const [taskComments, setTaskComments] = useState<TaskComment[]>(() => loadFromStorage('dolphin_task_comments', [
-    {
-      id: 'cmt_1',
-      taskId: 'task_cm_1',
-      userId: 'usr_pk',
-      userName: 'Pawan Kumar',
-      userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
-      content: 'Uploaded the latest 4K video draft for review.',
-      createdAt: '2026-08-03T10:15:00Z'
-    }
-  ]));
+  const [taskComments, setTaskComments] = useState<TaskComment[]>(() => loadFromStorage('dolphin_task_comments', []));
   const [dependencies, setDependencies] = useState<TaskDependency[]>(() => loadFromStorage('dolphin_dependencies', INITIAL_DEPENDENCIES));
   const [files, setFiles] = useState<ProjectFile[]>(() => loadFromStorage('dolphin_files', INITIAL_FILES));
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => loadFromStorage('dolphin_time_entries', INITIAL_TIME_ENTRIES));
@@ -2799,6 +2789,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     setProjects([]);
     setTasks([]);
     setSubtasks([]);
+    setTaskComments([]);
     setDependencies([]);
     setFiles([]);
     setTimeEntries([]);
@@ -2811,6 +2802,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     localStorage.removeItem('dolphin_projects');
     localStorage.removeItem('dolphin_tasks');
     localStorage.removeItem('dolphin_subtasks');
+    localStorage.removeItem('dolphin_task_comments');
     localStorage.removeItem('dolphin_dependencies');
     localStorage.removeItem('dolphin_files');
     localStorage.removeItem('dolphin_time_entries');

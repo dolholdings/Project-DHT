@@ -59,50 +59,7 @@ export const CalendarView: React.FC = () => {
       const stored = localStorage.getItem('dolphin_calendar_meetings');
       if (stored) return JSON.parse(stored);
     } catch (e) {}
-    return [
-      {
-        id: 'meet_1',
-        title: 'Sharjah Plant 4 DEWA Hydrostatic Compliance Review',
-        projectId: projects[0]?.id || 'proj_chairman',
-        date: '2026-08-06',
-        time: '14:00',
-        duration: '45 mins',
-        host: 'Tareq Al-Dolphin',
-        attendees: ['Suhail Ahmed', 'Fatima Zohra', 'Karim Al-Hassan'],
-        meetingUrl: 'https://meet.dolphin-global.com/plant4-dewa-sync',
-        agenda: 'Final inspection review of 25 BAR hydrostatic pressure gauges and signing DEWA compliance certificate.',
-        notes: 'Pressure test passed at 26.5 BAR for 4 hours continuous. Audit team requested signed calibration certificate.',
-        status: 'Upcoming'
-      },
-      {
-        id: 'meet_2',
-        title: 'Aramco Heat Exchanger Tube-Bundle Calibrations',
-        projectId: projects[1]?.id || 'proj_1',
-        date: '2026-08-07',
-        time: '10:30',
-        duration: '60 mins',
-        host: 'Suhail Ahmed',
-        attendees: ['Omar Farooq', 'Aisha Siddiqui'],
-        meetingUrl: 'https://meet.dolphin-global.com/aramco-he-sync',
-        agenda: 'Review titanium tube bundle welding tolerances and third-party NDT X-ray reports.',
-        notes: 'NDT inspection non-destructive test report approved by Aramco surveyor.',
-        status: 'Upcoming'
-      },
-      {
-        id: 'meet_3',
-        title: 'Group IT Infrastructure & ClickUp Workflow Sync',
-        projectId: projects[2]?.id || 'proj_2',
-        date: '2026-08-08',
-        time: '16:00',
-        duration: '30 mins',
-        host: 'Fatima Zohra',
-        attendees: ['Tareq Al-Dolphin', 'Zayd Al-Mansoor'],
-        meetingUrl: 'https://meet.dolphin-global.com/group-it-clickup',
-        agenda: 'Deploy multi-domain whitelist security rules and automated email-to-task gateway.',
-        notes: 'SMTP gateway verified. Transactional email notification alerts working across all subsidiaries.',
-        status: 'Completed'
-      }
-    ];
+    return [];
   });
 
   const handleClearMeetings = () => {
