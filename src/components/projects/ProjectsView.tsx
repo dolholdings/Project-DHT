@@ -25,11 +25,15 @@ import {
   Check,
   Zap,
   Info,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Table,
+  LayoutGrid
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus, ProjectTemplate } from '../../types';
 import { ProjectCsvImportModal } from './ProjectCsvImportModal';
+import { ClientPsrReportModal } from '../reports/ClientPsrReportModal';
+import { ProjectsDataTable } from './ProjectsDataTable';
 
 export const ProjectsView: React.FC = () => {
   const {
@@ -55,6 +59,7 @@ export const ProjectsView: React.FC = () => {
 
   // Navigation Tab State: 'projects' or 'templates'
   const [activeViewTab, setActiveViewTab] = useState<'projects' | 'templates'>('projects');
+  const [projectsLayoutMode, setProjectsLayoutMode] = useState<'grid' | 'table'>('table');
 
   // Filter States
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('all');
@@ -64,6 +69,8 @@ export const ProjectsView: React.FC = () => {
   // Modals State
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
+  const [showClientPsrModal, setShowClientPsrModal] = useState(false);
+  const [psrProjectId, setPsrProjectId] = useState<string | undefined>(undefined);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   // Save as Template Modal State
@@ -320,6 +327,34 @@ export const ProjectsView: React.FC = () => {
 
           {activeViewTab === 'projects' ? (
             <>
+              {/* Layout Switcher (Grid vs Table) */}
+              <div className="p-1 rounded-2xl bg-[#0D1520] border border-[#233549] flex items-center gap-1">
+                <button
+                  onClick={() => setProjectsLayoutMode('table')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    projectsLayoutMode === 'table'
+                      ? 'bg-[#3BC0BB] text-slate-950 shadow-md shadow-[#3BC0BB]/30'
+                      : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                  }`}
+                  title="Full Data Table view with sorting, filtering, and pagination"
+                >
+                  <Table className="w-3.5 h-3.5" />
+                  <span>Data Table</span>
+                </button>
+                <button
+                  onClick={() => setProjectsLayoutMode('grid')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                    projectsLayoutMode === 'grid'
+                      ? 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30'
+                      : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                  }`}
+                  title="Card Grid view"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Card Grid</span>
+                </button>
+              </div>
+
               {/* Company Filter Dropdown */}
               <select
                 value={selectedCompanyFilter}
@@ -341,6 +376,18 @@ export const ProjectsView: React.FC = () => {
                   ))}
                 </optgroup>
               </select>
+
+              <button
+                onClick={() => {
+                  setPsrProjectId(undefined);
+                  setShowClientPsrModal(true);
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-900 hover:bg-sky-800 text-white font-black text-xs transition-all border border-amber-400/50 shadow-md"
+                title="Design & export Client Status Report (SLB PSR #03) from live Action Tracker tasks"
+              >
+                <FileText className="w-4 h-4 text-amber-400" />
+                <span>Client PSR #03 Report</span>
+              </button>
 
               <button
                 onClick={() => setShowCsvImportModal(true)}
@@ -384,10 +431,18 @@ export const ProjectsView: React.FC = () => {
         </div>
       </div>
 
-      {/* VIEW TAB 1: PROJECTS GRID */}
+      {/* VIEW TAB 1: PROJECTS (GRID OR DATA TABLE) */}
       {activeViewTab === 'projects' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">
-          {filteredProjects.map((proj) => {
+        projectsLayoutMode === 'table' ? (
+          <ProjectsDataTable
+            onOpenPsrReport={(id) => {
+              setPsrProjectId(id);
+              setShowClientPsrModal(true);
+            }}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in">
+            {filteredProjects.map((proj) => {
             const comp = companies.find((c) => c.id === proj.companyId);
             const manager = users.find((u) => u.id === proj.managerId);
             const projTaskCount = tasks.filter((t) => t.projectId === proj.id).length;
@@ -487,6 +542,17 @@ export const ProjectsView: React.FC = () => {
                     </button>
 
                     <button
+                      onClick={() => {
+                        setPsrProjectId(proj.id);
+                        setShowClientPsrModal(true);
+                      }}
+                      className="p-1.5 rounded-xl bg-sky-900/40 hover:bg-sky-800 text-amber-400 border border-amber-400/40 transition-all"
+                      title="Generate Client Status Report (SLB PSR #03) for this project"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+
+                    <button
                       onClick={() => handleOpenSaveAsTemplate(proj.id)}
                       className="p-1.5 rounded-xl bg-[#3BC0BB]/10 hover:bg-[#3BC0BB] text-[#3BC0BB] hover:text-slate-950 border border-[#3BC0BB]/30 transition-all"
                       title="Save as Project Template"
@@ -519,6 +585,7 @@ export const ProjectsView: React.FC = () => {
             );
           })}
         </div>
+        )
       )}
 
       {/* VIEW TAB 2: TEMPLATE LIBRARY */}
@@ -1252,6 +1319,14 @@ export const ProjectsView: React.FC = () => {
           onSuccess={(importedTitle, taskCount) => {
             showToast(`Successfully imported project "${importedTitle}" with ${taskCount} tasks!`);
           }}
+        />
+      )}
+
+      {/* CLIENT PSR REPORT MODAL */}
+      {showClientPsrModal && (
+        <ClientPsrReportModal
+          onClose={() => setShowClientPsrModal(false)}
+          defaultProjectId={psrProjectId}
         />
       )}
     </div>

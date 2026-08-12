@@ -295,11 +295,10 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     if (
       (password && (password === SECURE_ADMIN_KEY || password === 'DolphinAdmin2026!')) ||
       targetInput === 'admin' ||
-      targetInput === 'tareq' ||
-      targetInput === 'admin@p.dghanalytics.com'
+      targetInput === 'admin@dolrad.ae'
     ) {
-      const adminEmail = targetInput.includes('@') ? targetInput : 'admin@p.dghanalytics.com';
-      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase() || u.role === 'Admin');
+      const adminEmail = 'admin@dolrad.ae';
+      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase());
 
       const adminUser: User = existingAdmin
         ? { ...existingAdmin, role: 'Admin', isEmailVerified: true }
@@ -671,50 +670,26 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
+                      onClick={() => handleDirectSignIn(undefined, 'admin@dolrad.ae')}
+                      className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
+                    >
+                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">
+                        <span>DML Admin</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-semibold">Admin</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">admin@dolrad.ae</div>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleDirectSignIn(undefined, 'proj.mgr@dolheat.ae')}
-                      className="p-2 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
+                      className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
                     >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-[11px] flex items-center justify-between">
-                        <span>DHT Project Manager</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#0773BB]/30 text-[#3BC0BB]">DHT</span>
+                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">
+                        <span>DHT PM</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0773BB]/30 text-[#3BC0BB] font-semibold">DHT</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">proj.mgr@dolheat.ae</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDirectSignIn(undefined, 'prog.mgr@dolheat.ae')}
-                      className="p-2 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
-                    >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-[11px] flex items-center justify-between">
-                        <span>DHT PM (Alias)</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#0773BB]/30 text-[#3BC0BB]">DHT</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">prog.mgr@dolheat.ae</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDirectSignIn(undefined, 'tareq.aldolphin@dolphingroup.ae')}
-                      className="p-2 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
-                    >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-[11px] flex items-center justify-between">
-                        <span>Tareq Al-Dolphin</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-300">Admin</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">tareq.aldolphin@dolphingroup.ae</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDirectSignIn(undefined, 'suhail.ahmed@dolrad.ae')}
-                      className="p-2 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
-                    >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-[11px] flex items-center justify-between">
-                        <span>Suhail Ahmed</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/30 text-amber-300">DML</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">suhail.ahmed@dolrad.ae</div>
+                      <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">proj.mgr@dolheat.ae</div>
                     </button>
                   </div>
                 </div>

@@ -27,7 +27,8 @@ import {
   Menu,
   Mail,
   Trash2,
-  LogOut
+  LogOut,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { HeaderSearchInput } from './HeaderSearchInput';
@@ -41,7 +42,7 @@ export const ClickUpHeaderBanners: React.FC<{
   onOpenLoginModal?: () => void;
   isMobile?: boolean;
 }> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, onOpenLoginModal, isMobile }) => {
-  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout, clearAllData } = useApp();
+  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout, clearAllData, setActiveTab } = useApp();
   
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
@@ -310,6 +311,20 @@ export const ClickUpHeaderBanners: React.FC<{
               : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
           }`}>
             <Settings className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Quick Import CSV Button */}
+          <button
+            onClick={() => setActiveTab('projects')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs transition-all ${
+              theme === 'light'
+                ? 'bg-[#0D9488]/10 hover:bg-[#0D9488]/20 border-[#0D9488]/30 text-[#0D9488]'
+                : 'bg-[#3BC0BB]/10 hover:bg-[#3BC0BB]/20 border-[#3BC0BB]/30 text-[#3BC0BB]'
+            }`}
+            title="Go to Projects view to import CSV / Excel task trackers"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Import CSV</span>
           </button>
 
           {/* Primary ClickUp + Task Button */}

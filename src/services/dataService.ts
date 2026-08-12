@@ -342,10 +342,31 @@ export async function seedInitialFirestoreData(
   initialUsers: User[] = []
 ): Promise<void> {
   try {
+    const legacyEmails = [
+      'tareq.aldolphin@dolphingroup.ae',
+      'parvez.khan@dolphingroup.ae',
+      'suhail.ahmed@dolrad.ae',
+      'fatima.zohra@dolheat.ae',
+      'rashed.m@dolcool.ae',
+      'elena.rostova@dolheat.ae',
+      'omar.mansoor@dolphingroup.ae',
+      'sys_analyst@dolrad.ae',
+      'proj@dolheat.ae',
+      'prog.mgr@dolheat.ae'
+    ];
     const existingUsers = await fetchUsersFromFirestore();
-    if (existingUsers.length === 0 && initialUsers.length > 0) {
-      for (const u of initialUsers) {
-        await createUserInFirestore(u);
+    for (const u of existingUsers) {
+      if (legacyEmails.includes(u.email.toLowerCase())) {
+        await deleteUserFromFirestore(u.id);
+      }
+    }
+
+    const remainingUsers = await fetchUsersFromFirestore();
+    if (initialUsers.length > 0) {
+      for (const iu of initialUsers) {
+        if (!remainingUsers.some((u) => u.email.toLowerCase() === iu.email.toLowerCase())) {
+          await createUserInFirestore(iu);
+        }
       }
     }
     const existingProjects = await fetchProjectsFromFirestore();

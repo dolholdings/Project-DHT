@@ -27,6 +27,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Subtask, ProjectFile, User, Project } from '../../types';
 import { AssigneePicker } from './AssigneePicker';
+import { PriorityBadge } from '../common/PriorityBadge';
 
 export interface TaskQuickPreviewPopoverProps {
   task: Task;
@@ -233,24 +234,12 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
 
               {/* Quick Status & Priority Selectors inside popover */}
               <div className="shrink-0 flex items-center gap-1.5">
-                <select
-                  value={task.priority}
-                  onChange={(e) => updateTask(task.id, { priority: e.target.value as Priority })}
-                  className={`text-[10px] font-mono font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
-                    task.priority === 'Urgent'
-                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                      : task.priority === 'High'
-                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      : task.priority === 'Medium'
-                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                      : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-                  }`}
-                >
-                  <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
-                  <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
-                  <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
-                  <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
-                </select>
+                <PriorityBadge
+                  priority={task.priority}
+                  onChange={(newPriority) => updateTask(task.id, { priority: newPriority })}
+                  interactive
+                  size="sm"
+                />
 
                 <select
                   value={task.status}

@@ -23,9 +23,38 @@ import { useApp } from '../../context/AppContext';
 import { Priority, TaskStatus, Project } from '../../types';
 import { parseImportDate } from '../workspace/SmartImportAssistantModal';
 
+export const WEEKLY_CRITICAL_CSV_DATA = `Task ID,Activity Title,Description,Status,Priority,Start Date,Due Date,Estimated Hours,Assignee Email,Tags,List / Category,Department,Job No,Client,Remarks
+DHT-001,"Thermal & Hydraulic Calculation Review","Review thermal calculation sheet for Shell & Tube Heat Exchanger bundle A-102.",In Progress,Urgent,2026-08-01,2026-08-15,24,sanket@dolheat.ae,"Thermal;Engineering;SLB",Engineering & Design,Engineering,1119,SLB,"DTN 051 submitted"
+DHT-002,"Mechanical Design Calculation Verification","Verify ASME Sec VIII Div 1 calculations for shell thickness and nozzle reinforcement.",In Progress,High,2026-08-03,2026-08-18,30,sanket@dolheat.ae,"Mechanical;ASME",Engineering & Design,Engineering,1119,SLB,"Awaiting third party review"
+DHT-003,"Tube Bundle General Arrangement Drawing (GAD)","Finalize tube layout, baffle spacing, and tie-rod arrangement drawing.",In Progress,High,2026-08-05,2026-08-20,40,pankaj@dolheat.ae,"CAD;Drawings;GAD",Engineering & Design,Engineering,1119,SLB,"Code 2 comments addressed"
+DHT-004,"Procurement of Seamless Stainless Steel Tubes","Issue Purchase Order for SA-213 TP316L seamless tubes for Akkas Gas Field project.",Done,Urgent,2026-07-10,2026-08-10,15,khalid@dolheat.ae,"Procurement;Tubes;SA213",Procurement & Materials,Procurement,1119,SLB,"Material delivered to Ajman yard"
+DHT-005,"Forged TubeSheet Material Receipt & MTC Verification","Inspect forged SA-266 Gr 2 tubesheets upon arrival at Ajman manufacturing plant.",In Progress,High,2026-08-08,2026-08-22,12,khalid@dolheat.ae,"QC;MTC;TubeSheet",Procurement & Materials,Procurement,1119,SLB,"Mill Test Certificates verified"
+DHT-006,"Baffle Plate CNC Drilling & Deburring","Drill baffle holes on CNC drilling machine as per pitch layout.",To Do,Medium,2026-08-15,2026-08-28,50,kannan@dolheat.ae,"Fabrication;CNC;Baffle",Fabrication & Assembly,Fabrication,1119,SLB,"Tooling set up complete"
+DHT-007,"Shell Longitudinal & Circumferential Seam Welding","Perform SAW welding on rolled shell plates with NDT inspection.",To Do,High,2026-08-18,2026-09-05,60,kannan@dolheat.ae,"Welding;SAW;NDT",Fabrication & Assembly,Fabrication,1119,SLB,"WPS & PQR approved"
+DHT-008,"Hydrostatic Pressure Testing (1.5x Design Pressure)","Execute hydrostatic test at 45 bar under TUV inspector supervision.",To Do,Urgent,2026-09-01,2026-09-10,16,parvez@dolheat.ae,"QAQC;Hydrotest;TUV",QA / QC Inspection,Quality,1119,SLB,"Test gauge calibrated"
+DHT-009,"Sandblasting & Epoxy Coating Application","Surface preparation SA 2.5 and application of heat-resistant epoxy paint system.",To Do,Medium,2026-09-11,2026-09-18,20,kannan@dolheat.ae,"Painting;Epoxy;SurfacePrep",Blasting & Painting,Operations,1119,SLB,"Paint batch certificates logged"
+DHT-010,"Final Inspection & Dispatch Documentation","Compile Manufacturer Data Report (MDR), shipping dossier, and sign-off client FAT.",To Do,High,2026-09-19,2026-09-25,25,parvez@dolheat.ae,"MDR;FAT;Dispatch",QA / QC Inspection,Quality,1119,SLB,"Ready for client handover"`;
+
+export const AKKAS_GAS_FIELD_CSV_DATA = `Task ID,Activity Title,Description,Status,Priority,Start Date,Due Date,Estimated Hours,Assignee Email,Tags,List / Category,Department,Job No,Client,Remarks
+AKK-ENG-01,"Thermal Design Calculation Resubmission (Code-02 Approved)","Resubmit thermal calculation for all tags via DTN 051 following Code-02 approval comments.",In Progress,Urgent,2026-07-10,2026-08-20,40,sanket@dolheat.ae,"Engineering;Thermal;SLB;DTN051",Engineering & Design,Engineering,1119,SLB,"Resubmission via DTN 051"
+AKK-ENG-02,"Mechanical Design Calculation Resubmission","Resubmit mechanical design calculations following client comments.",In Progress,Urgent,2026-07-15,2026-08-22,35,sanket@dolheat.ae,"Engineering;Mechanical;SLB",Engineering & Design,Engineering,1119,SLB,"Client comments received"
+AKK-ENG-03,"Resubmission of GAD, Tube Bundle & Shell Detail Drawings","Resubmit General Arrangement Drawings (GAD), Tube Bundle, Shell, and Channel detail drawings for SLB review.",In Progress,Urgent,2026-07-18,2026-08-25,50,pankaj@dolheat.ae,"Engineering;Drawings;SLB;GAD",Engineering & Design,Engineering,1119,SLB,"Comments received; resubmission in progress"
+AKK-PROC-01,"Tubes Order (PO 6006) - Transit & Delivery Check","Tubes for 6 Tags in transit via DHL; awaiting confirmation for 2 Tags. Vendor: Rajeshwar Metal & Tubes.",In Progress,High,2026-04-29,2026-08-26,20,khalid@dolheat.ae,"Procurement;Tubes;DHL;SLB",Procurement & Materials,Procurement,1119,SLB,"In transit via DHL"
+AKK-PROC-02,"TubeSheets & Flanges Order (PO 6103) - KJF Transit","TubeSheet, Girth Flanges, Channel Flanges Hub & Nozzles. Vendor: KJF Co. Ltd. In transit via DHL.",In Progress,High,2026-06-10,2026-08-18,15,khalid@dolheat.ae,"Procurement;Flanges;KJF;SLB",Procurement & Materials,Procurement,1119,SLB,"In transit - DHL"
+AKK-PROC-03,"TubeSheets & Flanges Order (PO 6115) - KJF Delivery","TubeSheet & Flanges shipment. Vendor: KJF Co. Ltd. Expected delivery: 11-Aug-26.",In Progress,High,2026-06-17,2026-08-11,15,khalid@dolheat.ae,"Procurement;Flanges;KJF;SLB",Procurement & Materials,Procurement,1119,SLB,"Arrival at Ajman plant"
+AKK-PROC-04,"Flanges & Hubs Order (PO 6186) - EXW Readiness","Flanges and hubs. Vendor: KJF Co. Ltd. EXW readiness date 26-Aug-26.",In Progress,High,2026-07-11,2026-08-25,12,khalid@dolheat.ae,"Procurement;Flanges;KJF;SLB",Procurement & Materials,Procurement,1119,SLB,"EXW readiness 26th August"
+AKK-PROC-05,"Materials Receipt (PO 6146) - Kalhour Trading","Raw materials for hubs and nozzles received from Kalhour Trading Co. L.L.C.",Done,Medium,2026-06-24,2026-07-15,10,khalid@dolheat.ae,"Procurement;Kalhour;SLB",Procurement & Materials,Procurement,1119,SLB,"Material Received at Ajman Yard"
+AKK-PROC-06,"Plates Receipt (PO 6149-6164) - Shell & Channel","Shell & Channel plates received at Ajman Yard from JSS, Kaddas, Dubai Building Mat, Tee Dee, Danube, Al Nimr.",Done,Medium,2026-06-30,2026-07-09,16,khalid@dolheat.ae,"Procurement;Plates;AjmanYard",Procurement & Materials,Procurement,1119,SLB,"Material Received at Ajman Yard"
+AKK-PROC-07,"Fasteners & Gaskets Procurement (PO 6224 / 6217)","Fasteners and Spira Power gaskets procurement. PO released; delivery in progress per schedule.",In Progress,Medium,2026-07-23,2026-08-27,14,khalid@dolheat.ae,"Procurement;Fasteners;Gaskets;Spira",Procurement & Materials,Procurement,1119,SLB,"Delivery in progress per schedule"
+AKK-FAB-01,"ON-E-1402C: TEG COLD/HOT (HOT) - Baffles Drilling","Baffles & Tube Bundle drilling in process. Shell & Channel nozzle fit-ups completed.",In Progress,High,2026-07-20,2026-10-04,60,kannan@dolheat.ae,"Fabrication;Tag1402C;TEG;SLB",Fabrication & Assembly,Fabrication,1119,SLB,"Baffle drilling in process"
+AKK-FAB-02,"ON-E-1403C: TEG COLD/HOT (COLD) - Baffles Drilling","Baffles & Tube Bundle drilling in process. Shell & Channel nozzle fit-ups completed.",In Progress,High,2026-07-20,2026-10-04,60,kannan@dolheat.ae,"Fabrication;Tag1403C;TEG;SLB",Fabrication & Assembly,Fabrication,1119,SLB,"Baffle drilling in process"
+AKK-FAB-03,"ON-E-1405C: TEG REFLUX CONDENSER - Rolling & Welding","Shell & Channel plate rolling completed; longitudinal seam welding in process.",In Progress,High,2026-07-22,2026-10-04,55,kannan@dolheat.ae,"Fabrication;Tag1405C;TEG;SLB",Fabrication & Assembly,Fabrication,1119,SLB,"LS seam welding in process"
+AKK-FAB-04,"ON-E-1412C: GAS/LIQUID EXCHANGER-1 - Longitudinal Welding","Shell rolling & LS welding completed; Channel LS welding and Baffle drilling in process.",In Progress,High,2026-07-15,2026-09-03,65,kannan@dolheat.ae,"Fabrication;Tag1412C;GasLiquid;SLB",Fabrication & Assembly,Fabrication,1119,SLB,"Channel welding & Baffle drilling"
+AKK-FAB-05,"ON-E-1502C: GAS/LIQUID EXCHANGER-2 - Nozzle Fit-Up","Shell nozzle fit-up and baffle drilling in process.",In Progress,High,2026-07-18,2026-09-03,50,kannan@dolheat.ae,"Fabrication;Tag1502C;GasLiquid;SLB",Fabrication & Assembly,Fabrication,1119,SLB,"Nozzle fit-up in process"`;
+
 interface ProjectCsvImportModalProps {
   onClose: () => void;
-  onSuccess: (importedTitle: string, taskCount: number) => void;
+  onSuccess?: (importedTitle: string, taskCount: number) => void;
   defaultTargetProjectId?: string;
 }
 
@@ -220,57 +249,54 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
     }
   };
 
-  // Download Sample CSV
-  const handleDownloadSampleCsv = () => {
-    const sampleData = [
-      {
-        'Activity Title': 'Thermal Heat Exchanger Site Assembly',
-        'Description': 'Assemble shell and tube bundle onto concrete foundation slab.',
-        'Priority': 'High',
-        'Status': 'In Progress',
-        'Start Date': '2026-08-10',
-        'Due Date': '2026-08-25',
-        'Estimated Hours': 45,
-        'Tags': 'Assembly, Piping, MEP',
-        'Subtasks': 'Check anchor bolts, Torque flange nuts, Hydro-test seal',
-        'Dependencies': 'Site Inspection'
-      },
-      {
-        'Activity Title': 'Site Inspection & Anchor Verification',
-        'Description': 'Verify foundation levelness and anchor bolt spacing.',
-        'Priority': 'Urgent',
-        'Status': 'Done',
-        'Start Date': '2026-08-01',
-        'Due Date': '2026-08-09',
-        'Estimated Hours': 20,
-        'Tags': 'Civil, QA/QC',
-        'Subtasks': 'Laser alignment, Survey signoff',
-        'Dependencies': ''
-      },
-      {
-        'Activity Title': 'Chilled Water Pipe Pressure Testing',
-        'Description': 'Hydrostatic test at 15 Bar for 4 hours with pressure recorder.',
-        'Priority': 'Medium',
-        'Status': 'To Do',
-        'Start Date': '2026-08-26',
-        'Due Date': '2026-09-05',
-        'Estimated Hours': 30,
-        'Tags': 'Testing, Piping',
-        'Subtasks': 'Install pressure gauge, Pump test fluid, Record chart',
-        'Dependencies': 'Thermal Heat Exchanger Site Assembly'
-      }
-    ];
+  // Instant Auto-Load Sample Trackers directly into wizard
+  const handleInstantLoadWeekly = () => {
+    try {
+      const workbook = XLSX.read(WEEKLY_CRITICAL_CSV_DATA, { type: 'string' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+      processJsonData(json, 'DHT_Weekly_Critical_Action_Tracker.csv');
+    } catch (err) {
+      setErrorMsg('Failed to auto-load sample tracker data.');
+    }
+  };
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
-    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const handleInstantLoadAkkas = () => {
+    try {
+      const workbook = XLSX.read(AKKAS_GAS_FIELD_CSV_DATA, { type: 'string' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+      processJsonData(json, 'DHT_Akkas_Gas_Field_Action_Tracker.csv');
+    } catch (err) {
+      setErrorMsg('Failed to auto-load sample tracker data.');
+    }
+  };
+
+  // Download Sample CSV via Blob to avoid invalid URL navigation issues in iframe sandbox
+  const handleDownloadSampleCsv = () => {
+    const blob = new Blob([WEEKLY_CRITICAL_CSV_DATA], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', 'Dolphin_Project_Tasks_Sample.csv');
+    link.setAttribute('download', 'DHT_Weekly_Critical_Action_Tracker.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadAkkasCsv = () => {
+    const blob = new Blob([AKKAS_GAS_FIELD_CSV_DATA], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'DHT_Akkas_Gas_Field_Action_Tracker.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Convert raw row into standardized task payload
@@ -427,7 +453,9 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
     );
 
     setSelectedProjectId(targetProjId);
-    onSuccess(projTitle, validTasks.length);
+    if (onSuccess) {
+      onSuccess(projTitle, validTasks.length);
+    }
     onClose();
   };
 
@@ -538,27 +566,78 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
               </div>
             </div>
 
-            {/* Sample File Download Box */}
-            <div className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] flex items-center justify-between">
+            {/* Direct 1-Click Load Banner (No file download needed) */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-[#0773BB]/20 via-[#0D1520] to-[#3BC0BB]/20 border border-[#3BC0BB]/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-[#3BC0BB]/10 text-[#3BC0BB]">
-                  <Download className="w-5 h-5" />
+                <div className="p-2.5 rounded-xl bg-[#3BC0BB]/20 text-[#3BC0BB] shrink-0">
+                  <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-white">Need a sample CSV format?</h4>
-                  <p className="text-[11px] text-slate-400">
-                    Download our pre-formatted Dolphin engineering project task template with example columns.
+                  <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Direct 1-Click Load (No File Download Required)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-300">
+                    Skip downloading! Instantly populate your project workspace with pre-formatted Dolphin trackers.
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={handleDownloadSampleCsv}
-                className="px-3.5 py-2 rounded-xl bg-[#16222F] hover:bg-[#233549] text-[#3BC0BB] border border-[#3BC0BB]/40 text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Download Sample CSV</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <button
+                  type="button"
+                  onClick={handleInstantLoadWeekly}
+                  className="px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-[#0773BB]/30"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Load Weekly Critical Review (57 Items)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleInstantLoadAkkas}
+                  className="px-3.5 py-2 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/80 text-slate-950 font-bold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-[#3BC0BB]/30"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Load Akkas Gas Field (15 Items)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sample File Download Box */}
+            <div className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-[#3BC0BB]/10 text-[#3BC0BB] shrink-0">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Download Pre-formatted Action Trackers</h4>
+                  <p className="text-[11px] text-slate-400">
+                    Save raw `.csv` files locally for Excel or offline editing.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleDownloadSampleCsv}
+                  className="px-3 py-1.5 rounded-xl bg-[#16222F] hover:bg-[#233549] text-[#3BC0BB] border border-[#3BC0BB]/40 text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                  title="Download 57 items from Weekly Critical Items & Holdpoint Review"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Weekly Critical Review CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadAkkasCsv}
+                  className="px-3 py-1.5 rounded-xl bg-sky-900/40 hover:bg-sky-800/60 text-sky-300 border border-sky-500/40 text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap"
+                  title="Download Akkas Gas Field Heat Exchangers Action Tracker"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Akkas Gas Field CSV</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

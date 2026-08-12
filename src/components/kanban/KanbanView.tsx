@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { TaskStatus, Task, Priority } from '../../types';
 import { TaskQuickPreviewPopover } from '../tasks/TaskQuickPreviewPopover';
 import { DolphinTooltip } from '../common/DolphinTooltip';
+import { PriorityBadge } from '../common/PriorityBadge';
 import { getAccessibleTasks, getAccessibleProjects } from '../../lib/permissions';
 
 const SafeDraggable = Draggable as React.FC<any>;
@@ -252,13 +253,22 @@ export const KanbanView: React.FC = () => {
                       {colTasks.map((task, index) => {
                         const assignee = users.find((u) => task.assigneeIds.includes(u.id));
 
+                        const priorityCardBorder =
+                          task.priority === 'Urgent'
+                            ? 'border-l-4 border-l-rose-500 shadow-rose-500/10'
+                            : task.priority === 'High'
+                            ? 'border-l-4 border-l-amber-500 shadow-amber-500/10'
+                            : task.priority === 'Medium'
+                            ? 'border-l-4 border-l-sky-500'
+                            : 'border-l-4 border-l-slate-600';
+
                         return (
                           <SafeDraggable key={task.id} draggableId={task.id} index={index}>
                             {(draggableProvided: any, draggableSnapshot: any) => (
                               <div
                                 ref={draggableProvided.innerRef}
                                 {...draggableProvided.draggableProps}
-                                className={`p-4 rounded-xl border transition-all space-y-3 group shadow-md kanban-task-card ${
+                                className={`p-4 rounded-xl border transition-all space-y-3 group shadow-md kanban-task-card ${priorityCardBorder} ${
                                   draggableSnapshot.isDragging
                                     ? 'bg-[#0773BB]/95 border-[#3BC0BB] text-white shadow-2xl scale-105 ring-2 ring-[#3BC0BB] z-50'
                                     : theme === 'light'
@@ -266,8 +276,8 @@ export const KanbanView: React.FC = () => {
                                     : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]'
                                 }`}
                               >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-between gap-1">
+                                  <div className="flex items-center gap-1.5">
                                     <DolphinTooltip
                                       title="Reorder Task"
                                       badge="Priority Drag"
@@ -282,28 +292,16 @@ export const KanbanView: React.FC = () => {
                                         <GripVertical className="w-4 h-4" />
                                       </div>
                                     </DolphinTooltip>
-                                    <select
-                                      value={task.priority}
-                                      onChange={(e) =>
+                                    <PriorityBadge
+                                      priority={task.priority}
+                                      onChange={(newPriority) =>
                                         updateTask(task.id, {
-                                          priority: e.target.value as Priority,
+                                          priority: newPriority,
                                         })
                                       }
-                                      className={`text-[9px] font-bold px-2 py-0.5 rounded border focus:outline-none cursor-pointer transition-colors ${
-                                        task.priority === 'Urgent'
-                                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                          : task.priority === 'High'
-                                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                          : task.priority === 'Medium'
-                                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                                          : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-                                      }`}
-                                    >
-                                      <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
-                                      <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
-                                      <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
-                                      <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
-                                    </select>
+                                      interactive
+                                      size="sm"
+                                    />
                                   </div>
 
                                   <select

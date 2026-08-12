@@ -45,7 +45,9 @@ import {
   Eye,
   Shield,
   Download,
-  Sliders
+  Sliders,
+  FileSpreadsheet,
+  Table
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
@@ -53,6 +55,9 @@ import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
 import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks } from '../../lib/permissions';
+import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
+import { TasksDataTable } from './TasksDataTable';
+import { PriorityBadge } from '../common/PriorityBadge';
 
 export const TasksView: React.FC = () => {
   const {
@@ -106,6 +111,7 @@ export const TasksView: React.FC = () => {
   }, [currentUser, currentProject]);
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false);
   const [inProgressOpen, setInProgressOpen] = useState(true);
   const [toDoOpen, setToDoOpen] = useState(true);
   const [completedOpen, setCompletedOpen] = useState(true);
@@ -157,6 +163,7 @@ export const TasksView: React.FC = () => {
   const [sortBySmartPriority, setSortBySmartPriority] = useState(false);
   const [singleAnalyzingTaskId, setSingleAnalyzingTaskId] = useState<string | null>(null);
   const [filterUnassignedModal, setFilterUnassignedModal] = useState(false);
+  const [tasksViewMode, setTasksViewMode] = useState<'table' | 'list'>('table');
 
   // Unassigned tasks helper
   const unassignedTasks = useMemo(() => {
@@ -636,6 +643,35 @@ export const TasksView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* View Mode Toggle Switch (Data Table vs Grouped List) */}
+          <div className="p-1 rounded-2xl bg-[#0D1520] border border-[#233549] flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setTasksViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                tasksViewMode === 'table'
+                  ? 'bg-[#3BC0BB] text-slate-950 shadow-md shadow-[#3BC0BB]/30'
+                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+              }`}
+              title="Interactive Data Table with multi-select checkboxes, batch status/priority operations, and sorting"
+            >
+              <Table className="w-3.5 h-3.5" />
+              <span>Data Table</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTasksViewMode('list')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                tasksViewMode === 'list'
+                  ? 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30'
+                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+              }`}
+              title="Grouped Accordions view by status"
+            >
+              <ListOrdered className="w-3.5 h-3.5" />
+              <span>Grouped List</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => handleOpenSmartPriorityModal(false)}
@@ -671,6 +707,16 @@ export const TasksView: React.FC = () => {
           >
             <Download className="w-4 h-4 text-[#3BC0BB]" />
             <span>Download CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCsvImportModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20 active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
+            title="Import tasks or Action Tracker directly from CSV or Excel file"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-white" />
+            <span>Import CSV / Tracker</span>
           </button>
 
           <button
@@ -766,10 +812,16 @@ export const TasksView: React.FC = () => {
       )}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* TASK LIST ACCORDIONS */}
+        {/* TASK VIEW BODY (DATA TABLE OR GROUPED ACCORDIONS) */}
         <div className={`${selectedTaskId ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
-          
-          {/* GROUP 1: IN PROGRESS */}
+          {tasksViewMode === 'table' ? (
+            <TasksDataTable
+              onSelectTask={(id) => setSelectedTaskId(id)}
+              selectedTaskId={selectedTaskId}
+            />
+          ) : (
+            <>
+              {/* GROUP 1: IN PROGRESS */}
           <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
             {/* Group Header Bar */}
             <div
@@ -885,24 +937,12 @@ export const TasksView: React.FC = () => {
 
                           {/* Color-Coded Priority Selector */}
                           <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <select
-                              value={t.priority}
-                              onChange={(e) => updateTask(t.id, { priority: e.target.value as Priority })}
-                              className={`text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
-                                t.priority === 'Urgent'
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                  : t.priority === 'High'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : t.priority === 'Medium'
-                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                                  : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-                              }`}
-                            >
-                              <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
-                              <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
-                              <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
-                              <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
-                            </select>
+                            <PriorityBadge
+                              priority={t.priority}
+                              onChange={(newPriority) => updateTask(t.id, { priority: newPriority })}
+                              interactive
+                              size="sm"
+                            />
                           </td>
 
                           {/* Priority Score Badge Cell */}
@@ -1124,24 +1164,12 @@ export const TasksView: React.FC = () => {
 
                           {/* Color-Coded Priority Selector */}
                           <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <select
-                              value={t.priority}
-                              onChange={(e) => updateTask(t.id, { priority: e.target.value as Priority })}
-                              className={`text-[10px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-colors ${
-                                t.priority === 'Urgent'
-                                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                                  : t.priority === 'High'
-                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                                  : t.priority === 'Medium'
-                                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                                  : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-                              }`}
-                            >
-                              <option value="Urgent" className="bg-[#0D1520] text-rose-300">Urgent</option>
-                              <option value="High" className="bg-[#0D1520] text-amber-300">High</option>
-                              <option value="Medium" className="bg-[#0D1520] text-cyan-300">Medium</option>
-                              <option value="Low" className="bg-[#0D1520] text-slate-300">Low</option>
-                            </select>
+                            <PriorityBadge
+                              priority={t.priority}
+                              onChange={(newPriority) => updateTask(t.id, { priority: newPriority })}
+                              interactive
+                              size="sm"
+                            />
                           </td>
 
                           {/* Priority Score Badge Cell */}
@@ -1300,6 +1328,8 @@ export const TasksView: React.FC = () => {
               )}
             </div>
           )}
+            </>
+          )}
 
         </div>
 
@@ -1420,18 +1450,13 @@ export const TasksView: React.FC = () => {
 
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Priority</label>
-                <select
-                  value={activeTask.priority}
-                  onChange={(e) =>
-                    updateTask(activeTask.id, { priority: e.target.value as Priority })
-                  }
-                  className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3 py-2 font-bold"
-                >
-                  <option value="Urgent">Urgent</option>
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
+                <PriorityBadge
+                  priority={activeTask.priority}
+                  onChange={(newPriority) => updateTask(activeTask.id, { priority: newPriority })}
+                  interactive
+                  size="md"
+                  className="w-full justify-between"
+                />
               </div>
             </div>
 
@@ -2569,6 +2594,11 @@ export const TasksView: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* CSV / Action Tracker Import Modal */}
+      {showCsvImportModal && (
+        <ProjectCsvImportModal onClose={() => setShowCsvImportModal(false)} />
       )}
     </div>
   );

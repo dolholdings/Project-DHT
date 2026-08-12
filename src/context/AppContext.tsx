@@ -411,18 +411,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const deleted: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
     const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
+    const legacyEmails = [
+      'tareq.aldolphin@dolphingroup.ae',
+      'parvez.khan@dolphingroup.ae',
+      'suhail.ahmed@dolrad.ae',
+      'fatima.zohra@dolheat.ae',
+      'rashed.m@dolcool.ae',
+      'elena.rostova@dolheat.ae',
+      'omar.mansoor@dolphingroup.ae',
+      'sys_analyst@dolrad.ae',
+      'proj@dolheat.ae',
+      'prog.mgr@dolheat.ae'
+    ];
     
-    // Ensure all INITIAL_USERS exist in loaded list (if new initial users were added)
-    const merged = [...loaded];
+    const valid = loaded.filter((u) => !deleted.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase()));
+    const merged = [...valid];
     INITIAL_USERS.forEach((iu) => {
       if (!merged.some((u) => u.email.toLowerCase() === iu.email.toLowerCase())) {
         merged.push(iu);
       }
     });
 
-    return merged.filter((u) => !deleted.includes(u.id));
+    localStorage.setItem('dolphin_users', JSON.stringify(merged));
+    return merged;
   });
-  const [currentUser, setCurrentUser] = useState<User>(() => loadFromStorage('dolphin_current_user', INITIAL_USERS[0]));
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const loaded = loadFromStorage<User>('dolphin_current_user', INITIAL_USERS[0]);
+    const legacyEmails = [
+      'tareq.aldolphin@dolphingroup.ae',
+      'parvez.khan@dolphingroup.ae',
+      'suhail.ahmed@dolrad.ae',
+      'fatima.zohra@dolheat.ae',
+      'rashed.m@dolcool.ae',
+      'elena.rostova@dolheat.ae',
+      'omar.mansoor@dolphingroup.ae',
+      'sys_analyst@dolrad.ae',
+      'proj@dolheat.ae',
+      'prog.mgr@dolheat.ae'
+    ];
+    if (!loaded?.email || legacyEmails.includes(loaded.email.toLowerCase())) {
+      localStorage.setItem('dolphin_current_user', JSON.stringify(INITIAL_USERS[0]));
+      return INITIAL_USERS[0];
+    }
+    return loaded;
+  });
   const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
     try {
       const sessionAuth = sessionStorage.getItem('dolphin_is_authenticated');
@@ -577,46 +609,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Subscribe to real-time Firestore updates for Users
     const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
       const currentDeletedIds: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
+      const legacyEmails = [
+        'tareq.aldolphin@dolphingroup.ae',
+        'parvez.khan@dolphingroup.ae',
+        'suhail.ahmed@dolrad.ae',
+        'fatima.zohra@dolheat.ae',
+        'rashed.m@dolcool.ae',
+        'elena.rostova@dolheat.ae',
+        'omar.mansoor@dolphingroup.ae',
+        'sys_analyst@dolrad.ae',
+        'proj@dolheat.ae',
+        'prog.mgr@dolheat.ae'
+      ];
 
-      if (remoteUsers && remoteUsers.length > 0) {
-        setUsers((prev) => {
-          const userMap = new Map<string, User>();
-          
-          INITIAL_USERS.forEach((u) => {
-            if (!currentDeletedIds.includes(u.id)) {
-              userMap.set(u.id, u);
-            }
-          });
+      const validRemote = (remoteUsers || []).filter(
+        (u) => !currentDeletedIds.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase())
+      );
 
-          prev.forEach((u) => {
-            if (!currentDeletedIds.includes(u.id)) {
-              userMap.set(u.id, u);
-            }
-          });
-
-          remoteUsers.forEach((u) => {
-            if (!currentDeletedIds.includes(u.id)) {
-              userMap.set(u.id, u);
-            }
-          });
-
-          return Array.from(userMap.values());
+      setUsers((prev) => {
+        const userMap = new Map<string, User>();
+        
+        INITIAL_USERS.forEach((u) => {
+          if (!currentDeletedIds.includes(u.id)) {
+            userMap.set(u.id, u);
+          }
         });
 
-        if (currentUser?.id) {
-          const matchedRemote = remoteUsers.find((ru) => ru.id === currentUser.id);
-          if (matchedRemote?.theme) {
-            const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
-            localStorage.setItem(userThemeKey, JSON.stringify(matchedRemote.theme));
-            setDolphinThemeState(matchedRemote.theme);
-            const isLight = matchedRemote.theme === 'light';
-            const baseTheme = isLight ? 'light' : 'dark';
-            setThemeState(baseTheme);
-            applyThemeToDOM(matchedRemote.theme, baseTheme);
+        prev.forEach((u) => {
+          if (!currentDeletedIds.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase())) {
+            userMap.set(u.id, u);
           }
+        });
+
+        validRemote.forEach((u) => {
+          userMap.set(u.id, u);
+        });
+
+        const updatedList = Array.from(userMap.values());
+        localStorage.setItem('dolphin_users', JSON.stringify(updatedList));
+        return updatedList;
+      });
+
+      if (currentUser?.id) {
+        const matchedRemote = validRemote.find((ru) => ru.id === currentUser.id);
+        if (matchedRemote?.theme) {
+          const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
+          localStorage.setItem(userThemeKey, JSON.stringify(matchedRemote.theme));
+          setDolphinThemeState(matchedRemote.theme);
+          const isLight = matchedRemote.theme === 'light';
+          const baseTheme = isLight ? 'light' : 'dark';
+          setThemeState(baseTheme);
+          applyThemeToDOM(matchedRemote.theme, baseTheme);
         }
-      } else {
-        setUsers((prev) => prev.filter((u) => !currentDeletedIds.includes(u.id)));
       }
     });
 

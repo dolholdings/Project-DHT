@@ -30,6 +30,7 @@ import {
   Check
 } from 'lucide-react';
 import { ReportExportWizardModal } from './ReportExportWizardModal';
+import { ClientPsrReportModal } from './ClientPsrReportModal';
 import {
   BarChart,
   Bar,
@@ -141,6 +142,7 @@ export const ReportsView: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'burndown' | 'velocity' | 'completion' | 'trends'>('overview');
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [isWizardOpen, setIsWizardOpen] = useState<boolean>(false);
+  const [isClientPsrOpen, setIsClientPsrOpen] = useState<boolean>(false);
 
   // Burndown specific state
   const [sprintDays, setSprintDays] = useState<7 | 14 | 21 | 30>(14);
@@ -576,6 +578,15 @@ export const ReportsView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsClientPsrOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-900 hover:bg-sky-800 text-white font-black text-xs shadow-lg shadow-sky-900/30 transition-all border border-amber-400/50 cursor-pointer"
+            title="Design and generate official SLB Customer Project Status Report (PSR #03) from live Action Tracker tasks"
+          >
+            <FileText className="w-4 h-4 text-amber-400" />
+            <span>Client SLB PSR #03 Report</span>
+          </button>
+
           <button
             onClick={() => setIsWizardOpen(true)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/20 transition-all border border-[#3BC0BB]/40 cursor-pointer"
@@ -1600,6 +1611,14 @@ export const ReportsView: React.FC = () => {
         currentUser={currentUser}
         theme={theme}
       />
+
+      {/* Client SLB PSR #03 Report Designer Modal */}
+      {isClientPsrOpen && (
+        <ClientPsrReportModal
+          onClose={() => setIsClientPsrOpen(false)}
+          defaultProjectId={selectedProjectId !== 'all' ? selectedProjectId : undefined}
+        />
+      )}
     </div>
   );
 };

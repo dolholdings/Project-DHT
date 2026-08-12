@@ -1032,8 +1032,10 @@ app.post('/api/notifications/send-email', async (req, res) => {
     const smtpPass = smtpConfig?.pass || process.env.SMTP_PASS;
 
     if (smtpHost && smtpUser && smtpPass) {
-      let targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || 465);
-      let isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : targetPort === 465;
+      const isOffice365 = smtpHost.toLowerCase().includes('office365') || smtpHost.toLowerCase().includes('outlook');
+      let targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || (isOffice365 ? 587 : 465));
+      let isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : (!isOffice365 && targetPort === 465);
+      
       providerUsed = `Custom SMTP (${smtpHost}:${targetPort})`;
       try {
         const transporter = nodemailer.createTransport({
@@ -1047,9 +1049,9 @@ app.post('/api/notifications/send-email', async (req, res) => {
           tls: {
             rejectUnauthorized: false
           },
-          connectionTimeout: 8000,
-          greetingTimeout: 8000,
-          socketTimeout: 8000
+          connectionTimeout: 5000,
+          greetingTimeout: 5000,
+          socketTimeout: 5000
         });
 
         await transporter.sendMail({
@@ -1061,16 +1063,15 @@ app.post('/api/notifications/send-email', async (req, res) => {
         });
         deliveryStatus = 'DELIVERED';
       } catch (smtpErr: any) {
-        console.warn('Live SMTP initial attempt note:', smtpErr.message);
-        // If wrong version number or TLS handshake error occurs, retry automatically with STARTTLS (secure: false) or alternative port
+        console.log(`[SMTP Status] Initial dispatch attempt on ${smtpHost}:${targetPort} - ${smtpErr.message || 'Connection failed'}`);
+        // If wrong version number or TLS handshake error occurs, retry automatically with STARTTLS (secure: false) on port 587
         const isTlsError = smtpErr.message?.includes('wrong version number') || smtpErr.message?.includes('SSL routines') || smtpErr.code === 'ESOCKET';
-        if (isTlsError) {
+        if (isTlsError && targetPort !== 587) {
           try {
-            const fallbackPort = targetPort === 465 ? 587 : targetPort;
-            console.log(`Retrying SMTP via STARTTLS (port ${fallbackPort}, secure: false)...`);
+            console.log(`Retrying SMTP via STARTTLS on port 587...`);
             const fallbackTransporter = nodemailer.createTransport({
               host: smtpHost,
-              port: fallbackPort,
+              port: 587,
               secure: false,
               auth: {
                 user: smtpUser,
@@ -1079,9 +1080,9 @@ app.post('/api/notifications/send-email', async (req, res) => {
               tls: {
                 rejectUnauthorized: false
               },
-              connectionTimeout: 8000,
-              greetingTimeout: 8000,
-              socketTimeout: 8000
+              connectionTimeout: 5000,
+              greetingTimeout: 5000,
+              socketTimeout: 5000
             });
 
             await fallbackTransporter.sendMail({
@@ -1092,9 +1093,9 @@ app.post('/api/notifications/send-email', async (req, res) => {
               text: templateData?.description || subject
             });
             deliveryStatus = 'DELIVERED';
-            providerUsed = `Custom SMTP (${smtpHost}:${fallbackPort} STARTTLS)`;
+            providerUsed = `Custom SMTP (${smtpHost}:587 STARTTLS)`;
           } catch (retryErr: any) {
-            console.warn('Live SMTP delivery note (retry failed):', retryErr.message);
+            console.log(`[SMTP Status] STARTTLS retry note: ${retryErr.message || 'Queued'}`);
             providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
             deliveryStatus = 'QUEUED';
           }
