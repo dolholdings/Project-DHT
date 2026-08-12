@@ -411,7 +411,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [users, setUsers] = useState<User[]>(() => {
     const deleted: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
     const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
-    return loaded.filter((u) => !deleted.includes(u.id));
+    
+    // Ensure all INITIAL_USERS exist in loaded list (if new initial users were added)
+    const merged = [...loaded];
+    INITIAL_USERS.forEach((iu) => {
+      if (!merged.some((u) => u.email.toLowerCase() === iu.email.toLowerCase())) {
+        merged.push(iu);
+      }
+    });
+
+    return merged.filter((u) => !deleted.includes(u.id));
   });
   const [currentUser, setCurrentUser] = useState<User>(() => loadFromStorage('dolphin_current_user', INITIAL_USERS[0]));
   const [isAuthenticated, setIsAuthenticatedState] = useState<boolean>(() => {
@@ -493,9 +502,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAuthenticatedState(false);
   };
 
-  const [projects, setProjects] = useState<Project[]>(() => loadFromStorage('dolphin_projects', INITIAL_PROJECTS));
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const loaded: Project[] = loadFromStorage('dolphin_projects', INITIAL_PROJECTS);
+    const merged = [...loaded];
+    INITIAL_PROJECTS.forEach((ip) => {
+      if (!merged.some((p) => p.id === ip.id)) {
+        merged.push(ip);
+      }
+    });
+    return merged;
+  });
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
-  const [tasks, setTasks] = useState<Task[]>(() => loadFromStorage('dolphin_tasks', INITIAL_TASKS));
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const loaded: Task[] = loadFromStorage('dolphin_tasks', INITIAL_TASKS);
+    const merged = [...loaded];
+    INITIAL_TASKS.forEach((it) => {
+      if (!merged.some((t) => t.id === it.id)) {
+        merged.push(it);
+      }
+    });
+    return merged;
+  });
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => loadFromStorage('dolphin_subtasks', INITIAL_SUBTASKS));
   const [taskComments, setTaskComments] = useState<TaskComment[]>(() => loadFromStorage('dolphin_task_comments', []));
   const [dependencies, setDependencies] = useState<TaskDependency[]>(() => loadFromStorage('dolphin_dependencies', INITIAL_DEPENDENCIES));
