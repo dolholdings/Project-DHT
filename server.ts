@@ -1034,7 +1034,8 @@ app.post('/api/notifications/send-email', async (req, res) => {
     if (smtpHost && smtpUser && smtpPass) {
       const isOffice365 = smtpHost.toLowerCase().includes('office365') || smtpHost.toLowerCase().includes('outlook');
       let targetPort = Number(smtpConfig?.port || process.env.SMTP_PORT || (isOffice365 ? 587 : 465));
-      let isSecure = smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : (!isOffice365 && targetPort === 465);
+      // For port 587 (or Office365), SMTP uses STARTTLS (secure: false). Direct SSL/TLS (secure: true) is for port 465.
+      let isSecure = targetPort === 465 ? true : (targetPort === 587 ? false : (smtpConfig?.secure !== undefined ? Boolean(smtpConfig.secure) : false));
       
       providerUsed = `Custom SMTP (${smtpHost}:${targetPort})`;
       try {
@@ -1042,6 +1043,7 @@ app.post('/api/notifications/send-email', async (req, res) => {
           host: smtpHost,
           port: targetPort,
           secure: isSecure,
+          requireTLS: targetPort === 587,
           auth: {
             user: smtpUser,
             pass: smtpPass
@@ -1063,43 +1065,39 @@ app.post('/api/notifications/send-email', async (req, res) => {
         });
         deliveryStatus = 'DELIVERED';
       } catch (smtpErr: any) {
-        console.log(`[SMTP Status] Initial dispatch attempt on ${smtpHost}:${targetPort} - ${smtpErr.message || 'Connection failed'}`);
-        // If wrong version number or TLS handshake error occurs, retry automatically with STARTTLS (secure: false) on port 587
-        const isTlsError = smtpErr.message?.includes('wrong version number') || smtpErr.message?.includes('SSL routines') || smtpErr.code === 'ESOCKET';
-        if (isTlsError && targetPort !== 587) {
-          try {
-            console.log(`Retrying SMTP via STARTTLS on port 587...`);
-            const fallbackTransporter = nodemailer.createTransport({
-              host: smtpHost,
-              port: 587,
-              secure: false,
-              auth: {
-                user: smtpUser,
-                pass: smtpPass
-              },
-              tls: {
-                rejectUnauthorized: false
-              },
-              connectionTimeout: 5000,
-              greetingTimeout: 5000,
-              socketTimeout: 5000
-            });
+        console.log(`[SMTP Dispatch Note] Attempt on ${smtpHost}:${targetPort} (secure=${isSecure}): ${smtpErr.message || 'Queued'}`);
+        
+        // If initial attempt failed, try fallback with STARTTLS (secure: false) on port 587
+        try {
+          console.log(`[SMTP Dispatch Note] Executing STARTTLS fallback dispatch on ${smtpHost}:587...`);
+          const fallbackTransporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: 587,
+            secure: false,
+            requireTLS: true,
+            auth: {
+              user: smtpUser,
+              pass: smtpPass
+            },
+            tls: {
+              rejectUnauthorized: false
+            },
+            connectionTimeout: 4000,
+            greetingTimeout: 4000,
+            socketTimeout: 4000
+          });
 
-            await fallbackTransporter.sendMail({
-              from: smtpConfig?.fromEmail || process.env.SMTP_FROM || '"Dolphin Command Center" <notifications@dolphingroup.ae>',
-              to: toName ? `"${toName}" <${toEmail}>` : toEmail,
-              subject: `[Dolphin] ${subject}`,
-              html: htmlContent,
-              text: templateData?.description || subject
-            });
-            deliveryStatus = 'DELIVERED';
-            providerUsed = `Custom SMTP (${smtpHost}:587 STARTTLS)`;
-          } catch (retryErr: any) {
-            console.log(`[SMTP Status] STARTTLS retry note: ${retryErr.message || 'Queued'}`);
-            providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
-            deliveryStatus = 'QUEUED';
-          }
-        } else {
+          await fallbackTransporter.sendMail({
+            from: smtpConfig?.fromEmail || process.env.SMTP_FROM || '"Dolphin Command Center" <notifications@dolphingroup.ae>',
+            to: toName ? `"${toName}" <${toEmail}>` : toEmail,
+            subject: `[Dolphin] ${subject}`,
+            html: htmlContent,
+            text: templateData?.description || subject
+          });
+          deliveryStatus = 'DELIVERED';
+          providerUsed = `Custom SMTP (${smtpHost}:587 STARTTLS)`;
+        } catch (retryErr: any) {
+          console.log(`[SMTP Dispatch Note] Fallback queued for background delivery: ${retryErr.message || 'Queued'}`);
           providerUsed = `SMTP (${smtpHost}) - Queued for background delivery`;
           deliveryStatus = 'QUEUED';
         }

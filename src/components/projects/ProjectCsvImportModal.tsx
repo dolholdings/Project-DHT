@@ -57,6 +57,7 @@ interface ProjectCsvImportModalProps {
   onClose: () => void;
   onSuccess?: (importedTitle: string, taskCount: number) => void;
   defaultTargetProjectId?: string;
+  projectId?: string;
 }
 
 // System Task fields available for column mapping
@@ -70,7 +71,8 @@ export type SystemFieldKey =
   | 'estimatedHours'
   | 'tags'
   | 'subtasks'
-  | 'dependencies';
+  | 'dependencies'
+  | 'listName';
 
 export interface FieldMappingConfig {
   key: SystemFieldKey;
@@ -82,6 +84,7 @@ export interface FieldMappingConfig {
 const SYSTEM_FIELDS: FieldMappingConfig[] = [
   { key: 'title', label: 'Task / Activity Title', required: true, autoKeywords: ['title', 'task', 'activity', 'name', 'subject', 'headline', 'item'] },
   { key: 'description', label: 'Description', required: false, autoKeywords: ['desc', 'description', 'details', 'detail', 'summary', 'notes', 'scope'] },
+  { key: 'listName', label: 'List Name / Space List', required: false, autoKeywords: ['list', 'list name', 'listname', 'sublist', 'folder', 'module', 'phase', 'section'] },
   { key: 'priority', label: 'Priority', required: false, autoKeywords: ['priority', 'prio', 'importance', 'urgency', 'level'] },
   { key: 'status', label: 'Status', required: false, autoKeywords: ['status', 'stage', 'state', 'progress'] },
   { key: 'startDate', label: 'Start Date', required: false, autoKeywords: ['start', 'start date', 'start_date', 'begin', 'commence'] },
@@ -95,12 +98,15 @@ const SYSTEM_FIELDS: FieldMappingConfig[] = [
 export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
   onClose,
   onSuccess,
-  defaultTargetProjectId
+  defaultTargetProjectId,
+  projectId
 }) => {
+  const initialTargetProjectId = defaultTargetProjectId || projectId;
   const {
     projects,
     addProject,
     addTask,
+    addListToProject,
     companies,
     users,
     activeCompany,
@@ -124,6 +130,7 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
   const [columnMap, setColumnMap] = useState<Record<SystemFieldKey, string>>({
     title: '',
     description: '',
+    listName: '',
     priority: '',
     status: '',
     startDate: '',
@@ -134,11 +141,13 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
     dependencies: ''
   });
 
-  // Target Project Destination Selection
+  // Target Project & List Destination Selection
   const [importMode, setImportMode] = useState<'new' | 'existing'>('new');
   const [selectedExistingProjectId, setSelectedExistingProjectId] = useState<string>(
-    defaultTargetProjectId || projects[0]?.id || ''
+    initialTargetProjectId || projects[0]?.id || ''
   );
+  const [selectedTargetList, setSelectedTargetList] = useState<string>('');
+  const [customTargetListInput, setCustomTargetListInput] = useState<string>('');
 
   // New Project Form State
   const [newProjectTitle, setNewProjectTitle] = useState('Imported Project Workflow');
@@ -153,6 +162,7 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
     const newMap: Record<SystemFieldKey, string> = {
       title: '',
       description: '',
+      listName: '',
       priority: '',
       status: '',
       startDate: '',
@@ -366,6 +376,12 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
       depsVal = String(row[columnMap.dependencies]).trim();
     }
 
+    // List Name
+    let listNameVal = '';
+    if (columnMap.listName && row[columnMap.listName]) {
+      listNameVal = String(row[columnMap.listName]).trim();
+    }
+
     return {
       title: titleVal,
       description: descVal,
@@ -377,6 +393,7 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
       tags: tagsList,
       subtasks: subtasksList,
       dependencies: depsVal,
+      listName: listNameVal,
       isValid: Boolean(titleVal)
     };
   };
@@ -428,13 +445,18 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
       if (existing) projTitle = existing.title;
     }
 
+    const defaultListName = selectedTargetList === '__new__' ? customTargetListInput.trim() : selectedTargetList;
+
     // Add Tasks to target project
     validTasks.forEach((vt) => {
+      const finalListName = vt.listName || defaultListName || undefined;
+
       addTask({
         projectId: targetProjId,
         companyId: importMode === 'new' ? newCompanyId : (projects.find((p) => p.id === targetProjId)?.companyId || 'comp_5'),
         title: vt.title,
-        description: vt.description || 'Imported from CSV list',
+        description: vt.description || '',
+        listName: finalListName,
         status: vt.status,
         priority: vt.priority,
         assigneeIds: [newManagerId],
@@ -448,6 +470,10 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
         dependencies: [],
         predecessors: []
       });
+
+      if (finalListName) {
+        addListToProject(targetProjId, finalListName);
+      }
     });
 
     logActivity(
@@ -815,6 +841,49 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
                   </select>
                 </div>
               )}
+
+              {/* Target List Destination (Optional) */}
+              <div className="bg-[#0D1520] p-4 rounded-2xl border border-[#233549] space-y-2">
+                <label className="block text-slate-300 font-semibold text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <ListTodo className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                    <span>Target List within Space (Optional)</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {columnMap.listName ? 'CSV Column Mapped (Overrides Default)' : 'Fallback list for all imported tasks'}
+                  </span>
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <select
+                    value={selectedTargetList}
+                    onChange={(e) => setSelectedTargetList(e.target.value)}
+                    className="w-full bg-[#16222F] border border-[#233549] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#3BC0BB]"
+                  >
+                    <option value="">-- General / Main List --</option>
+                    {importMode === 'existing' &&
+                      (projects.find((p) => p.id === selectedExistingProjectId)?.lists || []).map((l) => (
+                        <option key={l} value={l}>
+                          List: "{l}"
+                        </option>
+                      ))}
+                    <option value="__new__">+ Create New List in Space...</option>
+                  </select>
+
+                  {selectedTargetList === '__new__' && (
+                    <input
+                      type="text"
+                      placeholder="Type new list name (e.g. Website Dev, SEO & Ads)..."
+                      value={customTargetListInput}
+                      onChange={(e) => setCustomTargetListInput(e.target.value)}
+                      className="w-full bg-[#16222F] border border-[#3BC0BB] rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                    />
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  Tasks will be imported into this list. If your CSV has a "List Name" column mapped above, tasks will be routed to their respective CSV lists automatically.
+                </p>
+              </div>
             </div>
           </div>
         )}

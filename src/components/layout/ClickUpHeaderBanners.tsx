@@ -137,7 +137,7 @@ export const ClickUpHeaderBanners: React.FC<{
               <span className={`px-2 py-0.5 rounded-md font-extrabold text-xs flex items-center gap-1 shadow-2xs ${
                 theme === 'light' ? 'bg-[#0D9488]/15 text-[#0D9488]' : 'bg-[#3BC0BB]/20 text-[#3BC0BB]'
               }`}>
-                <span>List: {selectedListFilter}</span>
+                <span>List: {selectedListFilter === '__root__' ? 'General Tasks' : selectedListFilter}</span>
                 <button
                   onClick={() => setSelectedListFilter(null)}
                   className="hover:opacity-80 p-0.5"

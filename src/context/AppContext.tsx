@@ -277,8 +277,34 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 function saveToStorage<T>(key: string, value: T): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn(`Failed to save ${key} to localStorage`, e);
+  } catch (e: any) {
+    console.warn(`Failed to save ${key} to localStorage:`, e);
+    try {
+      // Clear non-critical cached data to free up space
+      ['dolphin_logs', 'dolphin_files', 'dolphin_recent_searches', 'dolphin_emails', 'dolphin_calendar_meetings', 'dolphin_pinned_widgets'].forEach((k) => {
+        if (k !== key) {
+          try {
+            localStorage.removeItem(k);
+          } catch (_) {}
+        }
+      });
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (_) {
+      try {
+        if (Array.isArray(value)) {
+          const lightweight = value.map((item: any) => {
+            if (item && typeof item === 'object') {
+              const { fileContent, content, logs, history, ...rest } = item;
+              return rest;
+            }
+            return item;
+          });
+          localStorage.setItem(key, JSON.stringify(lightweight));
+        }
+      } catch (innerErr) {
+        console.warn(`localStorage quota exceeded for ${key}; application state retained in memory.`);
+      }
+    }
   }
 }
 
@@ -332,11 +358,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     applyThemeToDOM(newDolphinTheme, baseTheme);
 
-    localStorage.setItem('dolphin_theme_mode', JSON.stringify(newDolphinTheme));
-    localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+    saveToStorage('dolphin_theme_mode', newDolphinTheme);
+    saveToStorage('pm_theme', baseTheme);
 
     if (currentUser?.id) {
-      localStorage.setItem(`dolphin_user_theme_${currentUser.id}`, JSON.stringify(newDolphinTheme));
+      saveToStorage(`dolphin_user_theme_${currentUser.id}`, newDolphinTheme);
       setCurrentUser((prev) => (prev ? { ...prev, theme: newDolphinTheme } : prev));
       updateUserInFirestore(currentUser.id, { theme: newDolphinTheme }).catch((err) => {
         console.warn('Firestore user theme sync notice:', err);
@@ -351,11 +377,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     applyThemeToDOM(nextDolphin, newTheme);
 
-    localStorage.setItem('pm_theme', JSON.stringify(newTheme));
-    localStorage.setItem('dolphin_theme_mode', JSON.stringify(nextDolphin));
+    saveToStorage('pm_theme', newTheme);
+    saveToStorage('dolphin_theme_mode', nextDolphin);
 
     if (currentUser?.id) {
-      localStorage.setItem(`dolphin_user_theme_${currentUser.id}`, JSON.stringify(nextDolphin));
+      saveToStorage(`dolphin_user_theme_${currentUser.id}`, nextDolphin);
       setCurrentUser((prev) => (prev ? { ...prev, theme: nextDolphin } : prev));
       updateUserInFirestore(currentUser.id, { theme: nextDolphin }).catch((err) => {
         console.warn('Firestore user theme sync notice:', err);
@@ -379,7 +405,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (clean && !authorizedDomains.includes(clean)) {
       const updated = [...authorizedDomains, clean];
       setAuthorizedDomains(updated);
-      localStorage.setItem('pm_auth_domains', JSON.stringify(updated));
+      saveToStorage('pm_auth_domains', updated);
     }
   };
 
@@ -387,7 +413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clean = domain.toLowerCase().trim().replace(/^@/, '');
     const updated = authorizedDomains.filter((d) => d !== clean);
     setAuthorizedDomains(updated);
-    localStorage.setItem('pm_auth_domains', JSON.stringify(updated));
+    saveToStorage('pm_auth_domains', updated);
   };
 
   const [companies, setCompanies] = useState<Company[]>(() => {
@@ -434,7 +460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    localStorage.setItem('dolphin_users', JSON.stringify(merged));
+    saveToStorage('dolphin_users', merged);
     return merged;
   });
   const [currentUser, setCurrentUser] = useState<User>(() => {
@@ -452,7 +478,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'prog.mgr@dolheat.ae'
     ];
     if (!loaded?.email || legacyEmails.includes(loaded.email.toLowerCase())) {
-      localStorage.setItem('dolphin_current_user', JSON.stringify(INITIAL_USERS[0]));
+      saveToStorage('dolphin_current_user', INITIAL_USERS[0]);
       return INITIAL_USERS[0];
     }
     return loaded;
@@ -484,8 +510,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const baseTheme = isLight ? 'light' : 'dark';
         setThemeState(baseTheme);
         applyThemeToDOM(savedUserTheme, baseTheme);
-        localStorage.setItem('dolphin_theme_mode', JSON.stringify(savedUserTheme));
-        localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+        saveToStorage('dolphin_theme_mode', savedUserTheme);
+        saveToStorage('pm_theme', baseTheme);
       }
     }
   }, [currentUser?.id]);
@@ -513,13 +539,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const baseTheme = isLight ? 'light' : 'dark';
         setThemeState(baseTheme);
         applyThemeToDOM(savedUserTheme, baseTheme);
-        localStorage.setItem('dolphin_theme_mode', JSON.stringify(savedUserTheme));
-        localStorage.setItem('pm_theme', JSON.stringify(baseTheme));
+        saveToStorage('dolphin_theme_mode', savedUserTheme);
+        saveToStorage('pm_theme', baseTheme);
       }
     }
     try {
       sessionStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
-      localStorage.setItem('dolphin_is_authenticated', JSON.stringify(authStatus));
+      saveToStorage('dolphin_is_authenticated', authStatus);
     } catch (e) {
       console.warn('Failed to save auth state to storage', e);
     }
@@ -529,7 +555,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       sessionStorage.removeItem('dolphin_is_authenticated');
       localStorage.removeItem('dolphin_is_authenticated');
-      localStorage.setItem('dolphin_is_authenticated', 'false');
+      saveToStorage('dolphin_is_authenticated', false);
     } catch (e) {
       console.warn('Logout error', e);
     }
@@ -648,7 +674,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         const updatedList = Array.from(userMap.values());
-        localStorage.setItem('dolphin_users', JSON.stringify(updatedList));
+        saveToStorage('dolphin_users', updatedList);
         return updatedList;
       });
 
@@ -656,7 +682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const matchedRemote = validRemote.find((ru) => ru.id === currentUser.id);
         if (matchedRemote?.theme) {
           const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
-          localStorage.setItem(userThemeKey, JSON.stringify(matchedRemote.theme));
+          saveToStorage(userThemeKey, matchedRemote.theme);
           setDolphinThemeState(matchedRemote.theme);
           const isLight = matchedRemote.theme === 'light';
           const baseTheme = isLight ? 'light' : 'dark';
@@ -717,66 +743,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Auto-sync state to localStorage for 100% data preservation
   useEffect(() => {
-    localStorage.setItem('dolphin_companies', JSON.stringify(companies));
+    saveToStorage('dolphin_companies', companies);
   }, [companies]);
 
   // Auto-sync state to localStorage for 100% data preservation
   useEffect(() => {
-    localStorage.setItem('dolphin_projects', JSON.stringify(projects));
+    saveToStorage('dolphin_projects', projects);
   }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_project_templates', JSON.stringify(projectTemplates));
+    saveToStorage('dolphin_project_templates', projectTemplates);
   }, [projectTemplates]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_tasks', JSON.stringify(tasks));
+    saveToStorage('dolphin_tasks', tasks);
   }, [tasks]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_subtasks', JSON.stringify(subtasks));
+    saveToStorage('dolphin_subtasks', subtasks);
   }, [subtasks]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_dependencies', JSON.stringify(dependencies));
+    saveToStorage('dolphin_dependencies', dependencies);
   }, [dependencies]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_files', JSON.stringify(files));
+    saveToStorage('dolphin_files', files);
   }, [files]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_time_entries', JSON.stringify(timeEntries));
+    saveToStorage('dolphin_time_entries', timeEntries);
   }, [timeEntries]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_custom_fields', JSON.stringify(customFields));
+    saveToStorage('dolphin_custom_fields', customFields);
   }, [customFields]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_logs', JSON.stringify(activityLogs));
+    saveToStorage('dolphin_logs', activityLogs);
   }, [activityLogs]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_users', JSON.stringify(users));
+    saveToStorage('dolphin_users', users);
   }, [users]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('dolphin_current_user', JSON.stringify(currentUser));
+      saveToStorage('dolphin_current_user', currentUser);
     }
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_automations', JSON.stringify(automations));
+    saveToStorage('dolphin_automations', automations);
   }, [automations]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_emails', JSON.stringify(emailThreads));
+    saveToStorage('dolphin_emails', emailThreads);
   }, [emailThreads]);
 
   useEffect(() => {
-    localStorage.setItem('dolphin_email_config', JSON.stringify(emailConfig));
+    saveToStorage('dolphin_email_config', emailConfig);
   }, [emailConfig]);
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -875,7 +901,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (activeCompany.id === id && remaining.length > 0) {
       setActiveCompany(remaining[0]);
-      localStorage.setItem('dolphin_active_company', JSON.stringify(remaining[0]));
+      saveToStorage('dolphin_active_company', remaining[0]);
     }
 
     if (compToDelete) {
@@ -1039,7 +1065,7 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
         user: emailConfig.username,
         pass: emailConfig.appToken,
         fromEmail: emailConfig.email,
-        secure: emailConfig.useSSL
+        secure: emailConfig.outgoingPort === 465 ? true : (emailConfig.outgoingPort === 587 ? false : Boolean(emailConfig.useSSL))
       }
     }).catch((err) => console.warn('Background email dispatch note:', err));
 
@@ -1194,14 +1220,14 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     // Save ID to deleted list in state and localStorage
     setDeletedUserIds((prev) => {
       const next = prev.includes(userId) ? prev : [...prev, userId];
-      localStorage.setItem('dolphin_deleted_user_ids', JSON.stringify(next));
+      saveToStorage('dolphin_deleted_user_ids', next);
       return next;
     });
 
     // Update users state and localStorage
     setUsers((prev) => {
       const updated = prev.filter((x) => x.id !== userId);
-      localStorage.setItem('dolphin_users', JSON.stringify(updated));
+      saveToStorage('dolphin_users', updated);
       return updated;
     });
 
@@ -2699,7 +2725,7 @@ Log into your workspace dashboard to review the task details.`,
     });
 
     if (overdueTasks.length === 0) {
-      localStorage.setItem('dolphin_last_daily_overdue_check_date', todayStr);
+      saveToStorage('dolphin_last_daily_overdue_check_date', todayStr);
       return { success: true, count: 0, emailsSent: 0, message: 'No overdue tasks found today.' };
     }
 
@@ -2760,7 +2786,7 @@ Please log into your workspace dashboard to update task status or adjust target 
       emailsSent++;
     });
 
-    localStorage.setItem('dolphin_last_daily_overdue_check_date', todayStr);
+    saveToStorage('dolphin_last_daily_overdue_check_date', todayStr);
     logActivity('executed daily overdue tasks email alert', `Dispatched ${emailsSent} overdue notification email(s) for ${overdueTasks.length} overdue task(s)`, 'system');
 
     return {

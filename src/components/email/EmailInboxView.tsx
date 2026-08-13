@@ -308,8 +308,11 @@ Your corporate email dispatch pipeline is fully operational!`,
     if (!composeTo.trim() || !composeSubject.trim() || !composeBody.trim()) return;
 
     composeNewEmail({
+      senderName: currentUser?.name || 'Administrator',
+      senderEmail: currentUser?.email || 'pawan.kumar@dolphingroup.ae',
       recipientEmail: composeTo.trim(),
       subject: composeSubject.trim(),
+      snippet: composeBody.trim().substring(0, 120),
       body: composeBody.trim(),
       linkedTaskId: composeLinkedTaskId || undefined
     });

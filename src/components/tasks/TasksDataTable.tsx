@@ -31,7 +31,10 @@ import {
   UserPlus,
   RefreshCw,
   Check,
-  Eye
+  Eye,
+  Pencil,
+  FolderKanban,
+  ListFilter
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Project, User } from '../../types';
@@ -61,6 +64,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
     subtasks,
     updateTask,
     deleteTask,
+    addListToProject,
     seedDemoTasksForProject,
     selectedProjectId,
     selectedListFilter,
@@ -92,11 +96,17 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
 
+  // Inline description editing state
+  const [editingDescTaskId, setEditingDescTaskId] = useState<string | null>(null);
+  const [editingDescValue, setEditingDescValue] = useState<string>('');
+
   // Bulk action confirmation dialogs / states
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkAssigneeMenu, setShowBulkAssigneeMenu] = useState(false);
   const [showBulkStatusMenu, setShowBulkStatusMenu] = useState(false);
   const [showBulkPriorityMenu, setShowBulkPriorityMenu] = useState(false);
+  const [showBulkListMenu, setShowBulkListMenu] = useState(false);
+  const [bulkListInput, setBulkListInput] = useState('');
   const [bulkActionToast, setBulkActionToast] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -143,8 +153,12 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
       }
 
       // List filter
-      if (selectedListFilter && t.listName !== selectedListFilter) {
-        return false;
+      if (selectedListFilter) {
+        if (selectedListFilter === '__root__') {
+          if (t.listName && t.listName.trim() !== '') return false;
+        } else if (t.listName !== selectedListFilter) {
+          return false;
+        }
       }
 
       // Status Filter
@@ -343,6 +357,23 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
     });
     showToast(`Assigned ${count} selected tasks to ${assigneeUser?.name || 'user'}!`);
     setShowBulkAssigneeMenu(false);
+  };
+
+  const handleBulkUpdateList = (targetList: string) => {
+    if (selectedTaskIds.length === 0) return;
+    const trimmed = targetList.trim();
+    let count = 0;
+    selectedTaskIds.forEach((id) => {
+      const task = tasks.find((t) => t.id === id);
+      updateTask(id, { listName: trimmed || undefined });
+      if (trimmed && task?.projectId) {
+        addListToProject(task.projectId, trimmed);
+      }
+      count++;
+    });
+    showToast(`Moved ${count} selected tasks to list "${trimmed || 'General Tasks'}"!`);
+    setShowBulkListMenu(false);
+    setBulkListInput('');
   };
 
   const handleBulkDelete = () => {
@@ -639,6 +670,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                   setShowBulkAssigneeMenu(!showBulkAssigneeMenu);
                   setShowBulkStatusMenu(false);
                   setShowBulkPriorityMenu(false);
+                  setShowBulkListMenu(false);
                 }}
                 className="px-3.5 py-2 rounded-xl bg-[#1A2634] hover:bg-[#233549] border border-[#233549] text-slate-200 font-bold text-xs transition-all flex items-center gap-1.5 active:scale-95"
               >
@@ -662,6 +694,74 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                       </div>
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Quick Action: Move to List */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowBulkListMenu(!showBulkListMenu);
+                  setShowBulkStatusMenu(false);
+                  setShowBulkPriorityMenu(false);
+                  setShowBulkAssigneeMenu(false);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-[#1A2634] hover:bg-[#233549] border border-[#3BC0BB]/40 text-[#3BC0BB] font-bold text-xs transition-all flex items-center gap-1.5 active:scale-95"
+              >
+                <FolderKanban className="w-4 h-4 text-[#3BC0BB]" />
+                <span>Move to List</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {showBulkListMenu && (
+                <div className="absolute right-0 top-full mt-2 w-64 rounded-xl bg-[#16222F] border border-[#233549] shadow-2xl p-2 z-40 space-y-2 animate-in fade-in">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">
+                    Select Target List
+                  </div>
+
+                  {/* Option: General Tasks */}
+                  <button
+                    onClick={() => handleBulkUpdateList('')}
+                    className="w-full text-left px-2.5 py-1.5 text-xs font-bold text-slate-300 hover:bg-[#0D1520] hover:text-white rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <span>📂 General Tasks</span>
+                  </button>
+
+                  {/* Existing Lists */}
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {Array.from<string>(new Set(projects.flatMap((p) => p.lists || []))).map((listName) => (
+                      <button
+                        key={listName}
+                        onClick={() => handleBulkUpdateList(listName)}
+                        className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-200 hover:bg-[#3BC0BB]/20 hover:text-[#3BC0BB] rounded-lg transition-colors flex items-center gap-2"
+                      >
+                        <ListFilter className="w-3.5 h-3.5 text-[#3BC0BB]" />
+                        <span className="truncate">{listName}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Create New List Inline */}
+                  <div className="pt-2 border-t border-[#233549] space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 block px-1">Or Create New List:</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="New list name..."
+                        value={bulkListInput}
+                        onChange={(e) => setBulkListInput(e.target.value)}
+                        className="w-full bg-[#0D1520] border border-[#3BC0BB] text-white text-xs px-2 py-1 rounded-lg focus:outline-none"
+                      />
+                      <button
+                        onClick={() => handleBulkUpdateList(bulkListInput)}
+                        disabled={!bulkListInput.trim()}
+                        className="px-2.5 py-1 bg-[#3BC0BB] disabled:opacity-50 text-slate-950 font-bold text-xs rounded-lg hover:bg-[#32a8a4] transition-all shrink-0"
+                      >
+                        Move
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -812,6 +912,9 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                   </div>
                 </th>
 
+                {/* List Location Column */}
+                <th className="p-3.5 w-36">List</th>
+
                 {/* Due Date Column */}
                 <th
                   onClick={() => handleSort('dueDate')}
@@ -937,9 +1040,6 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                       <td className="p-3.5">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono text-[10px] font-bold text-[#3BC0BB] px-1.5 py-0.5 rounded bg-[#3BC0BB]/10 border border-[#3BC0BB]/20 shrink-0">
-                              {t.id.replace('task_', 'T-')}
-                            </span>
                             <span
                               className={`font-bold transition-colors truncate max-w-md ${
                                 t.status === 'Done'
@@ -958,11 +1058,72 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                             )}
                           </div>
 
-                          {/* Description subtext if title was generic or description exists */}
-                          {getTaskSubtext(t) && (
-                            <p className="text-[11px] text-slate-400 truncate max-w-lg">
-                              {getTaskSubtext(t)}
-                            </p>
+                          {/* Task Description & Edit Option */}
+                          {editingDescTaskId === t.id ? (
+                            <div className="flex items-center gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={editingDescValue}
+                                onChange={(e) => setEditingDescValue(e.target.value)}
+                                placeholder="Enter task description..."
+                                autoFocus
+                                className="px-2 py-0.5 text-xs rounded bg-[#0D1520] border border-[#3BC0BB] text-slate-100 focus:outline-none w-full max-w-md font-sans"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateTask(t.id, { description: editingDescValue.trim() });
+                                    setEditingDescTaskId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingDescTaskId(null);
+                                  }
+                                }}
+                              />
+                              <button
+                                onClick={() => {
+                                  updateTask(t.id, { description: editingDescValue.trim() });
+                                  setEditingDescTaskId(null);
+                                }}
+                                className="p-1 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 shrink-0"
+                                title="Save description"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingDescTaskId(null)}
+                                className="p-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 shrink-0"
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group/desc mt-0.5 max-w-lg">
+                              <p
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingDescTaskId(t.id);
+                                  setEditingDescValue(getTaskSubtext(t) || (t.description && !/^imported from csv/i.test(t.description) ? t.description : ''));
+                                }}
+                                className={`text-[11px] truncate cursor-pointer transition-colors ${
+                                  getTaskSubtext(t)
+                                    ? isLight ? 'text-slate-600 hover:text-[#0773BB]' : 'text-slate-400 hover:text-[#3BC0BB]'
+                                    : 'italic text-slate-500 text-[10px] hover:text-slate-300'
+                                }`}
+                                title="Click to edit task description"
+                              >
+                                {getTaskSubtext(t) || '+ Add description...'}
+                              </p>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingDescTaskId(t.id);
+                                  setEditingDescValue(getTaskSubtext(t) || (t.description && !/^imported from csv/i.test(t.description) ? t.description : ''));
+                                }}
+                                className="p-0.5 text-slate-500 hover:text-[#3BC0BB] opacity-60 group-hover/desc:opacity-100 transition-opacity"
+                                title="Edit task description"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            </div>
                           )}
 
                           {/* Tags & Subtasks count */}
@@ -1043,6 +1204,38 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                         ) : (
                           <span className="text-[10px] text-slate-500">General Workspace</span>
                         )}
+                      </td>
+
+                      {/* List Location Selector Dropdown */}
+                      <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={t.listName || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '__new__') {
+                              const customName = prompt('Enter new list name for ' + (proj?.title || 'space') + ':');
+                              if (customName?.trim()) {
+                                if (t.projectId) addListToProject(t.projectId, customName.trim());
+                                updateTask(t.id, { listName: customName.trim() });
+                              }
+                            } else {
+                              updateTask(t.id, { listName: val || undefined });
+                            }
+                          }}
+                          className={`w-full text-[11px] font-semibold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-all ${
+                            t.listName
+                              ? 'bg-[#3BC0BB]/10 text-[#3BC0BB] border-[#3BC0BB]/40 hover:bg-[#3BC0BB]/20'
+                              : 'bg-slate-800/40 text-slate-400 border-slate-700 hover:text-slate-200'
+                          }`}
+                        >
+                          <option value="" className="bg-[#0D1520] text-slate-300">📂 General Tasks</option>
+                          {proj && (proj.lists || []).map((l) => (
+                            <option key={l} value={l} className="bg-[#0D1520] text-slate-100">
+                              📋 {l}
+                            </option>
+                          ))}
+                          <option value="__new__" className="bg-[#0D1520] text-[#3BC0BB] font-bold">+ Create List...</option>
+                        </select>
                       </td>
 
                       {/* Due Date */}

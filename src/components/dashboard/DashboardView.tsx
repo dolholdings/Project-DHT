@@ -49,6 +49,7 @@ import { calculatePriorityScore } from '../../lib/priorityScore';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { getStatusBadgeStyle } from '../../lib/statusUtils';
 import { LiveActivityStream } from './LiveActivityStream';
+import { RecentActivityPanel } from './RecentActivityPanel';
 import { StatCardTooltip } from './StatCardTooltip';
 import { BudgetTrackingWidget } from './BudgetTrackingWidget';
 import { TaskCompletionTrendWidget } from './TaskCompletionTrendWidget';
@@ -258,12 +259,20 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     order: 12,
   },
   {
+    id: 'recent_activity',
+    name: 'Recent Team Activity Timeline',
+    description: 'Real-time timeline of team actions including task status changes, comments, and document updates.',
+    category: 'Overview',
+    pinned: true,
+    order: 13,
+  },
+  {
     id: 'activity_stream',
     name: 'Real-Time Activity Audit',
     description: 'Live audit trail showing recent team actions, updates, and timestamps.',
     category: 'Analytics',
     pinned: true,
-    order: 13,
+    order: 14,
   },
   {
     id: 'domain_whitelist',
@@ -271,7 +280,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Approved corporate email domain whitelist for workspace access control.',
     category: 'Security',
     pinned: true,
-    order: 14,
+    order: 15,
   },
 ];
 
@@ -1772,7 +1781,14 @@ export const DashboardView: React.FC = () => {
             </div>
           )}
 
-          {/* WIDGET 6: REAL-TIME ACTIVITY AUDIT STREAM */}
+          {/* WIDGET 6: RECENT TEAM ACTIVITY TIMELINE PANEL */}
+          {isWidgetPinned('recent_activity') && (
+            <div className="animate-in fade-in">
+              <RecentActivityPanel />
+            </div>
+          )}
+
+          {/* WIDGET 7: REAL-TIME ACTIVITY AUDIT STREAM */}
           {isWidgetPinned('activity_stream') && (
             <div className="animate-in fade-in">
               <LiveActivityStream />

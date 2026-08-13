@@ -71,7 +71,11 @@ export const CalendarView: React.FC = () => {
 
   const updateMeetings = (newMeetings: Meeting[]) => {
     setMeetings(newMeetings);
-    localStorage.setItem('dolphin_calendar_meetings', JSON.stringify(newMeetings));
+    try {
+      localStorage.setItem('dolphin_calendar_meetings', JSON.stringify(newMeetings));
+    } catch (e) {
+      console.warn('Failed to save calendar meetings to localStorage:', e);
+    }
   };
 
   // Schedule Modal State

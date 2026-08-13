@@ -31,6 +31,7 @@ import { SessionTimeoutManager } from './components/auth/SessionTimeoutManager';
 import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
 import { QuickAddFAB } from './components/common/QuickAddFAB';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 const MainLayout: React.FC = () => {
   const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser, isAuthenticated } = useApp();
@@ -116,24 +117,26 @@ const MainLayout: React.FC = () => {
 
         {/* Active View Router */}
         <main className="flex-1 pb-12 overflow-y-auto">
-          {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'projects' && <ProjectsView />}
-          {activeTab === 'tasks' && <TasksView />}
-          {activeTab === 'gantt' && <GanttView />}
-          {activeTab === 'timeline' && <TimelineView />}
-          {activeTab === 'calendar' && <CalendarView />}
-          {activeTab === 'kanban' && <KanbanView />}
-          {activeTab === 'workload' && <WorkloadView />}
-          {activeTab === 'chat' && <TeamChatView />}
-          {activeTab === 'email' && <EmailInboxView />}
-          {activeTab === 'files' && <FilesView />}
-          {activeTab === 'reports' && <ReportsView />}
-          {activeTab === 'automations' && <AutomationsView />}
-          {activeTab === 'users' && <UsersView />}
-          {activeTab === 'architecture' && <ArchitectureView />}
-          {activeTab === 'workspace' && <WorkspaceManager />}
-          {activeTab === 'settings' && <SettingsView />}
-          {activeTab === 'admin' && <AdminView />}
+          <ErrorBoundary>
+            {activeTab === 'dashboard' && <DashboardView />}
+            {activeTab === 'projects' && <ProjectsView />}
+            {activeTab === 'tasks' && <TasksView />}
+            {activeTab === 'gantt' && <GanttView />}
+            {activeTab === 'timeline' && <TimelineView />}
+            {activeTab === 'calendar' && <CalendarView />}
+            {activeTab === 'kanban' && <KanbanView />}
+            {activeTab === 'workload' && <WorkloadView />}
+            {activeTab === 'chat' && <TeamChatView />}
+            {activeTab === 'email' && <EmailInboxView />}
+            {activeTab === 'files' && <FilesView />}
+            {activeTab === 'reports' && <ReportsView />}
+            {activeTab === 'automations' && <AutomationsView />}
+            {activeTab === 'users' && <UsersView />}
+            {activeTab === 'architecture' && <ArchitectureView />}
+            {activeTab === 'workspace' && <WorkspaceManager />}
+            {activeTab === 'settings' && <SettingsView />}
+            {activeTab === 'admin' && <AdminView />}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -170,8 +173,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <ErrorBoundary fallbackTitle="Application Interface Error">
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </ErrorBoundary>
   );
 }

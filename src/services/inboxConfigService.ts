@@ -79,7 +79,7 @@ export function generateDefaultUserInboxConfig(user: { id: string; email: string
     incomingPort: 993,
     outgoingHost,
     outgoingPort: 587,
-    useSSL: true,
+    useSSL: false,
     username: user.email,
     appToken: '••••••••••••••••',
     isConnected: true,

@@ -99,14 +99,7 @@ export const ProjectSpaceDashboard: React.FC<ProjectSpaceDashboardProps> = ({
     e.preventDefault();
     if (newListTitle.trim()) {
       addListToProject(currentProject.id, newListTitle.trim());
-      logActivity({
-        userId: manager?.id || 'usr_1',
-        userName: manager?.name || 'Manager',
-        action: 'Created List',
-        details: `Added new List "${newListTitle.trim()}" in Space "${currentProject.title}"`,
-        category: 'System Activity',
-        relatedProjectId: currentProject.id
-      });
+      logActivity('Created List', `List "${newListTitle.trim()}" in Space "${currentProject.title}"`, 'project', currentProject.id);
       setNewListTitle('');
       setShowAddListInput(false);
     }

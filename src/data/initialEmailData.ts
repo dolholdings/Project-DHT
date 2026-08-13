@@ -7,7 +7,7 @@ export const INITIAL_EMAIL_CONFIG: EmailConfig = {
   incomingPort: 993,
   outgoingHost: 'smtp.office365.com',
   outgoingPort: 587,
-  useSSL: true,
+  useSSL: false,
   username: 'pawan.kumar@dolphingroup.ae',
   appToken: '••••••••••••••••',
   isConnected: true,

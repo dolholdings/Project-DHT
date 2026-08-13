@@ -47,7 +47,9 @@ import {
   Download,
   Sliders,
   FileSpreadsheet,
-  Table
+  Table,
+  FolderKanban,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
@@ -69,6 +71,7 @@ export const TasksView: React.FC = () => {
     addTask,
     updateTask,
     deleteTask,
+    addListToProject,
     addSubtask,
     toggleSubtask,
     addDependency,
@@ -146,7 +149,12 @@ export const TasksView: React.FC = () => {
   const [selectedPredecessorIds, setSelectedPredecessorIds] = useState<string[]>([]);
   const [selectedSuccessorIds, setSelectedSuccessorIds] = useState<string[]>([]);
 
-  // Drawer dependency linking state
+  // Drawer list management state
+  const [drawerSelectedList, setDrawerSelectedList] = useState<string>('');
+  const [drawerNewListInput, setDrawerNewListInput] = useState<string>('');
+  const [newListName, setNewListName] = useState<string>('');
+  const [editingDrawerDesc, setEditingDrawerDesc] = useState<boolean>(false);
+  const [drawerDescValue, setDrawerDescValue] = useState<string>('');
   const [newPredTaskId, setNewPredTaskId] = useState('');
   const [newSuccTaskId, setNewSuccTaskId] = useState('');
   const [timelineToast, setTimelineToast] = useState<string | null>(null);
@@ -378,7 +386,13 @@ export const TasksView: React.FC = () => {
   // Filter tasks
   const filteredTasks = accessibleTasks.filter((t) => {
     if (selectedProjectId && t.projectId !== selectedProjectId) return false;
-    if (selectedListFilter && t.listName !== selectedListFilter) return false;
+    if (selectedListFilter) {
+      if (selectedListFilter === '__root__') {
+        if (t.listName && t.listName.trim() !== '') return false;
+      } else if (t.listName !== selectedListFilter) {
+        return false;
+      }
+    }
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const matchTitle = t.title.toLowerCase().includes(q);
@@ -519,6 +533,11 @@ export const TasksView: React.FC = () => {
     const taskTags = ['ClickUp', 'Task'];
     if (recurrenceConfig) taskTags.push('Recurring');
 
+    const finalListName = newListName || selectedListFilter || undefined;
+    if (finalListName) {
+      addListToProject(newProjectId, finalListName);
+    }
+
     const createdTask = addTask({
       projectId: newProjectId,
       companyId: proj ? proj.companyId : 'comp_1',
@@ -532,6 +551,7 @@ export const TasksView: React.FC = () => {
       dueDate: newDueDate,
       estimatedHours: Number(newEstHours),
       tags: taskTags,
+      listName: finalListName,
       predecessors: selectedPredecessorIds,
       successors: selectedSuccessorIds,
       dependencies: selectedPredecessorIds,
@@ -814,6 +834,105 @@ export const TasksView: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Space List Navigation Tabs Bar */}
+      <div className={`p-2 rounded-2xl border flex items-center gap-1.5 overflow-x-auto text-xs font-semibold scrollbar-none ${
+        theme === 'light' ? 'bg-slate-100/80 border-slate-200' : 'bg-[#121B26] border-[#233549]'
+      }`}>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 shrink-0 flex items-center gap-1">
+          <FolderKanban className="w-3.5 h-3.5 text-[#3BC0BB]" />
+          <span>Lists:</span>
+        </span>
+
+        {/* Tab 1: All Space Tasks */}
+        <button
+          onClick={() => setSelectedListFilter(null)}
+          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+            selectedListFilter === null
+              ? theme === 'light'
+                ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                : 'bg-[#3BC0BB] text-slate-950 font-extrabold shadow-xs'
+              : theme === 'light'
+              ? 'text-slate-700 hover:bg-slate-200'
+              : 'text-slate-300 hover:bg-[#16222F]'
+          }`}
+        >
+          <span>All Tasks in Space</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/20">
+            {accessibleTasks.filter((t) => !selectedProjectId || t.projectId === selectedProjectId).length}
+          </span>
+        </button>
+
+        {/* Tab 2: General Tasks */}
+        <button
+          onClick={() => setSelectedListFilter('__root__')}
+          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+            selectedListFilter === '__root__'
+              ? theme === 'light'
+                ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                : 'bg-[#3BC0BB] text-slate-950 font-extrabold shadow-xs'
+              : theme === 'light'
+              ? 'text-slate-700 hover:bg-slate-200'
+              : 'text-slate-300 hover:bg-[#16222F]'
+          }`}
+        >
+          <span>📂 General Tasks</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/20">
+            {accessibleTasks.filter((t) => (!selectedProjectId || t.projectId === selectedProjectId) && (!t.listName || t.listName.trim() === '')).length}
+          </span>
+        </button>
+
+        {/* Tabs for each List in the current space / projects */}
+        {(selectedProjectId
+          ? (projects.find((p) => p.id === selectedProjectId)?.lists || [])
+          : Array.from(new Set(projects.flatMap((p) => p.lists || [])))
+        ).map((listName) => {
+          const count = accessibleTasks.filter(
+            (t) => (!selectedProjectId || t.projectId === selectedProjectId) && t.listName === listName
+          ).length;
+          const isActive = selectedListFilter === listName;
+
+          return (
+            <button
+              key={listName}
+              onClick={() => setSelectedListFilter(listName)}
+              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
+                isActive
+                  ? theme === 'light'
+                    ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                    : 'bg-[#3BC0BB] text-slate-950 font-extrabold shadow-xs'
+                  : theme === 'light'
+                  ? 'text-slate-700 hover:bg-slate-200'
+                  : 'text-slate-300 hover:bg-[#16222F]'
+              }`}
+            >
+              <span>📋 {listName}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/20">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Add List Button */}
+        <button
+          type="button"
+          onClick={() => {
+            const targetSpaceId = selectedProjectId || projects[0]?.id;
+            if (!targetSpaceId) return;
+            const newLName = prompt('Enter name for new list in space:');
+            if (newLName?.trim()) {
+              addListToProject(targetSpaceId, newLName.trim());
+              setSelectedListFilter(newLName.trim());
+            }
+          }}
+          className="px-2.5 py-1.5 rounded-xl border border-dashed border-[#3BC0BB]/50 text-[#3BC0BB] hover:bg-[#3BC0BB]/10 transition-all flex items-center gap-1 text-xs shrink-0 font-bold ml-auto"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>New List</span>
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* TASK VIEW BODY (DATA TABLE OR GROUPED ACCORDIONS) */}
@@ -1374,6 +1493,97 @@ export const TasksView: React.FC = () => {
                 </button>
               </div>
 
+              {/* Space & List Location Routing Card */}
+              <div className="p-3.5 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <FolderKanban className="w-4 h-4 text-[#3BC0BB]" />
+                    <span>Space & List Location</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#3BC0BB]/10 text-[#3BC0BB] border border-[#3BC0BB]/30">
+                    {activeTask.listName ? `List: ${activeTask.listName}` : 'General Tasks'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {/* Space Selection */}
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-semibold mb-1">Move to Space / Project</label>
+                    <select
+                      value={activeTask.projectId}
+                      onChange={(e) => {
+                        const newPId = e.target.value;
+                        const newP = projects.find((p) => p.id === newPId);
+                        updateTask(activeTask.id, {
+                          projectId: newPId,
+                          companyId: newP?.companyId || activeTask.companyId
+                        });
+                      }}
+                      className="w-full bg-[#16222F] border border-[#233549] text-white rounded-lg px-2.5 py-1.5 font-medium focus:border-[#3BC0BB] focus:outline-none"
+                    >
+                      {projects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.title} ({p.code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* List Selection */}
+                  <div>
+                    <label className="block text-slate-400 text-[11px] font-semibold mb-1">Move to List within Space</label>
+                    <select
+                      value={drawerSelectedList === '__new__' ? '__new__' : (activeTask.listName || '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '__new__') {
+                          setDrawerSelectedList('__new__');
+                        } else {
+                          setDrawerSelectedList(val);
+                          updateTask(activeTask.id, { listName: val || undefined });
+                        }
+                      }}
+                      className="w-full bg-[#16222F] border border-[#233549] text-white rounded-lg px-2.5 py-1.5 font-medium focus:border-[#3BC0BB] focus:outline-none"
+                    >
+                      <option value="">-- General / Main List --</option>
+                      {(projects.find((p) => p.id === activeTask.projectId)?.lists || []).map((l) => (
+                        <option key={l} value={l}>
+                          List: "{l}"
+                        </option>
+                      ))}
+                      <option value="__new__">+ Create New List in Space...</option>
+                    </select>
+                  </div>
+                </div>
+
+                {drawerSelectedList === '__new__' && (
+                  <div className="flex items-center gap-2 pt-1 animate-in fade-in">
+                    <input
+                      type="text"
+                      placeholder="Type new list name (e.g. Website Dev, SEO & Ads)..."
+                      value={drawerNewListInput}
+                      onChange={(e) => setDrawerNewListInput(e.target.value)}
+                      className="flex-1 bg-[#16222F] border border-[#3BC0BB] text-white rounded-lg px-2.5 py-1.5 text-xs focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = drawerNewListInput.trim();
+                        if (trimmed) {
+                          addListToProject(activeTask.projectId, trimmed);
+                          updateTask(activeTask.id, { listName: trimmed });
+                          setDrawerSelectedList(trimmed);
+                          setDrawerNewListInput('');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-[#3BC0BB] text-slate-950 font-bold text-xs hover:bg-[#32a8a4] transition-all shrink-0"
+                    >
+                      Create & Move Task
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Calculated Priority Score Gauge Card */}
               <div className="p-4 rounded-xl bg-[#0D1520] border border-[#233549] space-y-3">
                 <div className="flex items-center justify-between">
@@ -1502,10 +1712,56 @@ export const TasksView: React.FC = () => {
 
             {/* Description */}
             <div className="text-xs space-y-1">
-              <span className="text-slate-400 font-semibold">Description</span>
-              <p className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] text-slate-300 leading-relaxed">
-                {activeTask.description}
-              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 font-semibold">Description</span>
+                {!editingDrawerDesc && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrawerDescValue(activeTask.description || '');
+                      setEditingDrawerDesc(true);
+                    }}
+                    className="text-[10px] text-[#3BC0BB] hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit Description
+                  </button>
+                )}
+              </div>
+              {editingDrawerDesc ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={drawerDescValue}
+                    onChange={(e) => setDrawerDescValue(e.target.value)}
+                    rows={3}
+                    className="w-full p-2.5 rounded-xl bg-[#0D1520] border border-[#3BC0BB] text-slate-200 text-xs focus:outline-none resize-none"
+                    placeholder="Enter task description..."
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingDrawerDesc(false)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateTask(activeTask.id, { description: drawerDescValue.trim() });
+                        setEditingDrawerDesc(false);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#3BC0BB] text-[#020712] text-xs font-extrabold hover:bg-[#32a8a4]"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] text-slate-300 leading-relaxed italic">
+                  {activeTask.description || <span className="text-slate-500 font-normal">No description provided. Click edit to add one.</span>}
+                </p>
+              )}
             </div>
 
             {/* Task Custom Fields Section */}
@@ -2042,21 +2298,53 @@ export const TasksView: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Space / Project *</label>
-                <select
-                  value={newProjectId}
-                  onChange={(e) => setNewProjectId(e.target.value)}
-                  className={`w-full rounded-xl px-3 py-2 font-medium border ${
-                    isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                  }`}
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      [{p.code}] {p.title}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Space / Project *</label>
+                  <select
+                    value={newProjectId}
+                    onChange={(e) => setNewProjectId(e.target.value)}
+                    className={`w-full rounded-xl px-3 py-2 font-medium border ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  >
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        [{p.code}] {p.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>List within Space</label>
+                  <select
+                    value={newListName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__new__') {
+                        const customName = prompt('Enter name for new list in space:');
+                        if (customName?.trim()) {
+                          addListToProject(newProjectId, customName.trim());
+                          setNewListName(customName.trim());
+                        }
+                      } else {
+                        setNewListName(val);
+                      }
+                    }}
+                    className={`w-full rounded-xl px-3 py-2 font-medium border ${
+                      isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  >
+                    <option value="">-- General / Main List --</option>
+                    {(projects.find((p) => p.id === newProjectId)?.lists || []).map((l) => (
+                      <option key={l} value={l}>
+                        List: "{l}"
+                      </option>
+                    ))}
+                    <option value="__new__">+ Create New List...</option>
+                  </select>
+                </div>
               </div>
 
               <div>

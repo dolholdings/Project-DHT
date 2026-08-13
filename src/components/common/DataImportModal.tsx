@@ -214,6 +214,7 @@ export const DataImportModal: React.FC<DataImportModalProps> = ({
     addCompany,
     addProject,
     addTask,
+    addListToProject,
     activeCompany,
     setActiveCompany,
     setSelectedProjectId,
@@ -634,6 +635,10 @@ export const DataImportModal: React.FC<DataImportModalProps> = ({
           listName,
           tags
         });
+
+        if (listName) {
+          addListToProject(finalProjectId, listName);
+        }
 
         importedCount++;
       });

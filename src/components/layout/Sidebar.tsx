@@ -749,50 +749,81 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   </div>
                                 </div>
 
-                                {/* Lists inside this Space */}
+                                 {/* Lists inside this Space */}
                                 {isExpanded && (
                                   <div className="pl-4 space-y-0.5 border-l-2 border-slate-200/40 dark:border-slate-800/60 ml-2">
-                                    {lists.length === 0 ? (
-                                      <div className="text-[11px] text-slate-500 italic py-1 px-2">No lists yet</div>
-                                    ) : (
-                                      lists.map((listName) => {
-                                        const isListSelected =
-                                          selectedProjectId === p.id && selectedListFilter === listName;
-                                        const listTaskCount = spaceTasks.filter(
-                                          (t) => t.listName === listName
-                                        ).length;
+                                    {/* Space Root / Unassigned Tasks */}
+                                    {(() => {
+                                      const rootTaskCount = spaceTasks.filter((t) => !t.listName || t.listName.trim() === '').length;
+                                      const isRootSelected = selectedProjectId === p.id && selectedListFilter === '__root__';
+                                      return (
+                                        <button
+                                          onClick={() => handleListSelect(p.id, '__root__')}
+                                          className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-[11px] transition-all ${
+                                            isRootSelected
+                                              ? theme === 'light'
+                                                ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                                                : 'bg-[#3BC0BB] text-slate-950 font-bold shadow-xs'
+                                              : theme === 'light'
+                                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
+                                              : 'text-slate-400 hover:text-slate-100 hover:bg-[#16222F]'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-1.5 truncate">
+                                            <FolderKanban className="w-3 h-3 shrink-0 opacity-80" />
+                                            <span className="truncate italic">General Tasks</span>
+                                          </div>
+                                          <span className={`text-[10px] font-mono px-1 rounded ${
+                                            isRootSelected
+                                              ? 'bg-black/20 text-white'
+                                              : theme === 'light'
+                                              ? 'bg-slate-200/60 text-slate-600'
+                                              : 'bg-slate-800 text-slate-400'
+                                          }`}>
+                                            {rootTaskCount}
+                                          </span>
+                                        </button>
+                                      );
+                                    })()}
 
-                                        return (
-                                          <button
-                                            key={listName}
-                                            onClick={() => handleListSelect(p.id, listName)}
-                                            className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-[11px] transition-all ${
-                                              isListSelected
-                                                ? theme === 'light'
-                                                  ? 'bg-[#0D9488] text-white font-bold shadow-xs'
-                                                  : 'bg-[#3BC0BB] text-slate-950 font-bold shadow-xs'
-                                                : theme === 'light'
-                                                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
-                                                : 'text-slate-400 hover:text-slate-100 hover:bg-[#16222F]'
-                                            }`}
-                                          >
-                                            <div className="flex items-center gap-1.5 truncate">
-                                              <ListTodo className="w-3 h-3 shrink-0 opacity-80" />
-                                              <span className="truncate">{listName}</span>
-                                            </div>
-                                            <span className={`text-[10px] font-mono px-1 rounded ${
-                                              isListSelected
-                                                ? 'bg-black/20 text-white'
-                                                : theme === 'light'
-                                                ? 'bg-slate-200/60 text-slate-600'
-                                                : 'bg-slate-800 text-slate-400'
-                                            }`}>
-                                              {listTaskCount}
-                                            </span>
-                                          </button>
-                                        );
-                                      })
-                                    )}
+                                    {/* Existing Lists */}
+                                    {lists.map((listName) => {
+                                      const isListSelected =
+                                        selectedProjectId === p.id && selectedListFilter === listName;
+                                      const listTaskCount = spaceTasks.filter(
+                                        (t) => t.listName === listName
+                                      ).length;
+
+                                      return (
+                                        <button
+                                          key={listName}
+                                          onClick={() => handleListSelect(p.id, listName)}
+                                          className={`w-full flex items-center justify-between px-2 py-1 rounded-md text-[11px] transition-all ${
+                                            isListSelected
+                                              ? theme === 'light'
+                                                ? 'bg-[#0D9488] text-white font-bold shadow-xs'
+                                                : 'bg-[#3BC0BB] text-slate-950 font-bold shadow-xs'
+                                              : theme === 'light'
+                                              ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/80'
+                                              : 'text-slate-400 hover:text-slate-100 hover:bg-[#16222F]'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-1.5 truncate">
+                                            <ListTodo className="w-3 h-3 shrink-0 opacity-80" />
+                                            <span className="truncate">{listName}</span>
+                                          </div>
+                                          <span className={`text-[10px] font-mono px-1 rounded ${
+                                            isListSelected
+                                              ? 'bg-black/20 text-white'
+                                              : theme === 'light'
+                                              ? 'bg-slate-200/60 text-slate-600'
+                                              : 'bg-slate-800 text-slate-400'
+                                          }`}>
+                                            {listTaskCount}
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
 
                                     {/* Inline Add List Input or Button */}
                                     {newListSpaceId === p.id ? (
