@@ -46,6 +46,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Task, Project, TaskDependency } from '../../types';
 import { calculatePriorityScore } from '../../lib/priorityScore';
+import { getDisplayTaskTitle } from '../../lib/taskUtils';
+import { getStatusBadgeStyle } from '../../lib/statusUtils';
 import { LiveActivityStream } from './LiveActivityStream';
 import { StatCardTooltip } from './StatCardTooltip';
 import { BudgetTrackingWidget } from './BudgetTrackingWidget';
@@ -1411,7 +1413,7 @@ export const DashboardView: React.FC = () => {
                           <div className="min-w-0">
                             <TaskQuickPreviewPopover task={t} onOpenFullTask={() => setActiveTab('tasks')}>
                               <h4 className={`text-xs font-bold truncate cursor-pointer hover:underline ${isDone ? 'line-through text-slate-500' : theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                                {t.title}
+                                {getDisplayTaskTitle(t)}
                               </h4>
                             </TaskQuickPreviewPopover>
                             <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
@@ -1426,9 +1428,10 @@ export const DashboardView: React.FC = () => {
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}>
                             Score: {pScore.score} ({pScore.tier})
                           </span>
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            t.status === 'Done' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-[#0773BB]/20 text-[#3BC0BB]'
-                          }`}>
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(
+                            t.status,
+                            theme === 'light'
+                          )}`}>
                             {t.status}
                           </span>
                         </div>
@@ -1479,7 +1482,7 @@ export const DashboardView: React.FC = () => {
                           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
                           <div>
                             <TaskQuickPreviewPopover task={t} onOpenFullTask={() => setActiveTab('tasks')}>
-                              <div className={`text-xs font-bold cursor-pointer hover:underline ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.title}</div>
+                              <div className={`text-xs font-bold cursor-pointer hover:underline ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{getDisplayTaskTitle(t)}</div>
                             </TaskQuickPreviewPopover>
                             <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                               <span>Due: {t.dueDate}</span>

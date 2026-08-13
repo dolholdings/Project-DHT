@@ -35,9 +35,13 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Project, User } from '../../types';
+import { normalizeTaskStatus, getStatusBadgeStyle } from '../kanban/KanbanView';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { canEditSpace } from '../../lib/permissions';
+import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
+import { EmptyStateCard } from '../common/EmptyStateCard';
+import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 
 type SortField = 'title' | 'status' | 'priority' | 'dueDate' | 'estimatedHours' | 'projectId' | 'priorityScore' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -50,12 +54,14 @@ interface TasksDataTableProps {
 export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, selectedTaskId }) => {
   const {
     tasks,
+    addTask,
     projects,
     users,
     dependencies,
     subtasks,
     updateTask,
     deleteTask,
+    seedDemoTasksForProject,
     selectedProjectId,
     selectedListFilter,
     searchQuery: globalSearchQuery,
@@ -63,6 +69,8 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
     currentUser,
     customFields
   } = useApp();
+
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false);
 
   const isLight = theme === 'light';
 
@@ -140,7 +148,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
       }
 
       // Status Filter
-      if (statusFilter !== 'all' && t.status !== statusFilter) {
+      if (statusFilter !== 'all' && normalizeTaskStatus(t.status) !== normalizeTaskStatus(statusFilter)) {
         return false;
       }
 
@@ -846,24 +854,40 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
             <tbody className="divide-y divide-[#233549]/60">
               {paginatedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-12 text-center text-slate-400">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <SlidersHorizontal className="w-8 h-8 text-slate-500" />
-                      <p className="text-sm font-bold text-slate-300">No tasks match your filter criteria.</p>
-                      <p className="text-xs text-slate-500">Try adjusting your search keywords or status filter options.</p>
-                      <button
-                        onClick={() => {
-                          setLocalSearch('');
-                          setStatusFilter('all');
-                          setPriorityFilter('all');
-                          setAssigneeFilter('all');
-                          setProjectFilter('all');
-                        }}
-                        className="mt-2 px-3 py-1.5 rounded-xl bg-[#0773BB] text-white font-bold text-xs hover:bg-[#0773BB]/80 transition-all"
-                      >
-                        Reset All Filters
-                      </button>
-                    </div>
+                  <td colSpan={10} className="p-6">
+                    <EmptyStateCard
+                      variant="list"
+                      theme={isLight ? 'light' : 'dark'}
+                      hasActiveFilters={Boolean(localSearch || statusFilter !== 'all' || priorityFilter !== 'all' || assigneeFilter !== 'all' || projectFilter !== 'all' || globalSearchQuery)}
+                      onPrimaryAction={() => {
+                        addTask({
+                          projectId: selectedProjectId || projects[0]?.id || 'proj_1',
+                          companyId: 'comp_1',
+                          title: 'New List Deliverable',
+                          description: 'Added via Tasks Data Table view',
+                          status: 'To Do',
+                          priority: 'High',
+                          assigneeIds: [currentUser?.id || 'usr_pk'],
+                          reporterId: currentUser?.id || 'usr_1',
+                          startDate: new Date().toISOString().split('T')[0],
+                          dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
+                          estimatedHours: 10,
+                          tags: ['TaskTable', 'Deliverable']
+                        });
+                      }}
+                      primaryActionLabel="Create Deliverable Task"
+                      onSecondaryAction={() => setShowCsvImportModal(true)}
+                      secondaryActionLabel="Import Tasks (CSV)"
+                      onSeedDemoData={() => seedDemoTasksForProject(selectedProjectId || undefined)}
+                      seedDemoLabel="Load Demo Deliverables"
+                      onResetFilters={() => {
+                        setLocalSearch('');
+                        setStatusFilter('all');
+                        setPriorityFilter('all');
+                        setAssigneeFilter('all');
+                        setProjectFilter('all');
+                      }}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -925,7 +949,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                                   : 'text-white group-hover:text-[#3BC0BB]'
                               }`}
                             >
-                              {t.title}
+                              {getDisplayTaskTitle(t)}
                             </span>
                             {blocked && (
                               <span className="p-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Blocked by predecessor tasks">
@@ -933,6 +957,13 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                               </span>
                             )}
                           </div>
+
+                          {/* Description subtext if title was generic or description exists */}
+                          {getTaskSubtext(t) && (
+                            <p className="text-[11px] text-slate-400 truncate max-w-lg">
+                              {getTaskSubtext(t)}
+                            </p>
+                          )}
 
                           {/* Tags & Subtasks count */}
                           <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-400">
@@ -958,23 +989,18 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                       {/* Status Dropdown/Badge */}
                       <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={t.status}
+                          value={normalizeTaskStatus(t.status)}
                           onChange={(e) => updateTask(t.id, { status: e.target.value as TaskStatus })}
-                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border focus:outline-none cursor-pointer transition-all ${
-                            t.status === 'Done'
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
-                              : t.status === 'In Progress'
-                              ? 'bg-[#7B68EE]/15 text-[#7B68EE] border-[#7B68EE]/30 hover:bg-[#7B68EE]/25'
-                              : t.status === 'In Review'
-                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
-                              : 'bg-sky-500/15 text-sky-400 border-sky-500/30 hover:bg-sky-500/25'
-                          }`}
+                          className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border focus:outline-none cursor-pointer transition-all ${getStatusBadgeStyle(
+                            t.status,
+                            theme === 'light'
+                          )}`}
                         >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="In Review">In Review</option>
-                          <option value="Done">Done / Complete</option>
-                          <option value="Backlog">Backlog</option>
+                          <option value="To Do" className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}>To Do</option>
+                          <option value="In Progress" className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}>In Progress</option>
+                          <option value="In Review" className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}>In Review</option>
+                          <option value="Done" className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}>Done / Complete</option>
+                          <option value="Backlog" className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}>Backlog</option>
                         </select>
                       </td>
 
@@ -1149,6 +1175,13 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
           </div>
         </div>
       </div>
+
+      {showCsvImportModal && (
+        <ProjectCsvImportModal
+          projectId={selectedProjectId || projects[0]?.id || 'proj_1'}
+          onClose={() => setShowCsvImportModal(false)}
+        />
+      )}
     </div>
   );
 };

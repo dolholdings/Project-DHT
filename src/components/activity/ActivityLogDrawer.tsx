@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog, Priority, TaskStatus } from '../../types';
+import { getStatusBadgeStyle } from '../../lib/statusUtils';
 
 export interface ActivityLogDrawerProps {
   onClose: () => void;
@@ -197,12 +198,7 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({ onClose })
 
   // Get status color chip
   const getStatusBadgeClass = (statusStr: string) => {
-    const clean = statusStr.trim();
-    if (clean === 'Done' || clean === 'Completed') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
-    if (clean === 'In Progress') return 'bg-sky-500/20 text-sky-300 border-sky-500/40';
-    if (clean === 'In Review') return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-    if (clean === 'To Do' || clean === 'Backlog') return 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40';
-    return 'bg-slate-700/40 text-slate-300 border-slate-600/40';
+    return getStatusBadgeStyle(statusStr, isLight);
   };
 
   return (

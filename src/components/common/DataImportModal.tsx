@@ -25,6 +25,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { Priority, TaskStatus, Company, Project, User } from '../../types';
+import { isGenericTaskId } from '../../lib/taskUtils';
 
 export interface DataImportModalProps {
   onClose: () => void;
@@ -454,8 +455,12 @@ export const DataImportModal: React.FC<DataImportModalProps> = ({
     if (!mapping.title || rawRows.length === 0) return [];
 
     return rawRows.slice(0, 15).map((row, idx) => {
-      const title = String(row[mapping.title] || '').trim();
+      let title = String(row[mapping.title] || '').trim();
       const description = mapping.description ? String(row[mapping.description] || '').trim() : '';
+
+      if (isGenericTaskId(title) && description && !isGenericTaskId(description)) {
+        title = description;
+      }
       
       const rawStatus = mapping.status ? String(row[mapping.status] || '').toLowerCase() : '';
       let status: TaskStatus = 'To Do';
@@ -582,10 +587,14 @@ export const DataImportModal: React.FC<DataImportModalProps> = ({
       let importedCount = 0;
 
       rawRows.forEach((row, i) => {
-        const title = String(row[mapping.title] || '').trim();
-        if (!title) return;
-
+        let title = String(row[mapping.title] || '').trim();
         const description = mapping.description ? String(row[mapping.description] || '').trim() : `Imported activity from ${fileName}`;
+
+        if (isGenericTaskId(title) && description && !isGenericTaskId(description)) {
+          title = description;
+        }
+
+        if (!title) return;
         
         const rawStatus = mapping.status ? String(row[mapping.status] || '').toLowerCase() : '';
         let status: TaskStatus = 'To Do';

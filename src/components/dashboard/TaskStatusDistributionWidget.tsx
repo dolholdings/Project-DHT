@@ -23,6 +23,7 @@ import {
   Check
 } from 'lucide-react';
 import { Task, Project } from '../../types';
+import { normalizeTaskStatus } from '../../lib/statusUtils';
 
 interface TaskStatusDistributionWidgetProps {
   tasks: Task[];
@@ -33,9 +34,9 @@ interface TaskStatusDistributionWidgetProps {
 const STATUS_COLORS: Record<string, { color: string; label: string; icon: React.ComponentType<{ className?: string }> }> = {
   Done: { color: '#10b981', label: 'Done / Completed', icon: CheckCircle2 },
   'In Progress': { color: '#0773BB', label: 'In Progress', icon: PlayCircle },
-  'To Do': { color: '#3BC0BB', label: 'To Do', icon: Clock },
-  Review: { color: '#8b5cf6', label: 'In Review', icon: HelpCircle },
-  Blocked: { color: '#f43f5e', label: 'Blocked', icon: AlertCircle }
+  'In Review': { color: '#f59e0b', label: 'In Review', icon: HelpCircle },
+  'To Do': { color: '#64748b', label: 'To Do', icon: Clock },
+  Backlog: { color: '#94a3b8', label: 'Backlog', icon: AlertCircle }
 };
 
 export const TaskStatusDistributionWidget: React.FC<TaskStatusDistributionWidgetProps> = ({
@@ -56,15 +57,15 @@ export const TaskStatusDistributionWidget: React.FC<TaskStatusDistributionWidget
     const counts: Record<string, number> = {
       Done: 0,
       'In Progress': 0,
+      'In Review': 0,
       'To Do': 0,
-      Review: 0,
-      Blocked: 0
+      Backlog: 0
     };
 
     filteredTasks.forEach((t) => {
-      const st = t.status || 'To Do';
-      if (counts[st] !== undefined) {
-        counts[st]++;
+      const norm = normalizeTaskStatus(t.status);
+      if (counts[norm] !== undefined) {
+        counts[norm]++;
       } else {
         counts['To Do']++;
       }

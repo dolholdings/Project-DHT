@@ -22,6 +22,7 @@ import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { Priority, TaskStatus, Project } from '../../types';
 import { parseImportDate } from '../workspace/SmartImportAssistantModal';
+import { isGenericTaskId } from '../../lib/taskUtils';
 
 export const WEEKLY_CRITICAL_CSV_DATA = `Task ID,Activity Title,Description,Status,Priority,Start Date,Due Date,Estimated Hours,Assignee Email,Tags,List / Category,Department,Job No,Client,Remarks
 DHT-001,"Thermal & Hydraulic Calculation Review","Review thermal calculation sheet for Shell & Tube Heat Exchanger bundle A-102.",In Progress,Urgent,2026-08-01,2026-08-15,24,sanket@dolheat.ae,"Thermal;Engineering;SLB",Engineering & Design,Engineering,1119,SLB,"DTN 051 submitted"
@@ -301,8 +302,12 @@ export const ProjectCsvImportModal: React.FC<ProjectCsvImportModalProps> = ({
 
   // Convert raw row into standardized task payload
   const mapRowToTask = (row: Record<string, any>) => {
-    const titleVal = columnMap.title ? String(row[columnMap.title] || '').trim() : '';
+    let titleVal = columnMap.title ? String(row[columnMap.title] || '').trim() : '';
     const descVal = columnMap.description ? String(row[columnMap.description] || '').trim() : '';
+
+    if (isGenericTaskId(titleVal) && descVal && !isGenericTaskId(descVal)) {
+      titleVal = descVal;
+    }
     
     // Normalize priority
     let priorityVal: Priority = 'Medium';

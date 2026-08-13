@@ -31,6 +31,8 @@ import {
 import * as d3 from 'd3';
 import { useApp } from '../../context/AppContext';
 import { Task } from '../../types';
+import { EmptyStateCard } from '../common/EmptyStateCard';
+import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 
 interface DragState {
   isDragging: boolean;
@@ -42,6 +44,7 @@ interface DragState {
 export const GanttView: React.FC = () => {
   const {
     tasks,
+    addTask,
     projects,
     dependencies,
     users,
@@ -50,15 +53,39 @@ export const GanttView: React.FC = () => {
     removeDependency,
     recalculateProjectTimeline,
     updateTask,
+    seedDemoTasksForProject,
+    searchQuery,
+    setSearchQuery,
+    selectedListFilter,
+    setSelectedListFilter,
+    currentUser,
     theme
   } = useApp();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || 'proj_1');
   const [zoomLevel, setZoomLevel] = useState<'weeks' | 'months'>('weeks');
   const [showAddDepModal, setShowAddDepModal] = useState(false);
+  const [showCsvImportModal, setShowCsvImportModal] = useState(false);
   const [predTaskId, setPredTaskId] = useState('');
   const [succTaskId, setSuccTaskId] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const handleCreateGanttTask = () => {
+    addTask({
+      projectId: selectedProjectId || projects[0]?.id || 'proj_1',
+      companyId: activeCompany?.id || 'comp_1',
+      title: 'New Gantt Milestone Task',
+      description: 'Scheduled deliverable on project Gantt timeline',
+      status: 'To Do',
+      priority: 'High',
+      assigneeIds: [currentUser?.id || 'usr_pk'],
+      reporterId: currentUser?.id || 'usr_1',
+      startDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      estimatedHours: 24,
+      tags: ['Gantt', 'Milestone', 'Deliverable']
+    });
+  };
 
   // Critical Path & Milestone Marker View Mode States
   const [highlightCriticalPath, setHighlightCriticalPath] = useState(true);
@@ -1365,7 +1392,27 @@ export const GanttView: React.FC = () => {
           </svg>
 
           {/* Task Rows */}
-          {displayedTasks.map((t) => {
+          {displayedTasks.length === 0 ? (
+            <div className="py-4">
+              <EmptyStateCard
+                variant="gantt"
+                theme={theme === 'light' ? 'light' : 'dark'}
+                hasActiveFilters={Boolean(searchQuery || selectedListFilter || showOnlyMilestones)}
+                onPrimaryAction={handleCreateGanttTask}
+                primaryActionLabel="Create Milestone Task"
+                onSecondaryAction={() => setShowCsvImportModal(true)}
+                secondaryActionLabel="Import Deliverables (CSV)"
+                onSeedDemoData={() => seedDemoTasksForProject(selectedProjectId || undefined)}
+                seedDemoLabel="Load Demo Deliverables"
+                onResetFilters={() => {
+                  if (setSearchQuery) setSearchQuery('');
+                  if (setSelectedListFilter) setSelectedListFilter(null);
+                  setShowOnlyMilestones(false);
+                }}
+              />
+            </div>
+          ) : (
+            displayedTasks.map((t) => {
             const isCritical = isTaskCritical(t);
             const isMilestone = isTaskMilestone(t);
             const isHighlighted = highlightCriticalPath && isCritical;
@@ -1555,9 +1602,16 @@ export const GanttView: React.FC = () => {
                   </div>
               </div>
             );
-          })}
+          }))}
         </div>
       </div>
+
+      {showCsvImportModal && (
+        <ProjectCsvImportModal
+          projectId={selectedProjectId || projects[0]?.id || 'proj_1'}
+          onClose={() => setShowCsvImportModal(false)}
+        />
+      )}
     </div>
   );
 };

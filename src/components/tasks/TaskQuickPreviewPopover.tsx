@@ -26,8 +26,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Subtask, ProjectFile, User, Project } from '../../types';
+import { normalizeTaskStatus, getStatusBadgeStyle, getStatusDotColor } from '../../lib/statusUtils';
 import { AssigneePicker } from './AssigneePicker';
 import { PriorityBadge } from '../common/PriorityBadge';
+import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 
 export interface TaskQuickPreviewPopoverProps {
   task: Task;
@@ -145,19 +147,8 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
     }
   };
 
-  const getStatusColor = (status: TaskStatus) => {
-    switch (status) {
-      case 'Done':
-        return 'bg-emerald-400';
-      case 'In Progress':
-        return 'bg-sky-400';
-      case 'In Review':
-        return 'bg-amber-400';
-      case 'To Do':
-        return 'bg-indigo-400';
-      default:
-        return 'bg-slate-400';
-    }
+  const getStatusColor = (status: TaskStatus | string) => {
+    return getStatusDotColor(status);
   };
 
   return (
@@ -217,9 +208,14 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
                 </div>
 
                 {/* Task Title */}
-                <h3 className="text-sm font-bold text-white leading-snug line-clamp-2 mt-1">
-                  {task.title}
+                <h3 className="text-sm font-bold text-white leading-snug mt-1">
+                  {getDisplayTaskTitle(task)}
                 </h3>
+                {getTaskSubtext(task) && (
+                  <div className="text-xs text-slate-400 mt-0.5 font-mono">
+                    {getTaskSubtext(task)}
+                  </div>
+                )}
 
                 {/* Project Name */}
                 {project && (
@@ -242,9 +238,12 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
                 />
 
                 <select
-                  value={task.status}
+                  value={normalizeTaskStatus(task.status)}
                   onChange={(e) => updateTask(task.id, { status: e.target.value as TaskStatus })}
-                  className="text-[10px] font-mono font-bold px-2 py-1 rounded-lg bg-[#16222F] border border-[#233549] text-slate-200 focus:outline-none cursor-pointer hover:border-[#3BC0BB]"
+                  className={`text-[10px] font-mono font-extrabold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-all ${getStatusBadgeStyle(
+                    task.status,
+                    false
+                  )}`}
                 >
                   <option value="Backlog">Backlog</option>
                   <option value="To Do">To Do</option>

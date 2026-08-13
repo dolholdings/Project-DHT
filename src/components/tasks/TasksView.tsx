@@ -58,6 +58,8 @@ import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks }
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { TasksDataTable } from './TasksDataTable';
 import { PriorityBadge } from '../common/PriorityBadge';
+import { getDisplayTaskTitle } from '../../lib/taskUtils';
+import { EmptyStateCard } from '../common/EmptyStateCard';
 
 export const TasksView: React.FC = () => {
   const {
@@ -83,6 +85,8 @@ export const TasksView: React.FC = () => {
     selectedListFilter,
     setSelectedListFilter,
     searchQuery,
+    setSearchQuery,
+    seedDemoTasksForProject,
     theme,
     currentUser,
     customFields
@@ -819,6 +823,22 @@ export const TasksView: React.FC = () => {
               onSelectTask={(id) => setSelectedTaskId(id)}
               selectedTaskId={selectedTaskId}
             />
+          ) : filteredTasks.length === 0 ? (
+            <EmptyStateCard
+              variant="list"
+              theme={theme === 'light' ? 'light' : 'dark'}
+              hasActiveFilters={Boolean(searchQuery || selectedListFilter)}
+              onPrimaryAction={() => setShowCreateModal(true)}
+              primaryActionLabel="Create Deliverable Task"
+              onSecondaryAction={() => setShowCsvImportModal(true)}
+              secondaryActionLabel="Import Tasks (CSV)"
+              onSeedDemoData={() => seedDemoTasksForProject(selectedProjectId || undefined)}
+              seedDemoLabel="Load Demo Deliverables"
+              onResetFilters={() => {
+                if (setSearchQuery) setSearchQuery('');
+                if (setSelectedListFilter) setSelectedListFilter(null);
+              }}
+            />
           ) : (
             <>
               {/* GROUP 1: IN PROGRESS */}
@@ -897,7 +917,7 @@ export const TasksView: React.FC = () => {
                                 <span className={`font-bold transition-colors cursor-pointer ${
                                   isLight ? 'text-slate-900 hover:text-[#0773BB]' : 'text-slate-100 hover:text-[#7B68EE]'
                                 }`}>
-                                  {t.title}
+                                  {getDisplayTaskTitle(t)}
                                 </span>
                               </TaskQuickPreviewPopover>
                               {t.recurrence && t.recurrence.type !== 'none' && (
@@ -1124,7 +1144,7 @@ export const TasksView: React.FC = () => {
                                 <span className={`font-medium transition-colors cursor-pointer ${
                                   theme === 'light' ? 'text-slate-800 hover:text-teal-700' : 'text-slate-200 hover:text-white'
                                 }`}>
-                                  {t.title}
+                                  {getDisplayTaskTitle(t)}
                                 </span>
                               </TaskQuickPreviewPopover>
                               {t.recurrence && t.recurrence.type !== 'none' && (
@@ -1305,7 +1325,7 @@ export const TasksView: React.FC = () => {
                           <td className="p-3 pl-6 text-slate-400 font-medium">
                             <div className="flex items-center gap-2">
                               <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
-                                <span className="line-through cursor-pointer hover:text-slate-200">{t.title}</span>
+                                <span className="line-through cursor-pointer hover:text-slate-200">{getDisplayTaskTitle(t)}</span>
                               </TaskQuickPreviewPopover>
                               {renderDependencyIndicators(t)}
                             </div>

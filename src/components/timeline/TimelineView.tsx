@@ -1,6 +1,8 @@
 import React from 'react';
 import { Network, Calendar, CheckCircle2, ChevronRight, Zap, ArrowRight, Link, Printer } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { getStatusBadgeStyle } from '../../lib/statusUtils';
+import { getDisplayTaskTitle } from '../../lib/taskUtils';
 
 export const TimelineView: React.FC = () => {
   const { projects, tasks, dependencies, activeCompany, theme } = useApp();
@@ -165,14 +167,13 @@ export const TimelineView: React.FC = () => {
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="font-bold text-white truncate flex items-center gap-1.5 timeline-card-title">
                               {hasPrereq && <Link className="w-3 h-3 text-amber-400 shrink-0" />}
-                              <span className="truncate">{t.title}</span>
+                              <span className="truncate">{getDisplayTaskTitle(t)}</span>
                             </span>
                             <span
-                              className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${
-                                t.status === 'Done'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              }`}
+                              className={`text-[9px] px-2 py-0.5 rounded border font-mono ${getStatusBadgeStyle(
+                                t.status,
+                                theme === 'light'
+                              )}`}
                             >
                               {t.status}
                             </span>

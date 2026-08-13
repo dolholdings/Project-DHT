@@ -149,51 +149,10 @@ export function saveUserInboxConfig(config: UserInboxConfig): void {
 }
 
 /**
- * Generates initial welcome email threads for a newly registered user
+ * Generates initial welcome email threads for a newly registered user (Starts clean without old sample email data)
  */
 export function generateWelcomeEmailThreads(user: { id: string; email: string; name: string }): EmailThread[] {
-  const now = new Date();
-  const dateStr = now.toISOString();
-
-  return [
-    {
-      id: `welcome_email_${user.id}_1`,
-      senderName: 'Dolphin Group System Admin',
-      senderEmail: 'admin@dolphingroup.ae',
-      recipientEmail: user.email,
-      subject: `[Auto-Configured] Welcome to Dolphin Group Corporate Inbox, ${user.name}!`,
-      snippet: 'Your email inbox has been automatically provisioned with IMAP/SMTP corporate settings...',
-      body: `Dear ${user.name},
-
-Welcome to the Dolphin Group Workspace! Your personal company email inbox has been automatically provisioned with Microsoft Office 365 Exchange parameters.
-
-Office 365 Integration Details:
-- Address: ${user.email}
-- Hosting Provider: Microsoft Office 365 / Exchange Online
-- Protocol: Office 365 IMAP / SMTP Secure (SSL/STARTTLS)
-- Incoming Server: outlook.office365.com (Port 993)
-- Outgoing Server: smtp.office365.com (Port 587)
-
-Key Features Available:
-1. Automatic User ID Mapping & Inbox Folder Initialization
-2. 1-Click Email to ClickUp Task Conversion & Task Linking
-3. Transactional Email Alerts via Office 365 Gateway
-4. Custom Folders for DEWA Hydrostatic & Aramco Project Compliance
-
-You can customize your Office 365 app credentials or syncing parameters anytime by clicking the Settings icon in the Inbox workspace.
-
-Best regards,
-Enterprise IT Support
-Dolphin Group`,
-      timestamp: dateStr,
-      isUnread: true,
-      isStarred: true,
-      folder: 'inbox',
-      companyId: 'comp-1',
-      tags: ['Welcome', 'Auto-Configured', 'System'],
-      priority: 'High'
-    }
-  ];
+  return [];
 }
 
 /**

@@ -174,6 +174,7 @@ interface AppContextType {
   addDependency: (taskId: string, dependsOnTaskId: string) => boolean;
   removeDependency: (depId: string) => void;
   recalculateProjectTimeline: (projectId?: string) => { adjustedCount: number; updatedTasks: Task[] };
+  seedDemoTasksForProject: (targetProjectId?: string) => void;
 
   // Custom Fields
   customFields: CustomFieldDefinition[];
@@ -237,6 +238,7 @@ interface AppContextType {
   toggleUnreadEmail: (emailId: string) => void;
   deleteEmailThread: (emailId: string) => void;
   clearEmailThreads: () => void;
+  cleanupOldInboxNotifications: (maxAgeDays?: number) => { archivedCount: number; deletedCount: number };
 
   // Active View State
   activeTab: string;
@@ -2051,6 +2053,81 @@ Log into your workspace dashboard to review the task details.`,
     return { adjustedCount, updatedTasks: currentTasks };
   };
 
+  const seedDemoTasksForProject = (targetProjectId?: string) => {
+    const projId = targetProjectId || selectedProjectId || projects[0]?.id || 'proj_1';
+    const proj = projects.find((p) => p.id === projId);
+    const compId = proj ? proj.companyId : 'comp_1';
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const in3Days = new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0];
+    const in7Days = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+    const in14Days = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
+
+    const sampleDeliverables = [
+      {
+        title: `Kickoff & Requirements Discovery for ${proj?.title || 'Project'}`,
+        description: 'Establish core scope, stakeholder expectations, deliverable milestones, and team assignments.',
+        status: 'Done' as TaskStatus,
+        priority: 'High' as Priority,
+        assigneeIds: ['usr_pk'],
+        reporterId: 'usr_1',
+        startDate: todayStr,
+        dueDate: in3Days,
+        estimatedHours: 12,
+        tags: ['Discovery', 'Milestone'],
+        isMilestone: true,
+        isCriticalPath: true,
+      },
+      {
+        title: 'System Architecture & Technical Design Specification',
+        description: 'Define component breakdown, API endpoints, data models, and security compliance standards.',
+        status: 'In Progress' as TaskStatus,
+        priority: 'Urgent' as Priority,
+        assigneeIds: ['usr_ta', 'usr_pk'],
+        reporterId: 'usr_1',
+        startDate: todayStr,
+        dueDate: in7Days,
+        estimatedHours: 24,
+        tags: ['Architecture', 'Design'],
+        isCriticalPath: true,
+      },
+      {
+        title: 'Frontend Component UI & Interactive Wireframes',
+        description: 'Design responsive UI views for Kanban, List, and Gantt schedule charts with accessible styling.',
+        status: 'To Do' as TaskStatus,
+        priority: 'High' as Priority,
+        assigneeIds: ['usr_sa'],
+        reporterId: 'usr_1',
+        startDate: in3Days,
+        dueDate: in14Days,
+        estimatedHours: 32,
+        tags: ['UI/UX', 'Frontend'],
+      },
+      {
+        title: 'Integration Testing & Quality Assurance Review',
+        description: 'Perform end-to-end regression testing, validation engine checks, and performance optimizations.',
+        status: 'Backlog' as TaskStatus,
+        priority: 'Medium' as Priority,
+        assigneeIds: ['usr_fz'],
+        reporterId: 'usr_1',
+        startDate: in7Days,
+        dueDate: in14Days,
+        estimatedHours: 16,
+        tags: ['QA', 'Testing'],
+      },
+    ];
+
+    sampleDeliverables.forEach((item) => {
+      addTask({
+        projectId: projId,
+        companyId: compId,
+        ...item
+      });
+    });
+
+    logActivity('loaded demo project deliverables', `Added 4 sample tasks to project "${proj?.title || projId}"`, 'project', projId);
+  };
+
   // Timer & Time tracking
   const startTimer = (taskId: string, taskTitle: string) => {
     setTimer({
@@ -2316,22 +2393,74 @@ Log into your workspace dashboard to review the task details.`,
     return count;
   };
 
-  // Background utility: Auto-prune system notifications older than 30 days
-  useEffect(() => {
-    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-    const now = Date.now();
+  // Background utility: Auto-prune system notifications and task notifications older than 30 days
+  const cleanupOldInboxNotifications = useCallback((maxAgeDays: number = 30) => {
+    const cutoffTime = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+    let archivedCount = 0;
+    let deletedCount = 0;
+
+    // 1. Cleanup Email Threads / Task Notifications in Inbox
+    setEmailThreads((prev) => {
+      let changed = false;
+      const updated = prev.map((thread) => {
+        if (!thread.timestamp) return thread;
+        const threadTime = new Date(thread.timestamp).getTime();
+
+        if (threadTime < cutoffTime) {
+          // If in active inbox or sent folder, auto-archive to keep inbox uncluttered
+          if (thread.folder === 'inbox' || thread.folder === 'sent') {
+            changed = true;
+            archivedCount++;
+            return { ...thread, folder: 'archived' as const };
+          }
+          // If already in trash or archived and older than 60 days, auto-delete permanently
+          if (thread.folder === 'trash' || (thread.folder === 'archived' && threadTime < Date.now() - 60 * 24 * 60 * 60 * 1000)) {
+            changed = true;
+            deletedCount++;
+            return null;
+          }
+        }
+        return thread;
+      }).filter(Boolean) as EmailThread[];
+
+      if (changed) {
+        saveToStorage('dolphin_emails', updated);
+      }
+      return changed ? updated : prev;
+    });
+
+    // 2. Cleanup System Notifications older than maxAgeDays
     setNotifications((prev) => {
       const filtered = prev.filter((n) => {
         if (!n.createdAt) return true;
         const createdTime = new Date(n.createdAt).getTime();
-        return now - createdTime < thirtyDaysMs;
+        if (createdTime < cutoffTime) {
+          deletedCount++;
+          return false;
+        }
+        return true;
       });
+
       if (filtered.length !== prev.length) {
         saveToStorage('dolphin_notifs', filtered);
       }
       return filtered;
     });
+
+    if (archivedCount > 0 || deletedCount > 0) {
+      logActivity(
+        'ran background inbox cleanup',
+        `Auto-archived ${archivedCount} and deleted ${deletedCount} task notifications/threads older than ${maxAgeDays} days`,
+        'system'
+      );
+    }
+
+    return { archivedCount, deletedCount };
   }, []);
+
+  useEffect(() => {
+    cleanupOldInboxNotifications(30);
+  }, [cleanupOldInboxNotifications]);
 
   // Notifications & Snooze Engine
   const markNotificationRead = (id: string) => {
@@ -2937,6 +3066,7 @@ Please log into your workspace dashboard to update task status or adjust target 
         addDependency,
         removeDependency,
         recalculateProjectTimeline,
+        seedDemoTasksForProject,
         customFields,
         addCustomField,
         updateCustomField,
@@ -2987,6 +3117,7 @@ Please log into your workspace dashboard to update task status or adjust target 
         toggleUnreadEmail,
         deleteEmailThread,
         clearEmailThreads,
+        cleanupOldInboxNotifications,
         activeTab,
         setActiveTab,
         selectedProjectId,

@@ -36,6 +36,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { User, Task } from '../../types';
 import { getAccessibleTasks } from '../../lib/permissions';
+import { getDisplayTaskTitle } from '../../lib/taskUtils';
+import { getStatusBadgeStyle } from '../../lib/statusUtils';
 
 // Helper to determine the Teal-to-Red heat gradient based on capacity percentage
 export interface HeatColor {
@@ -820,7 +822,7 @@ export const WorkloadView: React.FC = () => {
                           >
                             <div className="flex items-center gap-1 min-w-0">
                               <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate font-medium">{t.title}</span>
+                              <span className="truncate font-medium">{getDisplayTaskTitle(t)}</span>
                             </div>
                             <span className="font-mono text-[10px] font-bold text-teal-400 shrink-0">
                               {t.estimatedHours || 0}h
@@ -1105,7 +1107,7 @@ export const WorkloadView: React.FC = () => {
                             <div className="flex items-start justify-between gap-1.5">
                               <div className="flex items-center gap-1.5 font-bold truncate text-slate-200 dark:text-white">
                                 <GripVertical className="w-3.5 h-3.5 text-slate-500 group-hover/card:text-teal-400 shrink-0" />
-                                <span className="truncate">{t.title}</span>
+                                <span className="truncate">{getDisplayTaskTitle(t)}</span>
                               </div>
 
                               {/* Quick Reassign Dropdown Selector */}
@@ -1160,7 +1162,7 @@ export const WorkloadView: React.FC = () => {
 
                             <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
                               <span>Est: {t.estimatedHours || 0}h</span>
-                              <span className="text-[#3BC0BB] px-1.5 py-0.5 rounded bg-slate-800/40">{t.status}</span>
+                              <span className={`px-2 py-0.5 rounded border text-[9px] font-mono font-bold ${getStatusBadgeStyle(t.status, theme === 'light')}`}>{t.status}</span>
                             </div>
                           </div>
                         ))}
@@ -1396,7 +1398,7 @@ export const WorkloadView: React.FC = () => {
                           <div>
                             <div className="font-bold text-slate-200 dark:text-white flex items-center gap-1">
                               <GripVertical className="w-3 h-3 text-slate-500" />
-                              <span>{t.title}</span>
+                              <span>{getDisplayTaskTitle(t)}</span>
                             </div>
                             <div className="text-[10px] text-slate-400 pl-4">{t.status} • Priority: {t.priority || 'Medium'}</div>
                           </div>
