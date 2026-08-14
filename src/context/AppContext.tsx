@@ -496,7 +496,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       // Fallback
     }
-    return false;
+    return true;
   });
 
   // Synchronize theme with user profile & database preferences when currentUser is updated
@@ -940,7 +940,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   };
 
-  // Logging Activity
+  // Logging Activity - stabilized callback to prevent dependency cascading loops
   const logActivity = useCallback((
     action: string,
     target: string,
@@ -968,9 +968,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ipAddress: ipAddress || '10.240.0.18'
     };
 
-    setActivityLogs((prev) => [newLog, ...prev]);
-    saveToStorage('dolphin_logs', [newLog, ...activityLogs]);
-  }, [activeCompany, currentUser, activityLogs]);
+    setActivityLogs((prev) => [newLog, ...prev.slice(0, 199)]);
+  }, [activeCompany?.id, currentUser?.id, currentUser?.name, currentUser?.avatar]);
 
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
 
@@ -2482,11 +2481,11 @@ Log into your workspace dashboard to review the task details.`,
     }
 
     return { archivedCount, deletedCount };
-  }, []);
+  }, [logActivity]);
 
   useEffect(() => {
     cleanupOldInboxNotifications(30);
-  }, [cleanupOldInboxNotifications]);
+  }, []);
 
   // Notifications & Snooze Engine
   const markNotificationRead = (id: string) => {
@@ -2647,6 +2646,7 @@ Log into your workspace dashboard to review the task details.`,
   const triggerUpcomingDueCheck = useCallback(() => {
     const now = new Date();
     const leadMs = (notificationSettings.leadDays || 3) * 24 * 60 * 60 * 1000;
+    const newNotifsToAdd: Notification[] = [];
 
     tasks.forEach((task) => {
       if (task.status === 'Done' || !task.dueDate) return;
@@ -2668,48 +2668,52 @@ Log into your workspace dashboard to review the task details.`,
       const isUpcoming = due.getTime() >= now.getTime() && (due.getTime() - now.getTime() <= leadMs);
 
       if (isOverdue || isUpcoming) {
-        // Check if we already have a notification for this task
-        const existing = notifications.find((n) => n.taskId === task.id && !n.read);
-        if (!existing) {
-          const type = isOverdue ? 'overdue' : 'due_reminder';
-          const title = isOverdue ? `Overdue Task: ${task.title}` : `Upcoming Due Date: ${task.title}`;
-          const message = isOverdue
-            ? `Task "${task.title}" was due on ${task.dueDate}. Priority: ${task.priority}.`
-            : `Task "${task.title}" is due on ${task.dueDate} (${task.priority} priority).`;
+        const type = isOverdue ? 'overdue' : 'due_reminder';
+        const title = isOverdue ? `Overdue Task: ${task.title}` : `Upcoming Due Date: ${task.title}`;
+        const message = isOverdue
+          ? `Task "${task.title}" was due on ${task.dueDate}. Priority: ${task.priority}.`
+          : `Task "${task.title}" is due on ${task.dueDate} (${task.priority} priority).`;
 
-          const newNotif: Notification = {
-            id: `notif_due_${task.id}_${Date.now()}`,
-            userId: currentUser?.id || 'usr_1',
-            title,
-            message,
-            type,
-            read: false,
-            taskId: task.id,
-            projectId: task.projectId,
-            createdAt: now.toISOString(),
-          };
-
-          setNotifications((prev) => {
-            const updated = [newNotif, ...prev];
-            saveToStorage('dolphin_notifs', updated);
-            return updated;
-          });
-
-          // Trigger native browser notification if allowed
-          if (notificationSettings.enableBrowserNotifs && 'Notification' in window && window.Notification.permission === 'granted') {
-            try {
-              new window.Notification(title, {
-                body: message,
-                icon: '/favicon.ico',
-              });
-            } catch (e) {
-              console.warn('Browser notification trigger warning:', e);
-            }
-          }
-        }
+        newNotifsToAdd.push({
+          id: `notif_due_${task.id}_${task.dueDate}`,
+          userId: currentUser?.id || 'usr_1',
+          title,
+          message,
+          type,
+          read: false,
+          taskId: task.id,
+          projectId: task.projectId,
+          createdAt: now.toISOString(),
+        });
       }
     });
-  }, [tasks, snoozedTasks, notificationSettings, notifications, currentUser]);
+
+    if (newNotifsToAdd.length > 0) {
+      setNotifications((prev) => {
+        const existingTaskIds = new Set(prev.filter((n) => !n.read).map((n) => n.taskId));
+        const filteredNew = newNotifsToAdd.filter((n) => n.taskId && !existingTaskIds.has(n.taskId));
+        if (filteredNew.length === 0) return prev;
+        const updated = [...filteredNew, ...prev];
+        saveToStorage('dolphin_notifs', updated);
+
+        // Trigger native browser notification for new alerts
+        if (notificationSettings.enableBrowserNotifs && 'Notification' in window && window.Notification.permission === 'granted') {
+          try {
+            filteredNew.forEach((notif) => {
+              new window.Notification(notif.title, {
+                body: notif.message,
+                icon: '/favicon.ico',
+              });
+            });
+          } catch (e) {
+            console.warn('Browser notification trigger warning:', e);
+          }
+        }
+
+        return updated;
+      });
+    }
+  }, [tasks, snoozedTasks, notificationSettings.leadDays, notificationSettings.enableBrowserNotifs, currentUser?.id]);
 
   const triggerDailyOverdueCheck = useCallback((forceSend: boolean = false) => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -2795,16 +2799,18 @@ Please log into your workspace dashboard to update task status or adjust target 
       emailsSent,
       message: `Dispatched ${emailsSent} daily overdue notification email(s) for ${overdueTasks.length} overdue task(s).`
     };
-  }, [tasks, users, projects, currentUser, dispatchEmailNotification, logActivity]);
+  }, [tasks, users, projects, currentUser?.id, currentUser?.email, dispatchEmailNotification, logActivity]);
 
   useEffect(() => {
     triggerUpcomingDueCheck();
     if (tasks.length > 0) {
       triggerDailyOverdueCheck(false);
     }
-    const interval = setInterval(triggerUpcomingDueCheck, 45000);
+    const interval = setInterval(() => {
+      triggerUpcomingDueCheck();
+    }, 60000);
     return () => clearInterval(interval);
-  }, [triggerUpcomingDueCheck, triggerDailyOverdueCheck, tasks.length]);
+  }, []);
 
   // Automations
   const toggleAutomation = (id: string) => {

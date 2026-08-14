@@ -121,10 +121,10 @@ export const LiveActivityStream: React.FC = () => {
         setHighlightedId(activityLogs[0].id);
         setTimeout(() => setHighlightedId(null), 2500);
       }
-    }, 12000); // Trigger live event every 12 seconds if active
+    }, 20000); // Trigger live event every 20 seconds if active
 
     return () => clearInterval(interval);
-  }, [isLiveAutoStreaming, users, projects, currentUser, logActivity, activityLogs]);
+  }, [isLiveAutoStreaming, users, projects, currentUser?.id, logActivity]);
 
   // Quick manually triggered simulation actions for instant feedback
   const handleTriggerSimulatedAction = (type: 'completion' | 'document' | 'status') => {

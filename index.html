@@ -4,27 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DOLPHIN GLOBAL HOLDINGS</title>
-    <script>
-      // Safe window.fetch getter/setter wrapper to prevent read-only property errors in strict iframe environments
-      (function() {
-        try {
-          var originalFetch = window.fetch;
-          var activeFetch = originalFetch;
-          Object.defineProperty(window, 'fetch', {
-            get: function() {
-              return activeFetch;
-            },
-            set: function(fn) {
-              activeFetch = fn;
-            },
-            configurable: true,
-            enumerable: true
-          });
-        } catch (e) {
-          console.warn('window.fetch descriptor patch bypassed:', e);
-        }
-      })();
-    </script>
     <link rel="icon" type="image/svg+xml" href="/dolphin-logo.svg" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0D1520" />

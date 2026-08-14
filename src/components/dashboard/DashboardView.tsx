@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FolderKanban,
   CheckCircle2,
@@ -361,21 +361,26 @@ export const DashboardView: React.FC = () => {
   };
 
   // Filter tasks & projects by space assignment and workspace
-  const userAccessibleProjects = projects.filter((p) => {
-    if (currentUser?.role === 'Admin') return true;
-    return (
-      p.managerId === currentUser?.id ||
-      (p.members && p.members.includes(currentUser?.id || '')) ||
-      (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']))
-    );
-  });
+  const userAccessibleProjects = useMemo(() => {
+    return projects.filter((p) => {
+      if (currentUser?.role === 'Admin') return true;
+      return (
+        p.managerId === currentUser?.id ||
+        (p.members && p.members.includes(currentUser?.id || '')) ||
+        (p.memberRoles && Boolean(p.memberRoles[currentUser?.id || '']))
+      );
+    });
+  }, [projects, currentUser?.role, currentUser?.id]);
 
-  const companyProjects = userAccessibleProjects.filter((p) => p.companyId === activeCompany?.id).length > 0
-    ? userAccessibleProjects.filter((p) => p.companyId === activeCompany?.id)
-    : userAccessibleProjects;
-  const companyTasks = tasks.filter((t) => t.companyId === activeCompany?.id).length > 0
-    ? tasks.filter((t) => t.companyId === activeCompany?.id)
-    : tasks;
+  const companyProjects = useMemo(() => {
+    const filtered = userAccessibleProjects.filter((p) => p.companyId === activeCompany?.id);
+    return filtered.length > 0 ? filtered : userAccessibleProjects;
+  }, [userAccessibleProjects, activeCompany?.id]);
+
+  const companyTasks = useMemo(() => {
+    const filtered = tasks.filter((t) => t.companyId === activeCompany?.id);
+    return filtered.length > 0 ? filtered : tasks;
+  }, [tasks, activeCompany?.id]);
 
   const [dailyBrief, setDailyBrief] = useState<DailyBriefData | null>(null);
   const [briefLoading, setBriefLoading] = useState<boolean>(false);
@@ -453,48 +458,51 @@ export const DashboardView: React.FC = () => {
     };
   }, []);
 
-  const completedTasks = companyTasks.filter((t) => t.status === 'Done');
-  const inProgressTasks = companyTasks.filter((t) => t.status === 'In Progress');
-  const urgentTasks = companyTasks.filter((t) => t.priority === 'Urgent' && t.status !== 'Done');
+  const completedTasks = useMemo(() => companyTasks.filter((t) => t.status === 'Done'), [companyTasks]);
+  const inProgressTasks = useMemo(() => companyTasks.filter((t) => t.status === 'In Progress'), [companyTasks]);
+  const urgentTasks = useMemo(() => companyTasks.filter((t) => t.priority === 'Urgent' && t.status !== 'Done'), [companyTasks]);
 
-  const completedProjects = companyProjects.filter((p) => p.status === 'Completed' || p.progress === 100);
-  const inProgressProjects = companyProjects.filter((p) => p.status === 'In Progress' || (p.status !== 'Completed' && p.progress < 100));
+  const completedProjects = useMemo(() => companyProjects.filter((p) => p.status === 'Completed' || p.progress === 100), [companyProjects]);
+  const inProgressProjects = useMemo(() => companyProjects.filter((p) => p.status === 'In Progress' || (p.status !== 'Completed' && p.progress < 100)), [companyProjects]);
 
-  const now = new Date();
-  const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const { upcomingDeadlinesTasks, overdueTasks } = useMemo(() => {
+    const nowDate = new Date();
+    const next7 = new Date(nowDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const upcoming = companyTasks.filter((t) => {
+      if (t.status === 'Done') return false;
+      const d = new Date(t.dueDate);
+      return d >= nowDate && d <= next7;
+    });
+    const overdue = companyTasks.filter((t) => t.status !== 'Done' && new Date(t.dueDate) < nowDate);
+    return { upcomingDeadlinesTasks: upcoming, overdueTasks: overdue };
+  }, [companyTasks]);
 
-  const upcomingDeadlinesTasks = companyTasks.filter((t) => {
-    if (t.status === 'Done') return false;
-    const d = new Date(t.dueDate);
-    return d >= now && d <= next7Days;
-  });
-
-  const overdueTasks = companyTasks.filter(
-    (t) => t.status !== 'Done' && new Date(t.dueDate) < now
-  );
-
-  const totalLoggedHours = timeEntries.reduce((acc, curr) => acc + curr.hours, 0);
+  const totalLoggedHours = useMemo(() => timeEntries.reduce((acc, curr) => acc + curr.hours, 0), [timeEntries]);
 
   // My Tasks
-  const myTasks = companyTasks.filter((t) => currentUser?.id ? t.assigneeIds.includes(currentUser.id) : false);
+  const myTasks = useMemo(() => companyTasks.filter((t) => (currentUser?.id ? t.assigneeIds.includes(currentUser.id) : false)), [companyTasks, currentUser?.id]);
 
   // Urgent / Dependent tasks
-  const urgentAndBlockers = companyTasks.filter((t) => {
-    if (t.status === 'Done') return false;
-    const pScore = calculatePriorityScore(t, dependencies, companyTasks);
-    return pScore.score >= 50 || t.priority === 'Urgent';
-  });
+  const urgentAndBlockers = useMemo(() => {
+    return companyTasks.filter((t) => {
+      if (t.status === 'Done') return false;
+      const pScore = calculatePriorityScore(t, dependencies, companyTasks);
+      return pScore.score >= 50 || t.priority === 'Urgent';
+    });
+  }, [companyTasks, dependencies]);
 
   // Calculate workload breakdown per user
-  const userWorkload = users.map((u) => {
-    const userHours = timeEntries.filter((te) => te.userId === u.id).reduce((acc, te) => acc + te.hours, 0);
-    const userAssignedTasks = companyTasks.filter((t) => t.assigneeIds.includes(u.id) && t.status !== 'Done');
-    return {
-      user: u,
-      hours: userHours,
-      activeTaskCount: userAssignedTasks.length,
-    };
-  });
+  const userWorkload = useMemo(() => {
+    return users.map((u) => {
+      const userHours = timeEntries.filter((te) => te.userId === u.id).reduce((acc, te) => acc + te.hours, 0);
+      const userAssignedTasks = companyTasks.filter((t) => t.assigneeIds.includes(u.id) && t.status !== 'Done');
+      return {
+        user: u,
+        hours: userHours,
+        activeTaskCount: userAssignedTasks.length,
+      };
+    });
+  }, [users, timeEntries, companyTasks]);
 
   // Project Timeline State & Events
   const [timelineFilter, setTimelineFilter] = useState<'all' | 'project' | 'task'>('all');

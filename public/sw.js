@@ -1,22 +1,12 @@
-// Dolphin BD Service Worker for Offline PWA Capabilities
-const CACHE_NAME = 'dolphin-bd-v1';
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-];
+// Dolphin PWA Service Worker
+const CACHE_NAME = 'dolphin-portal-v2';
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
-    })
-  );
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
@@ -25,27 +15,21 @@ self.addEventListener('activate', (e) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  // Network first, fallback to cache for HTML/App shell
-  if (e.request.mode === 'navigate') {
-    e.respondWith(
-      fetch(e.request).catch(() => caches.match('/index.html'))
-    );
+// Network-first without breaking API, Firestore, or module scripts
+self.addEventListener('fetch', (event) => {
+  // Do not intercept non-GET requests or external APIs/Firestore
+  if (
+    event.request.method !== 'GET' ||
+    event.request.url.includes('/api/') ||
+    event.request.url.includes('firestore.googleapis.com') ||
+    event.request.url.includes('identitytoolkit') ||
+    event.request.url.includes('googleapis.com')
+  ) {
     return;
   }
-
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      return cached || fetch(e.request).then((response) => {
-        return response;
-      });
-    }).catch(() => {
-      return caches.match('/index.html');
-    })
-  );
 });
+

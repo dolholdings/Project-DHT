@@ -38,9 +38,28 @@ const MainLayout: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showEmailGatewayModal, setShowEmailGatewayModal] = useState(false);
-  const [activeViewTab, setActiveViewTab] = useState('list');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  // Derive activeViewTab directly from activeTab to prevent state divergence
+  const activeViewTab = React.useMemo(() => {
+    switch (activeTab) {
+      case 'dashboard':
+        return 'overview';
+      case 'tasks':
+        return 'list';
+      case 'kanban':
+        return 'board';
+      case 'workload':
+        return 'workload';
+      case 'calendar':
+        return 'calendar';
+      case 'reports':
+        return 'activity';
+      default:
+        return 'list';
+    }
+  }, [activeTab]);
 
   // Force Sign In Gatekeeper when hitting the site unauthenticated
   if (!isAuthenticated) {
@@ -68,12 +87,13 @@ const MainLayout: React.FC = () => {
   }
 
   const handleViewTabChange = (tabId: string) => {
-    setActiveViewTab(tabId);
-    if (tabId === 'list' || tabId === 'table') setActiveTab('tasks');
-    if (tabId === 'board') setActiveTab('kanban');
-    if (tabId === 'team' || tabId === 'workload') setActiveTab('workload');
-    if (tabId === 'calendar') setActiveTab('calendar');
-    if (tabId === 'activity') setActiveTab('reports');
+    if (tabId === 'overview') setActiveTab('dashboard');
+    else if (tabId === 'list' || tabId === 'table') setActiveTab('tasks');
+    else if (tabId === 'board') setActiveTab('kanban');
+    else if (tabId === 'team' || tabId === 'workload') setActiveTab('workload');
+    else if (tabId === 'calendar') setActiveTab('calendar');
+    else if (tabId === 'activity') setActiveTab('reports');
+    else setActiveTab('tasks');
   };
 
   return (
