@@ -43,10 +43,12 @@ import {
   Monitor,
   Sliders,
   Edit2,
-  X
+  X,
+  Compass
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog, DolphinTheme, CustomFieldDefinition, CustomFieldType } from '../../types';
+import { startOnboardingTour, resetUserTour, hasUserCompletedTour, markUserTourCompleted } from '../../services/onboardingTour';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -64,6 +66,7 @@ export const SettingsView: React.FC = () => {
     firebaseUser,
     signInWithGoogle,
     signOutFirebase,
+    logout,
     theme,
     setTheme,
     dolphinTheme,
@@ -1610,6 +1613,61 @@ SET FOREIGN_KEY_CHECKS = 1;
                 </div>
               </div>
             </div>
+
+            {/* Onboarding Tour & Interactive Guide Card */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400">
+                    <Compass className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                      <span>Interactive Onboarding Tour (Driver.js)</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
+                        STEP-BY-STEP
+                      </span>
+                    </h3>
+                    <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                      Guide new users through spaces, executive widgets, Gantt CPM scheduling, and quick task management.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetUserTour(currentUser?.id);
+                      alert('Onboarding tour flag reset! It will trigger on next page refresh or first login.');
+                    }}
+                    className="px-3 py-2 rounded-xl bg-[#16222F] hover:bg-[#1E2E3E] text-slate-300 border border-[#233549] text-xs font-semibold transition-all"
+                    title="Reset the first-login completion flag so the tour triggers again"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 inline mr-1.5 text-amber-400" />
+                    <span>Reset First-Login Flag</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      startOnboardingTour({
+                        theme: theme as 'dark' | 'light',
+                        onComplete: () => {
+                          markUserTourCompleted(currentUser?.id);
+                        }
+                      });
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:opacity-95 text-white text-xs font-bold shadow-lg shadow-[#0773BB]/25 transition-all flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300 fill-current" />
+                    <span>Launch Guided Tour Now</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1643,7 +1701,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                   <p className="text-[10px] text-emerald-400 font-mono">Google Auth Logged In</p>
                 </div>
                 <button
-                  onClick={signOutFirebase}
+                  onClick={logout}
                   className="ml-2 px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-[11px] rounded-lg transition-all"
                 >
                   Sign Out

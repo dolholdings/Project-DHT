@@ -56,12 +56,16 @@ import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '..
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
-import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks } from '../../lib/permissions';
+import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks, canDeleteTask } from '../../lib/permissions';
+import { PermissionGuard } from '../common/PermissionGuard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
+import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
 import { TasksDataTable } from './TasksDataTable';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
+import { SprintPlanningView } from '../sprints/SprintPlanningView';
+import { CustomFieldsManagerModal } from '../customFields/CustomFieldsManagerModal';
 
 export const TasksView: React.FC = () => {
   const {
@@ -92,7 +96,8 @@ export const TasksView: React.FC = () => {
     seedDemoTasksForProject,
     theme,
     currentUser,
-    customFields
+    customFields,
+    sprints
   } = useApp();
 
   const isLight = theme === 'light';
@@ -175,7 +180,9 @@ export const TasksView: React.FC = () => {
   const [sortBySmartPriority, setSortBySmartPriority] = useState(false);
   const [singleAnalyzingTaskId, setSingleAnalyzingTaskId] = useState<string | null>(null);
   const [filterUnassignedModal, setFilterUnassignedModal] = useState(false);
-  const [tasksViewMode, setTasksViewMode] = useState<'table' | 'list'>('table');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
+  const [tasksViewMode, setTasksViewMode] = useState<'table' | 'list' | 'sprints'>('table');
+  const [showCustomFieldsModal, setShowCustomFieldsModal] = useState(false);
 
   // Unassigned tasks helper
   const unassignedTasks = useMemo(() => {
@@ -391,6 +398,17 @@ export const TasksView: React.FC = () => {
         if (t.listName && t.listName.trim() !== '') return false;
       } else if (t.listName !== selectedListFilter) {
         return false;
+      }
+    }
+    if (assigneeFilter !== 'all') {
+      if (assigneeFilter === 'unassigned') {
+        if (t.assigneeIds && t.assigneeIds.length > 0 && t.assigneeIds.some((id) => id && id.trim() !== '')) {
+          return false;
+        }
+      } else {
+        if (!t.assigneeIds || !t.assigneeIds.includes(assigneeFilter)) {
+          return false;
+        }
       }
     }
     if (searchQuery) {
@@ -667,7 +685,7 @@ export const TasksView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {/* View Mode Toggle Switch (Data Table vs Grouped List) */}
+          {/* View Mode Toggle Switch (Data Table vs Grouped List vs Sprints) */}
           <div className="p-1 rounded-2xl bg-[#0D1520] border border-[#233549] flex items-center gap-1">
             <button
               type="button"
@@ -695,7 +713,46 @@ export const TasksView: React.FC = () => {
               <ListOrdered className="w-3.5 h-3.5" />
               <span>Grouped List</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setTasksViewMode('sprints')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                tasksViewMode === 'sprints'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
+                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+              }`}
+              title="Agile Scrum Sprint Planning, Backlog Estimations, and Velocity Management"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              <span>Sprint Planning</span>
+            </button>
           </div>
+
+          {/* Assignee Filter Dropdown */}
+          <AssigneeFilterDropdown
+            value={assigneeFilter}
+            onChange={setAssigneeFilter}
+            users={users}
+            tasks={accessibleTasks.filter((t) => !selectedProjectId || t.projectId === selectedProjectId)}
+          />
+
+          {/* Custom Fields Manager Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowCustomFieldsModal(true)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${
+              theme === 'light'
+                ? 'bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-800'
+                : 'bg-purple-950/40 hover:bg-purple-900/40 border-purple-500/40 text-purple-300'
+            }`}
+            title="Configure and manage custom fields across all tasks"
+          >
+            <Sliders className="w-4 h-4 text-purple-400" />
+            <span>Custom Fields</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold">
+              {customFields.length}
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => handleOpenSmartPriorityModal(false)}
@@ -935,9 +992,11 @@ export const TasksView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* TASK VIEW BODY (DATA TABLE OR GROUPED ACCORDIONS) */}
-        <div className={`${selectedTaskId ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
-          {tasksViewMode === 'table' ? (
+        {/* TASK VIEW BODY (DATA TABLE OR SPRINT PLANNING OR GROUPED ACCORDIONS) */}
+        <div className={`${selectedTaskId && tasksViewMode !== 'sprints' ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-6`}>
+          {tasksViewMode === 'sprints' ? (
+            <SprintPlanningView />
+          ) : tasksViewMode === 'table' ? (
             <TasksDataTable
               onSelectTask={(id) => setSelectedTaskId(id)}
               selectedTaskId={selectedTaskId}
@@ -946,7 +1005,7 @@ export const TasksView: React.FC = () => {
             <EmptyStateCard
               variant="list"
               theme={theme === 'light' ? 'light' : 'dark'}
-              hasActiveFilters={Boolean(searchQuery || selectedListFilter)}
+              hasActiveFilters={Boolean(searchQuery || selectedListFilter || assigneeFilter !== 'all')}
               onPrimaryAction={() => setShowCreateModal(true)}
               primaryActionLabel="Create Deliverable Task"
               onSecondaryAction={() => setShowCsvImportModal(true)}
@@ -956,6 +1015,7 @@ export const TasksView: React.FC = () => {
               onResetFilters={() => {
                 if (setSearchQuery) setSearchQuery('');
                 if (setSelectedListFilter) setSelectedListFilter(null);
+                setAssigneeFilter('all');
               }}
             />
           ) : (
@@ -2249,17 +2309,19 @@ export const TasksView: React.FC = () => {
             </div>
 
             {/* Delete */}
-            <div className="pt-2 border-t border-[#233549]">
-              <button
-                onClick={() => {
-                  deleteTask(activeTask.id);
-                  setSelectedTaskId(null);
-                }}
-                className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
-              >
-                Delete Task
-              </button>
-            </div>
+            <PermissionGuard action="delete_task" target={activeTask}>
+              <div className="pt-2 border-t border-[#233549]">
+                <button
+                  onClick={() => {
+                    deleteTask(activeTask.id);
+                    setSelectedTaskId(null);
+                  }}
+                  className="w-full py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold hover:bg-rose-500 hover:text-white transition-all"
+                >
+                  Delete Task
+                </button>
+              </div>
+            </PermissionGuard>
           </div>
         );
       })()}
@@ -2908,6 +2970,12 @@ export const TasksView: React.FC = () => {
       {showCsvImportModal && (
         <ProjectCsvImportModal onClose={() => setShowCsvImportModal(false)} />
       )}
+
+      {/* Custom Fields Manager Modal */}
+      <CustomFieldsManagerModal
+        isOpen={showCustomFieldsModal}
+        onClose={() => setShowCustomFieldsModal(false)}
+      />
     </div>
   );
 };

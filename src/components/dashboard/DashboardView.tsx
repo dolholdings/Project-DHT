@@ -44,7 +44,7 @@ import {
   Gauge
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { APPROVED_DOMAINS, Task, Project, TaskDependency } from '../../types';
+import { APPROVED_DOMAINS, Task, Project, TaskDependency, AIDailyBrief } from '../../types';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { getStatusBadgeStyle } from '../../lib/statusUtils';
@@ -60,6 +60,16 @@ import { PriorityRiskDistributionWidget } from './PriorityRiskDistributionWidget
 import { D3CapacityVelocityGaugeWidget } from './D3CapacityVelocityGaugeWidget';
 import { ProjectSpaceDashboard } from './ProjectSpaceDashboard';
 import { QuickAddFAB } from '../common/QuickAddFAB';
+import { DashboardWidgetWrapper } from './DashboardWidgetWrapper';
+import { MyTasksWidget } from './MyTasksWidget';
+import { HighPriorityOverdueWidget } from './HighPriorityOverdueWidget';
+import { DailyBriefWidget } from './DailyBriefWidget';
+import { QuickStatsWidget } from './QuickStatsWidget';
+import { ProjectTimelineWidget } from './ProjectTimelineWidget';
+import { UrgentDependenciesWidget } from './UrgentDependenciesWidget';
+import { ProjectsHealthWidget } from './ProjectsHealthWidget';
+import { WorkloadSummaryWidget } from './WorkloadSummaryWidget';
+import { DomainWhitelistWidget } from './DomainWhitelistWidget';
 
 export interface ProjectHealthInfo {
   status: 'On-Track' | 'At-Risk' | 'Blocked';
@@ -135,13 +145,11 @@ export const getProjectHealthInfo = (
   };
 };
 
-export interface DailyBriefData {
-  summary: string;
+export interface DailyBriefData extends AIDailyBrief {
   keyProgress: string[];
   upcomingDeadlines: string[];
   urgentBlockers: string[];
-  actionPlan: string[];
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  actionPlan?: string[];
 }
 
 export interface DashboardWidgetConfig {
@@ -151,6 +159,7 @@ export interface DashboardWidgetConfig {
   category: 'Overview' | 'Tasks' | 'Analytics' | 'Security' | 'AI Insights';
   pinned: boolean;
   order: number;
+  colSpan?: 1 | 2 | 3;
 }
 
 const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
@@ -161,6 +170,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     category: 'AI Insights',
     pinned: true,
     order: 0,
+    colSpan: 3,
   },
   {
     id: 'quick_stats',
@@ -169,94 +179,25 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     category: 'Overview',
     pinned: true,
     order: 1,
-  },
-  {
-    id: 'burndown_chart',
-    name: 'Sprint Burn-Down Chart (Recharts)',
-    description: 'Interactive Recharts area/line chart comparing actual remaining work scope vs ideal linear burn rate line.',
-    category: 'Analytics',
-    pinned: true,
-    order: 2,
-  },
-  {
-    id: 'task_status_distribution',
-    name: 'Task Status Breakdown (Recharts Donut/Bar)',
-    description: 'Interactive Recharts Donut & Bar chart showing task breakdown by status (Done, In Progress, To Do, Blocked, Review).',
-    category: 'Analytics',
-    pinned: true,
-    order: 3,
-  },
-  {
-    id: 'priority_risk_distribution',
-    name: 'Priority & Risk Score Breakdown (Recharts)',
-    description: 'Recharts stacked bar chart evaluating priority levels (Urgent, High, Medium, Low) vs completed status and risk scores.',
-    category: 'Analytics',
-    pinned: true,
-    order: 4,
-  },
-  {
-    id: 'd3_team_velocity_gauge',
-    name: 'Team Capacity & Velocity Gauge (D3.js)',
-    description: 'Custom D3.js SVG arc gauge displaying overall team capacity utilization percentage and member workload velocity.',
-    category: 'Analytics',
-    pinned: true,
-    order: 5,
-  },
-  {
-    id: 'task_completion_trend',
-    name: 'Tasks Completion Rate (7-Day Trend)',
-    description: 'Recharts summary card tracking 7-day completion rate velocity, completed task counts, and backlog metrics.',
-    category: 'Analytics',
-    pinned: true,
-    order: 6,
-  },
-  {
-    id: 'project_timeline',
-    name: 'Project Timeline & Milestones',
-    description: 'Visual timeline displaying project milestones and upcoming due dates in a scrollable horizontal format.',
-    category: 'Overview',
-    pinned: true,
-    order: 7,
+    colSpan: 3,
   },
   {
     id: 'my_tasks',
     name: 'My Assigned Tasks',
-    description: 'Personal task queue with calculated Priority Scores and quick status toggles.',
+    description: 'Personal task queue with calculated Priority Scores, quick status checkboxes, and filtering.',
     category: 'Tasks',
     pinned: true,
-    order: 8,
+    order: 2,
+    colSpan: 2,
   },
   {
-    id: 'budget_tracking',
-    name: 'Project Budget & Burn Rate Tracker',
-    description: 'Recharts visual analytics tracking cumulative spend, burn rates, and predicted budget vs timeline forecasts.',
-    category: 'Analytics',
-    pinned: true,
-    order: 9,
-  },
-  {
-    id: 'urgent_deps',
-    name: 'Urgent Dependencies & Blockers',
-    description: 'Critical path tasks that block downstream work or have overdue deadlines.',
+    id: 'high_priority_overdue',
+    name: 'High Priority Overdue',
+    description: 'Real-time alert radar for critical path overdue tasks, urgent blockers, and high risk priorities.',
     category: 'Tasks',
     pinned: true,
-    order: 10,
-  },
-  {
-    id: 'workload_summary',
-    name: 'Team Workload & Effort Summary',
-    description: 'Breakdown of logged hours, billable effort, and team workload capacity.',
-    category: 'Analytics',
-    pinned: true,
-    order: 11,
-  },
-  {
-    id: 'projects_health',
-    name: 'Active Projects Portfolio Health',
-    description: 'Strategic project list with progress indicators and budget allocation.',
-    category: 'Overview',
-    pinned: true,
-    order: 12,
+    order: 3,
+    colSpan: 1,
   },
   {
     id: 'recent_activity',
@@ -264,7 +205,98 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Real-time timeline of team actions including task status changes, comments, and document updates.',
     category: 'Overview',
     pinned: true,
+    order: 4,
+    colSpan: 1,
+  },
+  {
+    id: 'urgent_deps',
+    name: 'Urgent Dependencies & Blockers',
+    description: 'Critical path tasks that block downstream work or have overdue deadlines.',
+    category: 'Tasks',
+    pinned: true,
+    order: 5,
+    colSpan: 1,
+  },
+  {
+    id: 'burndown_chart',
+    name: 'Sprint Burn-Down Chart (Recharts)',
+    description: 'Interactive Recharts area/line chart comparing actual remaining work scope vs ideal linear burn rate line.',
+    category: 'Analytics',
+    pinned: true,
+    order: 6,
+    colSpan: 3,
+  },
+  {
+    id: 'task_status_distribution',
+    name: 'Task Status Breakdown (Recharts Donut/Bar)',
+    description: 'Interactive Recharts Donut & Bar chart showing task breakdown by status (Done, In Progress, To Do, Blocked, Review).',
+    category: 'Analytics',
+    pinned: true,
+    order: 7,
+    colSpan: 2,
+  },
+  {
+    id: 'priority_risk_distribution',
+    name: 'Priority & Risk Score Breakdown (Recharts)',
+    description: 'Recharts stacked bar chart evaluating priority levels (Urgent, High, Medium, Low) vs completed status and risk scores.',
+    category: 'Analytics',
+    pinned: true,
+    order: 8,
+    colSpan: 2,
+  },
+  {
+    id: 'd3_team_velocity_gauge',
+    name: 'Team Capacity & Velocity Gauge (D3.js)',
+    description: 'Custom D3.js SVG arc gauge displaying overall team capacity utilization percentage and member workload velocity.',
+    category: 'Analytics',
+    pinned: true,
+    order: 9,
+    colSpan: 1,
+  },
+  {
+    id: 'task_completion_trend',
+    name: 'Tasks Completion Rate (7-Day Trend)',
+    description: 'Recharts summary card tracking 7-day completion rate velocity, completed task counts, and backlog metrics.',
+    category: 'Analytics',
+    pinned: true,
+    order: 10,
+    colSpan: 1,
+  },
+  {
+    id: 'project_timeline',
+    name: 'Project Timeline & Milestones',
+    description: 'Visual timeline displaying project milestones and upcoming due dates in a scrollable horizontal format.',
+    category: 'Overview',
+    pinned: true,
+    order: 11,
+    colSpan: 3,
+  },
+  {
+    id: 'budget_tracking',
+    name: 'Project Budget & Burn Rate Tracker',
+    description: 'Recharts visual analytics tracking cumulative spend, burn rates, and predicted budget vs timeline forecasts.',
+    category: 'Analytics',
+    pinned: true,
+    order: 12,
+    colSpan: 3,
+  },
+  {
+    id: 'projects_health',
+    name: 'Active Projects Portfolio Health',
+    description: 'Strategic project list with progress indicators and budget allocation.',
+    category: 'Overview',
+    pinned: true,
     order: 13,
+    colSpan: 2,
+  },
+  {
+    id: 'workload_summary',
+    name: 'Team Workload & Effort Summary',
+    description: 'Breakdown of logged hours, billable effort, and team workload capacity.',
+    category: 'Analytics',
+    pinned: true,
+    order: 14,
+    colSpan: 1,
   },
   {
     id: 'activity_stream',
@@ -272,7 +304,8 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Live audit trail showing recent team actions, updates, and timestamps.',
     category: 'Analytics',
     pinned: true,
-    order: 14,
+    order: 15,
+    colSpan: 1,
   },
   {
     id: 'domain_whitelist',
@@ -280,7 +313,8 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Approved corporate email domain whitelist for workspace access control.',
     category: 'Security',
     pinned: true,
-    order: 15,
+    order: 16,
+    colSpan: 1,
   },
 ];
 
@@ -302,6 +336,7 @@ export const DashboardView: React.FC = () => {
   } = useApp();
 
   const [isCustomizeOpen, setCustomizeOpen] = useState(false);
+  const [isAddWidgetDropdownOpen, setIsAddWidgetDropdownOpen] = useState(false);
   const [widgetSearchQuery, setWidgetSearchQuery] = useState('');
   const [widgetCategoryFilter, setWidgetCategoryFilter] = useState<string>('All');
   const [widgets, setWidgets] = useState<DashboardWidgetConfig[]>(() => {
@@ -312,10 +347,21 @@ export const DashboardView: React.FC = () => {
         if (Array.isArray(parsed) && parsed.length > 0) {
           const existingIds = new Set(parsed.map((w: any) => w.id));
           const missingDefaults = DEFAULT_WIDGETS.filter((dw) => !existingIds.has(dw.id));
+          // Migrate default colSpan if missing
+          const migrated = parsed.map((w: any) => {
+            const def = DEFAULT_WIDGETS.find((dw) => dw.id === w.id);
+            return {
+              ...w,
+              colSpan: w.colSpan || def?.colSpan || 1,
+              name: def?.name || w.name,
+              description: def?.description || w.description,
+              category: def?.category || w.category
+            };
+          });
           if (missingDefaults.length > 0) {
-            return [...parsed, ...missingDefaults];
+            return [...migrated, ...missingDefaults];
           }
-          return parsed;
+          return migrated;
         }
       }
     } catch (e) {
@@ -339,6 +385,24 @@ export const DashboardView: React.FC = () => {
     );
   };
 
+  const handleResizeWidget = (id: string, colSpan: 1 | 2 | 3) => {
+    setWidgets((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, colSpan } : w))
+    );
+  };
+
+  const handleRemoveWidget = (id: string) => {
+    setWidgets((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, pinned: false } : w))
+    );
+  };
+
+  const handleAddWidget = (id: string) => {
+    setWidgets((prev) =>
+      prev.map((w) => (w.id === id ? { ...w, pinned: true } : w))
+    );
+  };
+
   const moveWidget = (id: string, direction: 'up' | 'down') => {
     setWidgets((prev) => {
       const sorted = [...prev].sort((a, b) => a.order - b.order);
@@ -358,6 +422,29 @@ export const DashboardView: React.FC = () => {
 
   const resetWidgetsToDefault = () => {
     setWidgets(DEFAULT_WIDGETS);
+  };
+
+  const getWidgetIcon = (id: string) => {
+    switch (id) {
+      case 'daily_brief': return Sparkles;
+      case 'quick_stats': return TrendingUp;
+      case 'my_tasks': return UserCheck;
+      case 'high_priority_overdue': return Flame;
+      case 'recent_activity': return Activity;
+      case 'urgent_deps': return AlertTriangle;
+      case 'burndown_chart': return BarChart2;
+      case 'task_status_distribution': return PieChart;
+      case 'priority_risk_distribution': return BarChart2;
+      case 'd3_team_velocity_gauge': return Gauge;
+      case 'task_completion_trend': return TrendingUp;
+      case 'project_timeline': return CalendarDays;
+      case 'budget_tracking': return Briefcase;
+      case 'projects_health': return FolderKanban;
+      case 'workload_summary': return Users;
+      case 'activity_stream': return Activity;
+      case 'domain_whitelist': return ShieldCheck;
+      default: return Activity;
+    }
   };
 
   // Filter tasks & projects by space assignment and workspace
@@ -651,6 +738,88 @@ export const DashboardView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+          {/* Quick Add Widget Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsAddWidgetDropdownOpen(!isAddWidgetDropdownOpen)}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl font-bold text-xs transition-all shadow-sm ${
+                theme === 'light'
+                  ? 'bg-white hover:bg-slate-100 border border-slate-300 text-slate-700'
+                  : 'bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] text-slate-200'
+              }`}
+            >
+              <Plus className="w-4 h-4 text-[#3BC0BB]" />
+              <span>+ Add Widget</span>
+            </button>
+
+            {isAddWidgetDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsAddWidgetDropdownOpen(false)}
+                />
+                <div
+                  className={`absolute right-0 mt-2 w-80 rounded-2xl border shadow-2xl z-40 p-3 space-y-2 animate-in fade-in zoom-in-95 ${
+                    theme === 'light'
+                      ? 'bg-white border-slate-200 text-slate-800'
+                      : 'bg-[#16222F] border-[#233549] text-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200/20 px-1">
+                    <span className="text-xs font-bold text-slate-300">Add Workspace Widget</span>
+                    <button
+                      onClick={() => {
+                        setIsAddWidgetDropdownOpen(false);
+                        setCustomizeOpen(true);
+                      }}
+                      className="text-[11px] text-[#3BC0BB] hover:underline font-semibold"
+                    >
+                      Manage All
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto space-y-1 pr-1">
+                    {widgets.filter((w) => !w.pinned).length === 0 ? (
+                      <div className="p-4 text-center text-xs text-slate-400">
+                        All widgets are currently active on your dashboard!
+                      </div>
+                    ) : (
+                      widgets
+                        .filter((w) => !w.pinned)
+                        .map((w) => {
+                          const IconComp = getWidgetIcon(w.id);
+                          return (
+                            <button
+                              key={w.id}
+                              onClick={() => {
+                                handleAddWidget(w.id);
+                                setIsAddWidgetDropdownOpen(false);
+                              }}
+                              className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left transition-all group ${
+                                theme === 'light'
+                                  ? 'bg-slate-50 hover:bg-teal-50/50 border-slate-200 hover:border-teal-300'
+                                  : 'bg-[#0D1520] hover:bg-[#1A2838] border-[#233549] hover:border-[#3BC0BB]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="p-1.5 rounded-lg bg-[#0773BB]/20 text-[#3BC0BB]">
+                                  <IconComp className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold truncate">{w.name}</div>
+                                  <div className="text-[10px] text-slate-400">{w.category}</div>
+                                </div>
+                              </div>
+                              <Plus className="w-4 h-4 text-emerald-400 opacity-60 group-hover:opacity-100 shrink-0 ml-2" />
+                            </button>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           {/* Download Report Button */}
           <button
             onClick={() => setIsReportModalOpen(true)}
@@ -675,7 +844,7 @@ export const DashboardView: React.FC = () => {
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
-            <span>Customize Dashboard ({pinnedWidgetIds.size} Pinned)</span>
+            <span>Customize Dashboard ({widgets.filter((w) => w.pinned).length} Pinned)</span>
           </button>
 
           <button
@@ -699,1153 +868,188 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* WIDGET: GEMINI AI DAILY BRIEF */}
-      {isWidgetPinned('daily_brief') && (
-        <div className={`p-6 rounded-2xl border space-y-4 shadow-2xl relative overflow-hidden transition-all animate-in fade-in ${
-          theme === 'light'
-            ? 'bg-gradient-to-r from-slate-50 via-white to-slate-50 border-slate-200'
-            : 'bg-gradient-to-r from-[#16222F] via-[#1A2838] to-[#0D1520] border-[#3BC0BB]/40'
-        }`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#233549]/60 pb-3.5">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#0773BB] to-[#3BC0BB] text-white shadow-lg">
-                <Sparkles className="w-5 h-5 animate-pulse" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className={`text-base font-bold tracking-tight ${theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`}>
-                    AI Chief of Staff • Daily Brief
-                  </h2>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/40">
-                    GEMINI 3.6 FLASH
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Automated executive summary synthesized from task history, deadlines, and team activity.
-                </p>
-              </div>
-            </div>
+      {/* DYNAMIC GRID CONTAINER FOR ALL PINNED & RESIZABLE WIDGETS */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {widgets
+          .sort((a, b) => a.order - b.order)
+          .filter((w) => w.pinned)
+          .map((widget, index) => {
+            const IconComp = getWidgetIcon(widget.id);
 
-            <div className="flex items-center gap-3">
-              {dailyBrief?.riskLevel && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-mono font-bold border ${
-                  dailyBrief.riskLevel === 'CRITICAL'
-                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                    : dailyBrief.riskLevel === 'HIGH'
-                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                    : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                }`}>
-                  Risk Level: {dailyBrief.riskLevel}
-                </span>
-              )}
-
-              <button
-                onClick={fetchDailyBrief}
-                disabled={briefLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] text-slate-300 hover:text-white text-xs font-semibold transition-all disabled:opacity-50"
-                title="Refresh Daily AI Brief"
-              >
-                <Sparkles className={`w-3.5 h-3.5 text-[#3BC0BB] ${briefLoading ? 'animate-spin' : ''}`} />
-                <span>{briefLoading ? 'Analyzing...' : 'Refresh AI Brief'}</span>
-              </button>
-            </div>
-          </div>
-
-          {briefLoading && !dailyBrief ? (
-            <div className="p-8 text-center space-y-3">
-              <Sparkles className="w-8 h-8 text-[#3BC0BB] animate-spin mx-auto" />
-              <p className="text-xs text-slate-400 font-mono">Synthesizing workspace task history with Gemini API...</p>
-            </div>
-          ) : dailyBrief ? (
-            <div className="space-y-4">
-              {/* Executive Summary paragraph */}
-              <div className={`p-4 rounded-xl border text-xs leading-relaxed font-medium ${
-                theme === 'light' ? 'bg-slate-100/70 border-slate-200 text-slate-800' : 'bg-[#0D1520]/80 border-[#233549] text-slate-200'
-              }`}>
-                {dailyBrief.summary}
-              </div>
-
-              {/* 3 Columns for Progress, Deadlines, Blockers */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Key Progress */}
-                <div className={`p-4 rounded-xl border space-y-2 ${
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520]/50 border-[#233549]'
-                }`}>
-                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Key Daily Progress</span>
-                  </div>
-                  <ul className="space-y-1.5 text-[11px] text-slate-300 list-disc pl-4 font-mono">
-                    {dailyBrief.keyProgress.map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Upcoming Deadlines */}
-                <div className={`p-4 rounded-xl border space-y-2 ${
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520]/50 border-[#233549]'
-                }`}>
-                  <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                    <Clock className="w-4 h-4" />
-                    <span>Upcoming Deadlines</span>
-                  </div>
-                  <ul className="space-y-1.5 text-[11px] text-slate-300 list-disc pl-4 font-mono">
-                    {dailyBrief.upcomingDeadlines.map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Urgent Blockers & Action Plan */}
-                <div className={`p-4 rounded-xl border space-y-2 ${
-                  theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520]/50 border-[#233549]'
-                }`}>
-                  <div className="flex items-center gap-2 text-rose-400 text-xs font-bold">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span>Urgent Blockers & Actions</span>
-                  </div>
-                  <ul className="space-y-1.5 text-[11px] text-slate-300 list-disc pl-4 font-mono">
-                    {[...dailyBrief.urgentBlockers, ...dailyBrief.actionPlan].slice(0, 3).map((item, i) => (
-                      <li key={i}>{item}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              {briefGeneratedAt && (
-                <div className="text-[10px] text-slate-500 font-mono text-right pt-1">
-                  Last generated at {briefGeneratedAt} via Gemini 3.6 Flash
-                </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {/* WIDGET 1: KPI STATS CARDS */}
-      {isWidgetPinned('quick_stats') && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in">
-          {/* Card 1: Total Projects */}
-          <div
-            onMouseEnter={() => setHoveredStatCard('total_projects')}
-            onMouseLeave={() => setHoveredStatCard(null)}
-            className={`p-5 rounded-2xl border transition-all group shadow-xl relative cursor-pointer ${
-              theme === 'light' ? 'bg-white border-slate-200 hover:border-[#0773BB]' : 'bg-[#16222F]/80 border-[#233549] hover:border-[#0773BB]/50'
-            }`}
-          >
-            <StatCardTooltip
-              isVisible={hoveredStatCard === 'total_projects'}
-              title="Total Projects Portfolio"
-              subtitle="Distribution & Capital Breakdown"
-              icon={FolderKanban}
-              accentColor="#0773BB"
-              items={[
-                {
-                  label: 'In Progress Projects',
-                  value: inProgressProjects.length,
-                  subtext: `${inProgressProjects.length} active workspace initiatives`,
-                  progress: companyProjects.length > 0 ? (inProgressProjects.length / companyProjects.length) * 100 : 0,
-                  color: '#0773BB'
-                },
-                {
-                  label: 'Completed Projects',
-                  value: completedProjects.length,
-                  subtext: `${completedProjects.length} delivered successfully`,
-                  progress: companyProjects.length > 0 ? (completedProjects.length / companyProjects.length) * 100 : 0,
-                  color: '#3BC0BB'
-                },
-                {
-                  label: 'Total Capital Budget',
-                  value: `$${companyProjects.reduce((s, p) => s + (p.budget || 0), 0).toLocaleString()}`,
-                  subtext: `Spent: $${companyProjects.reduce((s, p) => s + (p.spentBudget || 0), 0).toLocaleString()}`,
-                  color: '#10b981'
-                }
-              ]}
-              footerNote="Hover metrics to inspect portfolio status"
-            />
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Total Projects
-              </span>
-              <div className="w-10 h-10 rounded-xl bg-[#0773BB]/20 text-[#0773BB] flex items-center justify-center group-hover:scale-110 transition-transform">
-                <FolderKanban className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className={`text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                {companyProjects.length}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                <TrendingUp className="w-3.5 h-3.5" /> +12.5%
-              </span>
-            </div>
-            <div className="mt-2 text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0773BB]"></span>
-              <span>{inProgressProjects.length} active • {completedProjects.length} completed</span>
-            </div>
-          </div>
-
-          {/* Card 2: In Progress */}
-          <div
-            onMouseEnter={() => setHoveredStatCard('in_progress')}
-            onMouseLeave={() => setHoveredStatCard(null)}
-            className={`p-5 rounded-2xl border transition-all group shadow-xl relative cursor-pointer ${
-              theme === 'light' ? 'bg-white border-slate-200 hover:border-sky-500' : 'bg-[#16222F]/80 border-[#233549] hover:border-sky-500/50'
-            }`}
-          >
-            <StatCardTooltip
-              isVisible={hoveredStatCard === 'in_progress'}
-              title="In Progress Workloads"
-              subtitle="Active Execution Metrics"
-              icon={Activity}
-              accentColor="#38bdf8"
-              items={[
-                {
-                  label: 'Active Execution Tasks',
-                  value: inProgressTasks.length,
-                  subtext: `Out of ${companyTasks.length} overall workspace tasks`,
-                  progress: companyTasks.length > 0 ? (inProgressTasks.length / companyTasks.length) * 100 : 0,
-                  color: '#38bdf8'
-                },
-                {
-                  label: 'High & Urgent Priority',
-                  value: companyTasks.filter((t) => t.status === 'In Progress' && (t.priority === 'Urgent' || t.priority === 'High')).length,
-                  subtext: 'Critical path active work items',
-                  color: '#ef4444'
-                },
-                {
-                  label: 'Active Team Assignees',
-                  value: new Set(companyTasks.filter((t) => t.status === 'In Progress').flatMap((t) => t.assigneeIds)).size,
-                  subtext: 'Team members actively assigned',
-                  color: '#8b5cf6'
-                }
-              ]}
-              footerNote="Real-time execution analytics"
-            />
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                In Progress
-              </span>
-              <div className="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Activity className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className={`text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                {inProgressProjects.length}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-500/10 text-sky-400 border border-sky-500/30">
-                <TrendingUp className="w-3.5 h-3.5" /> +8.4%
-              </span>
-            </div>
-            <div className="mt-2 text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-              <span>{inProgressTasks.length} active task(s) in execution</span>
-            </div>
-          </div>
-
-          {/* Card 3: Completed */}
-          <div
-            onMouseEnter={() => setHoveredStatCard('completed')}
-            onMouseLeave={() => setHoveredStatCard(null)}
-            className={`p-5 rounded-2xl border transition-all group shadow-xl relative cursor-pointer ${
-              theme === 'light' ? 'bg-white border-slate-200 hover:border-[#3BC0BB]' : 'bg-[#16222F]/80 border-[#233549] hover:border-[#3BC0BB]/50'
-            }`}
-          >
-            <StatCardTooltip
-              isVisible={hoveredStatCard === 'completed'}
-              title="Completion & Delivery"
-              subtitle="Efficiency & Milestones"
-              icon={CheckCircle2}
-              accentColor="#3BC0BB"
-              items={[
-                {
-                  label: 'Completed Tasks',
-                  value: completedTasks.length,
-                  subtext: `${companyTasks.length > 0 ? Math.round((completedTasks.length / companyTasks.length) * 100) : 0}% completion rate`,
-                  progress: companyTasks.length > 0 ? (completedTasks.length / companyTasks.length) * 100 : 0,
-                  color: '#3BC0BB'
-                },
-                {
-                  label: 'Completed Projects',
-                  value: completedProjects.length,
-                  subtext: 'Delivered projects',
-                  color: '#10b981'
-                },
-                {
-                  label: 'Milestones Reached',
-                  value: companyTasks.filter((t) => t.isMilestone && t.status === 'Done').length,
-                  subtext: 'Key delivery targets achieved',
-                  color: '#06b6d4'
-                }
-              ]}
-              footerNote="Historical completion tracking"
-            />
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Completed
-              </span>
-              <div className="w-10 h-10 rounded-xl bg-[#3BC0BB]/20 text-[#3BC0BB] flex items-center justify-center group-hover:scale-110 transition-transform">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className={`text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                {completedProjects.length}
-              </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-teal-500/10 text-[#3BC0BB] border border-teal-500/30">
-                <CheckCircle2 className="w-3.5 h-3.5" /> +18.2%
-              </span>
-            </div>
-            <div className="mt-2 text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#3BC0BB]"></span>
-              <span>{completedTasks.length} task(s) completed ({companyTasks.length > 0 ? Math.round((completedTasks.length / companyTasks.length) * 100) : 0}%)</span>
-            </div>
-          </div>
-
-          {/* Card 4: Upcoming Deadlines */}
-          <div
-            onMouseEnter={() => setHoveredStatCard('upcoming_deadlines')}
-            onMouseLeave={() => setHoveredStatCard(null)}
-            className={`p-5 rounded-2xl border transition-all group shadow-xl relative cursor-pointer ${
-              theme === 'light' ? 'bg-white border-slate-200 hover:border-amber-500' : 'bg-[#16222F]/80 border-[#233549] hover:border-amber-500/50'
-            }`}
-          >
-            <StatCardTooltip
-              isVisible={hoveredStatCard === 'upcoming_deadlines'}
-              title="Deadline Risk Breakdown"
-              subtitle="Imminent Tasks & Overdue Audit"
-              icon={Clock}
-              accentColor="#f59e0b"
-              items={[
-                {
-                  label: 'Due Next 7 Days',
-                  value: upcomingDeadlinesTasks.length,
-                  subtext: 'Tasks requiring delivery this week',
-                  color: '#f59e0b'
-                },
-                {
-                  label: 'Overdue Items',
-                  value: overdueTasks.length,
-                  subtext: overdueTasks.length > 0 ? 'Requires immediate supervisor review' : 'No overdue tasks detected',
-                  color: overdueTasks.length > 0 ? '#ef4444' : '#10b981'
-                },
-                {
-                  label: 'Critical Path Items',
-                  value: companyTasks.filter((t) => t.isCriticalPath && t.status !== 'Done').length,
-                  subtext: 'Active critical path tasks',
-                  color: '#f43f5e'
-                }
-              ]}
-              footerNote="Automated timeline risk breakdown"
-            />
-
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Upcoming Deadlines
-              </span>
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Clock className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline justify-between">
-              <span className="text-3xl font-extrabold text-amber-400 tracking-tight">
-                {upcomingDeadlinesTasks.length}
-              </span>
-              {overdueTasks.length > 0 ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                  <AlertTriangle className="w-3.5 h-3.5" /> {overdueTasks.length} overdue
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> On Schedule
-                </span>
-              )}
-            </div>
-            <div className="mt-2 text-xs text-slate-400 flex items-center gap-1.5 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-              <span>Tasks due within 7 days • {overdueTasks.length} overdue</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* WIDGET: SPRINT BURN-DOWN CHART (Recharts) */}
-      {isWidgetPinned('burndown_chart') && (
-        <BurnDownChartWidget
-          tasks={companyTasks}
-          projects={companyProjects}
-          theme={theme}
-        />
-      )}
-
-      {/* WIDGET: TASK STATUS BREAKDOWN (Recharts Donut/Bar) */}
-      {isWidgetPinned('task_status_distribution') && (
-        <TaskStatusDistributionWidget
-          tasks={companyTasks}
-          projects={companyProjects}
-          theme={theme}
-        />
-      )}
-
-      {/* WIDGET: PRIORITY & RISK SCORE BREAKDOWN (Recharts) */}
-      {isWidgetPinned('priority_risk_distribution') && (
-        <PriorityRiskDistributionWidget
-          tasks={companyTasks}
-          dependencies={dependencies}
-          theme={theme}
-        />
-      )}
-
-      {/* WIDGET: TEAM CAPACITY & VELOCITY GAUGE (D3.js) */}
-      {isWidgetPinned('d3_team_velocity_gauge') && (
-        <D3CapacityVelocityGaugeWidget
-          users={users}
-          timeEntries={timeEntries}
-          tasks={companyTasks}
-          theme={theme}
-        />
-      )}
-
-      {/* WIDGET: TASKS COMPLETION RATE 7-DAY TREND */}
-      {isWidgetPinned('task_completion_trend') && (
-        <TaskCompletionTrendWidget
-          tasks={companyTasks}
-          activityLogs={activityLogs}
-          theme={theme}
-        />
-      )}
-
-      {/* WIDGET: PROJECT TIMELINE & MILESTONES (Scrollable Horizontal Timeline) */}
-      {isWidgetPinned('project_timeline') && (
-        <div className={`p-6 rounded-2xl border space-y-4 shadow-xl animate-in fade-in ${
-          theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/80 border-[#233549]'
-        }`}>
-          {/* Timeline Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#233549]/60 pb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] text-white flex items-center justify-center shadow-md">
-                <CalendarDays className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className={`text-base font-extrabold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Project Timeline & Milestones
-                  </h2>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/40">
-                    {timelineEvents.length} Events
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Scrollable chronological view of upcoming project milestones and due dates
-                </p>
-              </div>
-            </div>
-
-            {/* Timeline Controls */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Type Filter Buttons */}
-              <div className="flex items-center gap-1 p-1 bg-[#0D1520] rounded-xl border border-[#233549] text-[11px] font-bold">
-                <button
-                  onClick={() => setTimelineFilter('all')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    timelineFilter === 'all' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setTimelineFilter('project')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    timelineFilter === 'project' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Projects
-                </button>
-                <button
-                  onClick={() => setTimelineFilter('task')}
-                  className={`px-2.5 py-1 rounded-lg transition-all ${
-                    timelineFilter === 'task' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  Tasks
-                </button>
-              </div>
-
-              {/* Scroll Buttons */}
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => scrollTimeline('left')}
-                  className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-[#16222F] text-slate-300 hover:text-white border border-[#233549] transition-all"
-                  title="Scroll Left"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => scrollTimeline('right')}
-                  className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-[#16222F] text-slate-300 hover:text-white border border-[#233549] transition-all"
-                  title="Scroll Right"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Full Timeline Button */}
-              <button
-                onClick={() => setActiveTab('timeline')}
-                className="px-3 py-1.5 rounded-xl bg-[#0773BB]/20 hover:bg-[#0773BB]/30 text-[#3BC0BB] border border-[#0773BB]/40 font-bold text-xs flex items-center gap-1 transition-all ml-1"
-              >
-                <span>Full Timeline</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Scrollable Horizontal Timeline Content */}
-          {(() => {
-            const filteredEvents = timelineEvents.filter((ev) => {
-              if (timelineFilter === 'all') return true;
-              return ev.type === timelineFilter;
-            });
-
-            if (filteredEvents.length === 0) {
-              return (
-                <div className="p-8 text-center rounded-xl bg-[#0D1520]/50 border border-dashed border-[#233549] text-xs text-slate-400 space-y-1">
-                  <Milestone className="w-8 h-8 text-slate-500 mx-auto" />
-                  <p className="font-semibold text-slate-300">No upcoming milestones found for this filter.</p>
-                  <p>Assign due dates to projects or tasks to populate the timeline.</p>
-                </div>
-              );
-            }
-
-            return (
-              <div
-                ref={timelineScrollRef}
-                className="overflow-x-auto pb-3 pt-2 no-scrollbar scroll-smooth"
-              >
-                <div className="inline-flex items-start gap-5 min-w-full px-1">
-                  {filteredEvents.map((ev, index) => {
-                    const isOverdue = ev.status === 'Overdue';
-                    const isCompleted = ev.status === 'Completed';
-                    const isInProgress = ev.status === 'In Progress';
-
-                    // Node styles
-                    const nodeBg = isCompleted
-                      ? 'bg-emerald-500 text-white border-emerald-400'
-                      : isOverdue
-                      ? 'bg-rose-500 text-white border-rose-400'
-                      : isInProgress
-                      ? 'bg-sky-500 text-white border-sky-400'
-                      : 'bg-purple-500 text-white border-purple-400';
-
-                    const badgeColor = isCompleted
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                      : isOverdue
-                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                      : isInProgress
-                      ? 'bg-sky-500/20 text-sky-400 border-sky-500/40'
-                      : 'bg-purple-500/20 text-purple-400 border-purple-500/40';
-
-                    const formattedDate = new Date(ev.dateStr).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    });
-
-                    return (
-                      <div key={ev.id} className="w-72 shrink-0 flex flex-col group">
-                        {/* Top Date Header & Status Pill */}
-                        <div className="flex items-center justify-between text-xs mb-2">
-                          <span className="font-mono text-slate-300 font-bold text-[11px] flex items-center gap-1">
-                            <CalendarDays className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                            {formattedDate}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${badgeColor}`}>
-                            {isCompleted ? 'Done' : isOverdue ? `Overdue (${Math.abs(ev.daysDiff)}d)` : ev.daysDiff === 0 ? 'Due Today' : `In ${ev.daysDiff}d`}
-                          </span>
-                        </div>
-
-                        {/* Timeline Horizontal Line & Node Marker */}
-                        <div className="relative flex items-center py-2 mb-3">
-                          {/* Horizontal connecting line */}
-                          <div className={`absolute left-0 right-0 h-0.5 ${
-                            index === filteredEvents.length - 1 ? 'w-1/2' : 'w-full'
-                          } ${
-                            isCompleted ? 'bg-emerald-500/50' : 'bg-[#233549]'
-                          }`} />
-
-                          {/* Central node dot */}
-                          <div className={`relative z-10 w-7 h-7 rounded-full border-2 flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 ${nodeBg}`}>
-                            {isCompleted ? (
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            ) : isOverdue ? (
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                            ) : ev.type === 'project' ? (
-                              <Milestone className="w-3.5 h-3.5" />
-                            ) : (
-                              <Flag className="w-3.5 h-3.5" />
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Milestone Card Container */}
-                        <div className={`p-4 rounded-xl border flex flex-col justify-between gap-3 transition-all ${
-                          theme === 'light'
-                            ? 'bg-slate-50 border-slate-200 hover:border-[#0773BB] shadow-sm'
-                            : 'bg-[#0D1520] border-[#233549] hover:border-[#3BC0BB] hover:bg-[#121C28]'
-                        }`}>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0773BB]/20 text-[#3BC0BB] border border-[#0773BB]/30">
-                                @{ev.code}
-                              </span>
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                                ev.type === 'project' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'
-                              }`}>
-                                {ev.type}
-                              </span>
-                            </div>
-
-                            <h4 className={`text-xs font-bold line-clamp-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                              {ev.title}
-                            </h4>
-                          </div>
-
-                          {/* Card Footer */}
-                          <div className="pt-2.5 border-t border-[#233549]/60 flex items-center justify-between text-[11px]">
-                            {ev.assigneeName ? (
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <img
-                                  src={ev.assigneeAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                                  alt={ev.assigneeName}
-                                  className="w-4 h-4 rounded-full object-cover border border-[#3BC0BB]"
-                                />
-                                <span className="text-slate-300 truncate font-medium text-[10px]">{ev.assigneeName.split(' ')[0]}</span>
-                              </div>
-                            ) : (
-                              <span className="text-slate-500 italic text-[10px]">Unassigned</span>
-                            )}
-
-                            {ev.progress !== undefined ? (
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-mono text-[10px] text-[#3BC0BB] font-bold">{ev.progress}%</span>
-                                <div className="w-12 bg-slate-800 rounded-full h-1 overflow-hidden">
-                                  <div className="bg-[#3BC0BB] h-1 rounded-full" style={{ width: `${ev.progress}%` }} />
-                                </div>
-                              </div>
-                            ) : (
-                              <span className={`text-[10px] font-mono font-semibold ${
-                                ev.priority === 'Urgent' ? 'text-rose-400' : 'text-slate-400'
-                              }`}>
-                                {ev.priority || 'Normal'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* WIDGET: PROJECT BUDGET & BURN RATE TRACKER (Recharts Analytics) */}
-      {isWidgetPinned('budget_tracking') && (
-        <BudgetTrackingWidget
-          projects={companyProjects}
-          tasks={companyTasks}
-          timeEntries={timeEntries}
-          theme={theme}
-          onNavigateToProjects={() => setActiveTab('projects')}
-        />
-      )}
-
-      {/* DYNAMIC PINNED WIDGETS GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Pinned Primary Widgets */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* WIDGET 2: MY ASSIGNED TASKS */}
-          {isWidgetPinned('my_tasks') && (
-            <div className={`p-6 rounded-2xl border space-y-4 shadow-xl animate-in fade-in ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/80 border-[#233549]'
-            }`}>
-              <div className="flex items-center justify-between border-b border-[#233549]/60 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#0773BB]/20 text-[#3BC0BB] flex items-center justify-center">
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                      My Assigned Tasks ({myTasks.length})
-                    </h2>
-                    <p className="text-xs text-slate-400">
-                      Logged in as <span className="text-[#3BC0BB] font-semibold">{currentUser.name}</span>
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setActiveTab('tasks')}
-                  className="text-xs font-semibold text-[#3BC0BB] hover:underline flex items-center gap-1"
-                >
-                  <span>Full Board</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {myTasks.length === 0 ? (
-                <div className="p-6 rounded-xl bg-[#0D1520]/50 border border-dashed border-[#233549] text-center text-xs text-slate-400">
-                  No pending tasks assigned to you. Enjoy your clean queue!
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                  {myTasks.map((t) => {
-                    const pScore = calculatePriorityScore(t, dependencies, companyTasks);
-                    const isDone = t.status === 'Done';
-
-                    return (
-                      <div
-                        key={t.id}
-                        className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                          theme === 'light'
-                            ? isDone ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-slate-50 border-slate-200 hover:border-[#0773BB]'
-                            : isDone ? 'bg-[#0D1520]/40 border-[#233549] opacity-60' : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <button
-                            onClick={() => updateTask(t.id, { status: isDone ? 'In Progress' : 'Done' })}
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
-                              isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-500 hover:border-[#3BC0BB]'
-                            }`}
-                          >
-                            {isDone && <Check className="w-3 h-3 stroke-[3]" />}
-                          </button>
-                          <div className="min-w-0">
-                            <TaskQuickPreviewPopover task={t} onOpenFullTask={() => setActiveTab('tasks')}>
-                              <h4 className={`text-xs font-bold truncate cursor-pointer hover:underline ${isDone ? 'line-through text-slate-500' : theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                                {getDisplayTaskTitle(t)}
-                              </h4>
-                            </TaskQuickPreviewPopover>
-                            <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                              <span>Due: {t.dueDate || 'No Date'}</span>
-                              <span>•</span>
-                              <span>Est: {t.estimatedHours}h</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}>
-                            Score: {pScore.score} ({pScore.tier})
-                          </span>
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getStatusBadgeStyle(
-                            t.status,
-                            theme === 'light'
-                          )}`}>
-                            {t.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* WIDGET 3: URGENT DEPENDENCIES & BLOCKERS */}
-          {isWidgetPinned('urgent_deps') && (
-            <div className={`p-6 rounded-2xl border space-y-4 shadow-xl animate-in fade-in ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/80 border-[#233549]'
-            }`}>
-              <div className="flex items-center justify-between border-b border-[#233549]/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <Flame className="w-5 h-5 text-rose-400" />
-                  <h2 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Urgent Dependencies & Blockers ({urgentAndBlockers.length})
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setActiveTab('tasks')}
-                  className="text-xs font-semibold text-[#3BC0BB] hover:underline"
-                >
-                  Manage Dependencies
-                </button>
-              </div>
-
-              {urgentAndBlockers.length === 0 ? (
-                <div className="p-6 rounded-xl bg-[#0D1520]/50 border border-dashed border-[#233549] text-center text-xs text-slate-400">
-                  No urgent blockers currently detected.
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                  {urgentAndBlockers.slice(0, 5).map((t) => {
-                    const pScore = calculatePriorityScore(t, dependencies, companyTasks);
-                    return (
-                      <div
-                        key={t.id}
-                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                          theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping shrink-0" />
-                          <div>
-                            <TaskQuickPreviewPopover task={t} onOpenFullTask={() => setActiveTab('tasks')}>
-                              <div className={`text-xs font-bold cursor-pointer hover:underline ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{getDisplayTaskTitle(t)}</div>
-                            </TaskQuickPreviewPopover>
-                            <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                              <span>Due: {t.dueDate}</span>
-                              <span>•</span>
-                              <span>Est: {t.estimatedHours} hrs</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}>
-                            {pScore.score} {pScore.tier}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* WIDGET 5: ACTIVE PROJECTS HEALTH */}
-          {isWidgetPinned('projects_health') && (
-            <div className={`p-6 rounded-2xl border space-y-4 shadow-xl animate-in fade-in ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/80 border-[#233549]'
-            }`}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#233549]/60 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                      Active Projects Health
-                    </h2>
-                    <span className="text-xs text-slate-400 font-mono">
-                      ({companyProjects.length})
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Strategic initiatives under <span className="text-[#3BC0BB] font-semibold">{activeCompany.code}</span> with real-time health diagnostics
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('projects')}
-                  className="text-xs font-semibold text-[#3BC0BB] hover:underline flex items-center gap-1 shrink-0"
-                >
-                  <span>All Projects</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Color-Coded Health Legend & Status Overview Bar */}
-              <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex items-center gap-1.5 font-bold text-slate-300">
-                  <Activity className="w-4 h-4 text-[#3BC0BB]" />
-                  <span>Health Diagnostics Legend:</span>
-                </div>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                  {/* On-Track Legend item with hover explanation */}
-                  <div className="relative group/legend cursor-help flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>On-Track</span>
-                    <HelpCircle className="w-3 h-3 text-emerald-400/70" />
-
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/legend:block w-64 p-2.5 rounded-xl bg-[#0D1520] border border-[#233549] text-[11px] text-slate-200 shadow-2xl z-30 pointer-events-none">
-                      <div className="font-bold text-emerald-400 mb-1 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        On-Track
-                      </div>
-                      <p className="text-slate-300 font-normal leading-tight">
-                        Timeline, milestone deliverables, task velocity, and budget expenditures are proceeding as planned.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* At-Risk Legend item with hover explanation */}
-                  <div className="relative group/legend cursor-help flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 font-semibold text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span>At-Risk</span>
-                    <HelpCircle className="w-3 h-3 text-amber-400/70" />
-
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/legend:block w-64 p-2.5 rounded-xl bg-[#0D1520] border border-[#233549] text-[11px] text-slate-200 shadow-2xl z-30 pointer-events-none">
-                      <div className="font-bold text-amber-400 mb-1 flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        At-Risk
-                      </div>
-                      <p className="text-slate-300 font-normal leading-tight">
-                        High budget consumption (&gt;95%), overdue tasks, or progress velocity lagging behind spent capital.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Blocked Legend item with hover explanation */}
-                  <div className="relative group/legend cursor-help flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 font-semibold text-[11px]">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                    <span>Blocked</span>
-                    <HelpCircle className="w-3 h-3 text-rose-400/70" />
-
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/legend:block w-64 p-2.5 rounded-xl bg-[#0D1520] border border-[#233549] text-[11px] text-slate-200 shadow-2xl z-30 pointer-events-none">
-                      <div className="font-bold text-rose-400 mb-1 flex items-center gap-1">
-                        <ShieldAlert className="w-3.5 h-3.5" />
-                        Blocked
-                      </div>
-                      <p className="text-slate-300 font-normal leading-tight">
-                        Project execution is halted or severely obstructed by unresolved task dependencies or management hold.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {companyProjects.length === 0 ? (
-                  <div className="p-8 rounded-xl bg-[#0D1520] border border-dashed border-[#233549] text-center space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-[#0773BB]/20 text-[#3BC0BB] mx-auto flex items-center justify-center">
-                      <FolderKanban className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Your Workspace is Ready for Real Projects</h3>
-                      <p className="text-xs text-slate-400 mt-1">Start by creating your first project.</p>
-                    </div>
-                  </div>
-                ) : (
-                  companyProjects.map((p) => {
-                    const health = getProjectHealthInfo(p, companyTasks, dependencies);
-                    const HealthIcon = health.icon;
-
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => setActiveTab('gantt')}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer group relative ${
-                          theme === 'light' ? 'bg-slate-50 border-slate-200 hover:border-[#0773BB]' : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]'
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#0773BB]/20 text-[#3BC0BB] font-semibold">
-                                {p.code}
-                              </span>
-                              <h3 className={`text-sm font-bold group-hover:text-[#3BC0BB] transition-colors truncate ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                                {p.title}
-                              </h3>
-
-                              {/* VISUAL HEALTH STATUS BADGE WITH HOVER EXPLANATION */}
-                              <div className="relative group/health badge-container">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 border transition-all ${health.badgeBg} ${health.badgeText} ${health.badgeBorder}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${health.dotBg} animate-pulse`} />
-                                  <HealthIcon className="w-3 h-3" />
-                                  <span>{health.label}</span>
-                                  <Info className="w-3 h-3 opacity-60 hover:opacity-100 ml-0.5" />
-                                </span>
-
-                                {/* Hover-over Explanation Tooltip */}
-                                <div className="absolute bottom-full left-0 mb-2 hidden group-hover/health:block w-72 p-3 rounded-xl bg-[#16222F] border border-[#233549] text-[11px] text-slate-200 shadow-2xl z-40 pointer-events-none animate-in fade-in zoom-in-95">
-                                  <div className="flex items-center gap-1.5 font-bold mb-1" style={{ color: health.badgeText.replace('text-', '') }}>
-                                    <HealthIcon className="w-4 h-4" />
-                                    <span>Health Assessment: {health.label}</span>
-                                  </div>
-                                  <p className="text-slate-300 font-medium leading-relaxed">
-                                    {health.explanation}
-                                  </p>
-                                  <div className="mt-2 pt-1.5 border-t border-[#233549] text-[10px] font-mono text-slate-400 flex justify-between">
-                                    <span>Budget: ${p.spentBudget.toLocaleString()} / ${p.budget.toLocaleString()}</span>
-                                    <span>Prog: {p.progress}%</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <p className="text-xs text-slate-400 mt-1 line-clamp-1">
-                              {p.description}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-4 text-xs shrink-0">
-                            <div className="text-right">
-                              <div className="text-slate-400 text-[11px]">Budget Spent</div>
-                              <div className="font-mono font-semibold text-slate-200">
-                                ${p.spentBudget.toLocaleString()} / ${p.budget.toLocaleString()}
-                              </div>
-                            </div>
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                p.status === 'In Progress'
-                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                  : p.status === 'Completed'
-                                  ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                  : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                              }`}
-                            >
-                              {p.status}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Progress bar with health status color accent */}
-                        <div className="mt-3 flex items-center gap-3">
-                          <div className="flex-1 bg-slate-700/30 h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full transition-all duration-500 ${
-                                health.status === 'Blocked'
-                                  ? 'bg-gradient-to-r from-rose-600 to-rose-400'
-                                  : health.status === 'At-Risk'
-                                  ? 'bg-gradient-to-r from-amber-600 to-amber-400'
-                                  : 'bg-gradient-to-r from-[#0773BB] to-[#3BC0BB]'
-                              }`}
-                              style={{ width: `${p.progress}%` }}
-                            />
-                          </div>
-                          <span className={`text-xs font-mono font-bold ${
-                            health.status === 'Blocked'
-                              ? 'text-rose-400'
-                              : health.status === 'At-Risk'
-                              ? 'text-amber-400'
-                              : 'text-[#3BC0BB]'
-                          }`}>
-                            {p.progress}%
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Col: Secondary Pinned Widgets */}
-        <div className="space-y-6">
-          {/* WIDGET 4: TEAM WORKLOAD & EFFORT */}
-          {isWidgetPinned('workload_summary') && (
-            <div className={`p-6 rounded-2xl border space-y-4 shadow-xl animate-in fade-in ${
-              theme === 'light' ? 'bg-white border-slate-200' : 'bg-[#16222F]/80 border-[#233549]'
-            }`}>
-              <div className="flex items-center justify-between border-b border-[#233549]/60 pb-3">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-indigo-400" />
-                  <h2 className={`text-base font-bold tracking-wide ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                    Team Workload & Effort
-                  </h2>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono">{totalLoggedHours}h Total</span>
-              </div>
-
-              <div className="space-y-3">
-                {userWorkload.map(({ user, hours, activeTaskCount }) => {
-                  const maxHours = Math.max(40, totalLoggedHours || 1);
-                  const percentage = Math.min(100, Math.round((hours / maxHours) * 100));
-
+            const renderWidgetContent = () => {
+              switch (widget.id) {
+                case 'daily_brief':
                   return (
-                    <div
-                      key={user.id}
-                      className={`p-3 rounded-xl border flex items-center gap-3 ${
-                        theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
-                      }`}
-                    >
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full object-cover ring-1 ring-[#0773BB]"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className={`font-bold truncate ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{user.name}</span>
-                          <span className="font-mono font-bold text-[#3BC0BB]">{hours} hrs</span>
-                        </div>
-                        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-0.5">
-                          <span>{user.role}</span>
-                          <span>{activeTaskCount} Active Task(s)</span>
-                        </div>
-                        <div className="mt-1.5 w-full bg-slate-700/30 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-indigo-500 h-full transition-all"
-                            style={{ width: `${Math.max(10, percentage)}%` }}
-                          />
-                        </div>
-                      </div>
+                    <DailyBriefWidget
+                      theme={theme}
+                      dailyBrief={dailyBrief}
+                      briefLoading={briefLoading}
+                      onRefresh={fetchDailyBrief}
+                    />
+                  );
+                case 'quick_stats':
+                  return (
+                    <QuickStatsWidget
+                      theme={theme}
+                      projects={companyProjects}
+                      tasks={companyTasks}
+                    />
+                  );
+                case 'my_tasks':
+                  return (
+                    <MyTasksWidget
+                      theme={theme}
+                      onNavigateToTasks={() => setActiveTab('tasks')}
+                    />
+                  );
+                case 'high_priority_overdue':
+                  return (
+                    <HighPriorityOverdueWidget
+                      theme={theme}
+                      onNavigateToTasks={() => setActiveTab('tasks')}
+                    />
+                  );
+                case 'recent_activity':
+                  return <RecentActivityPanel />;
+                case 'urgent_deps':
+                  return (
+                    <UrgentDependenciesWidget
+                      theme={theme}
+                      tasks={companyTasks}
+                      dependencies={dependencies}
+                      onNavigateToTasks={() => setActiveTab('tasks')}
+                    />
+                  );
+                case 'burndown_chart':
+                  return (
+                    <BurnDownChartWidget
+                      tasks={companyTasks}
+                      projects={companyProjects}
+                      theme={theme}
+                    />
+                  );
+                case 'task_status_distribution':
+                  return (
+                    <TaskStatusDistributionWidget
+                      tasks={companyTasks}
+                      projects={companyProjects}
+                      theme={theme}
+                    />
+                  );
+                case 'priority_risk_distribution':
+                  return (
+                    <PriorityRiskDistributionWidget
+                      tasks={companyTasks}
+                      dependencies={dependencies}
+                      theme={theme}
+                    />
+                  );
+                case 'd3_team_velocity_gauge':
+                  return (
+                    <D3CapacityVelocityGaugeWidget
+                      users={users}
+                      timeEntries={timeEntries}
+                      tasks={companyTasks}
+                      theme={theme}
+                    />
+                  );
+                case 'task_completion_trend':
+                  return (
+                    <TaskCompletionTrendWidget
+                      tasks={companyTasks}
+                      activityLogs={activityLogs}
+                      theme={theme}
+                    />
+                  );
+                case 'project_timeline':
+                  return (
+                    <ProjectTimelineWidget
+                      theme={theme}
+                      projects={companyProjects}
+                      tasks={companyTasks}
+                      users={users}
+                      onNavigateToTimeline={() => setActiveTab('timeline')}
+                    />
+                  );
+                case 'budget_tracking':
+                  return (
+                    <BudgetTrackingWidget
+                      projects={companyProjects}
+                      tasks={companyTasks}
+                      timeEntries={timeEntries}
+                      theme={theme}
+                      onNavigateToProjects={() => setActiveTab('projects')}
+                    />
+                  );
+                case 'projects_health':
+                  return (
+                    <ProjectsHealthWidget
+                      theme={theme}
+                      projects={companyProjects}
+                      tasks={companyTasks}
+                      onNavigateToProjects={() => setActiveTab('projects')}
+                      onSelectProject={(id) => setSelectedProjectId(id)}
+                    />
+                  );
+                case 'workload_summary':
+                  return (
+                    <WorkloadSummaryWidget
+                      theme={theme}
+                      users={users}
+                      tasks={companyTasks}
+                      timeEntries={timeEntries}
+                    />
+                  );
+                case 'activity_stream':
+                  return <LiveActivityStream />;
+                case 'domain_whitelist':
+                  return <DomainWhitelistWidget theme={theme} />;
+                default:
+                  return (
+                    <div className="p-6 text-center text-xs text-slate-400">
+                      Widget content unavailable
                     </div>
                   );
-                })}
-              </div>
-            </div>
-          )}
+              }
+            };
 
-          {/* WIDGET 6: RECENT TEAM ACTIVITY TIMELINE PANEL */}
-          {isWidgetPinned('recent_activity') && (
-            <div className="animate-in fade-in">
-              <RecentActivityPanel />
-            </div>
-          )}
-
-          {/* WIDGET 7: REAL-TIME ACTIVITY AUDIT STREAM */}
-          {isWidgetPinned('activity_stream') && (
-            <div className="animate-in fade-in">
-              <LiveActivityStream />
-            </div>
-          )}
-
-          {/* WIDGET 7: DOMAIN SECURITY GOVERNANCE */}
-          {isWidgetPinned('domain_whitelist') && (
-            <div className={`p-6 rounded-2xl border space-y-3 shadow-xl animate-in fade-in ${
-              theme === 'light'
-                ? 'bg-slate-50 border-slate-300'
-                : 'bg-gradient-to-br from-[#16222F] to-[#0D1520] border-[#3BC0BB]/30'
-            }`}>
-              <div className="flex items-center gap-2 text-[#3BC0BB]">
-                <ShieldCheck className="w-5 h-5" />
-                <h3 className="text-xs font-bold uppercase tracking-wider">
-                  Domain Whitelist Governance
-                </h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Restricted authorization access across official corporate email domains:
-              </p>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {APPROVED_DOMAINS.map((d) => (
-                  <span
-                    key={d}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-[#0D1520] border border-[#233549] font-mono text-slate-300"
-                  >
-                    @{d}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            return (
+              <DashboardWidgetWrapper
+                key={widget.id}
+                id={widget.id}
+                title={widget.name}
+                category={widget.category}
+                icon={IconComp}
+                colSpan={widget.colSpan || 1}
+                theme={theme}
+                onResize={handleResizeWidget}
+                onRemove={handleRemoveWidget}
+                onMove={moveWidget}
+                canMoveUp={index > 0}
+                canMoveDown={index < widgets.filter((w) => w.pinned).length - 1}
+              >
+                {renderWidgetContent()}
+              </DashboardWidgetWrapper>
+            );
+          })}
       </div>
 
       {/* CUSTOMIZE WIDGETS DRAWER / MODAL */}
       {isCustomizeOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className={`w-full max-w-2xl border rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] ${
-            theme === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#16222F] border-[#233549] text-slate-100'
-          }`}>
+          <div
+            className={`w-full max-w-3xl border rounded-2xl p-6 space-y-5 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] ${
+              theme === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#16222F] border-[#233549] text-slate-100'
+            }`}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b pb-4 border-slate-200/20">
               <div className="flex items-center gap-3">
-                <div className={`p-2.5 rounded-xl border ${
-                  theme === 'light' ? 'bg-teal-50 border-teal-200 text-teal-600' : 'bg-[#3BC0BB]/20 border-[#3BC0BB]/40 text-[#3BC0BB]'
-                }`}>
+                <div
+                  className={`p-2.5 rounded-xl border ${
+                    theme === 'light' ? 'bg-teal-50 border-teal-200 text-teal-600' : 'bg-[#3BC0BB]/20 border-[#3BC0BB]/40 text-[#3BC0BB]'
+                  }`}
+                >
                   <SlidersHorizontal className="w-5 h-5" />
                 </div>
                 <div>
@@ -1853,7 +1057,7 @@ export const DashboardView: React.FC = () => {
                     Customize Dashboard & Chart Widgets
                   </h2>
                   <p className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                    Add, remove, or reorder Recharts and D3 analytics widgets on your dashboard workspace.
+                    Add, remove, drag-to-resize, and reorder widgets across your personal workspace.
                   </p>
                 </div>
               </div>
@@ -1873,7 +1077,7 @@ export const DashboardView: React.FC = () => {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search charts and widgets (e.g., Burn-Down, D3, Status, Budget)..."
+                  placeholder="Search charts and widgets (e.g., My Tasks, High Priority, Burn-Down, D3, Status)..."
                   value={widgetSearchQuery}
                   onChange={(e) => setWidgetSearchQuery(e.target.value)}
                   className={`w-full pl-9 pr-4 py-2 rounded-xl text-xs border focus:outline-none focus:border-[#0773BB] ${
@@ -1886,7 +1090,7 @@ export const DashboardView: React.FC = () => {
 
               {/* Category Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                {['All', 'Analytics', 'Overview', 'Tasks', 'AI Insights', 'Security'].map((cat) => (
+                {['All', 'Tasks', 'Analytics', 'Overview', 'AI Insights', 'Security'].map((cat) => (
                   <button
                     key={cat}
                     onClick={() => setWidgetCategoryFilter(cat)}
@@ -1905,7 +1109,7 @@ export const DashboardView: React.FC = () => {
             </div>
 
             {/* Widget Items List */}
-            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 min-h-[280px]">
+            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 min-h-[300px]">
               {widgets
                 .sort((a, b) => a.order - b.order)
                 .filter((w) => {
@@ -1916,99 +1120,147 @@ export const DashboardView: React.FC = () => {
                     widgetCategoryFilter === 'All' || w.category === widgetCategoryFilter;
                   return matchesSearch && matchesCat;
                 })
-                .map((w, index) => (
-                  <div
-                    key={w.id}
-                    className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
-                      w.pinned
-                        ? theme === 'light'
-                          ? 'bg-teal-50/50 border-teal-200'
-                          : 'bg-[#0D1520] border-[#3BC0BB]/50'
-                        : theme === 'light'
-                        ? 'bg-slate-50/80 border-slate-200 opacity-60'
-                        : 'bg-[#0D1520]/40 border-[#233549] opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="cursor-grab text-slate-500 hover:text-slate-300">
-                        <GripVertical className="w-4 h-4" />
-                      </div>
-
-                      <button
-                        onClick={() => togglePinWidget(w.id)}
-                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-                          w.pinned
-                            ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40'
-                            : theme === 'light'
-                            ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
-                            : 'bg-[#1A2838] text-slate-400 hover:text-white'
-                        }`}
-                        title={w.pinned ? 'Remove Widget from Dashboard' : 'Add Widget to Dashboard'}
-                      >
-                        {w.pinned ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Pinned</span>
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>+ Add</span>
-                          </>
-                        )}
-                      </button>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className={`text-xs font-bold truncate ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                            {w.name}
-                          </h4>
-                          <span className={`text-[9px] px-2 py-0.5 rounded font-mono font-semibold border ${
-                            theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-[#16222F] text-slate-400 border-[#233549]'
-                          }`}>
-                            {w.category}
-                          </span>
+                .map((w, index) => {
+                  const IconComp = getWidgetIcon(w.id);
+                  return (
+                    <div
+                      key={w.id}
+                      className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
+                        w.pinned
+                          ? theme === 'light'
+                            ? 'bg-teal-50/50 border-teal-200'
+                            : 'bg-[#0D1520] border-[#3BC0BB]/50'
+                          : theme === 'light'
+                          ? 'bg-slate-50/80 border-slate-200 opacity-60'
+                          : 'bg-[#0D1520]/40 border-[#233549] opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="p-2 rounded-lg bg-[#0773BB]/20 text-[#3BC0BB] shrink-0">
+                          <IconComp className="w-4 h-4" />
                         </div>
-                        <p className={`text-[11px] truncate mt-0.5 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
-                          {w.description}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Order Move & Trash Controls */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => moveWidget(w.id, 'up')}
-                        disabled={index === 0}
-                        className={`p-1.5 rounded-lg border transition-all disabled:opacity-30 ${
-                          theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
-                        }`}
-                        title="Move Up"
-                      >
-                        <MoveUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveWidget(w.id, 'down')}
-                        disabled={index === widgets.length - 1}
-                        className={`p-1.5 rounded-lg border transition-all disabled:opacity-30 ${
-                          theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
-                        }`}
-                        title="Move Down"
-                      >
-                        <MoveDown className="w-3.5 h-3.5" />
-                      </button>
-                      {w.pinned && (
                         <button
                           onClick={() => togglePinWidget(w.id)}
-                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 transition-all"
-                          title="Remove Widget"
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+                            w.pinned
+                              ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/40'
+                              : theme === 'light'
+                              ? 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                              : 'bg-[#1A2838] text-slate-400 hover:text-white'
+                          }`}
+                          title={w.pinned ? 'Remove Widget from Dashboard' : 'Add Widget to Dashboard'}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          {w.pinned ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Pinned</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ Add</span>
+                            </>
+                          )}
                         </button>
-                      )}
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className={`text-xs font-bold truncate ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                              {w.name}
+                            </h4>
+                            <span
+                              className={`text-[9px] px-2 py-0.5 rounded font-mono font-semibold border shrink-0 ${
+                                theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-[#16222F] text-slate-400 border-[#233549]'
+                              }`}
+                            >
+                              {w.category}
+                            </span>
+                          </div>
+                          <p className={`text-[11px] truncate mt-0.5 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                            {w.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Sizing & Ordering Controls */}
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        {/* ColSpan Width Selector */}
+                        {w.pinned && (
+                          <div className="flex items-center gap-1 bg-[#0D1520] p-1 rounded-lg border border-[#233549] text-[10px] font-mono">
+                            <span className="text-slate-400 px-1 font-bold">Width:</span>
+                            <button
+                              onClick={() => handleResizeWidget(w.id, 1)}
+                              className={`px-1.5 py-0.5 rounded transition-all ${
+                                (w.colSpan || 1) === 1
+                                  ? 'bg-[#0773BB] text-white font-bold'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                              title="1/3 Column Width"
+                            >
+                              1/3
+                            </button>
+                            <button
+                              onClick={() => handleResizeWidget(w.id, 2)}
+                              className={`px-1.5 py-0.5 rounded transition-all ${
+                                w.colSpan === 2
+                                  ? 'bg-[#0773BB] text-white font-bold'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                              title="2/3 Column Width"
+                            >
+                              2/3
+                            </button>
+                            <button
+                              onClick={() => handleResizeWidget(w.id, 3)}
+                              className={`px-1.5 py-0.5 rounded transition-all ${
+                                w.colSpan === 3
+                                  ? 'bg-[#0773BB] text-white font-bold'
+                                  : 'text-slate-400 hover:text-white'
+                              }`}
+                              title="Full Row Width"
+                            >
+                              Full
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Order Move & Trash Controls */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => moveWidget(w.id, 'up')}
+                            disabled={index === 0}
+                            className={`p-1.5 rounded-lg border transition-all disabled:opacity-30 ${
+                              theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
+                            }`}
+                            title="Move Up"
+                          >
+                            <MoveUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => moveWidget(w.id, 'down')}
+                            disabled={index === widgets.length - 1}
+                            className={`p-1.5 rounded-lg border transition-all disabled:opacity-30 ${
+                              theme === 'light' ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
+                            }`}
+                            title="Move Down"
+                          >
+                            <MoveDown className="w-3.5 h-3.5" />
+                          </button>
+                          {w.pinned && (
+                            <button
+                              onClick={() => handleRemoveWidget(w.id)}
+                              className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 transition-all"
+                              title="Remove Widget"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
 
             {/* Footer */}

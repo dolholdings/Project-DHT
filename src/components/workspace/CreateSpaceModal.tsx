@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { FolderKanban, X, Plus, Sparkles, Building2, User, DollarSign, Calendar, Layers } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project } from '../../types';
+import { canCreateSpace } from '../../lib/permissions';
+import { PermissionGuard } from '../common/PermissionGuard';
 
 interface CreateSpaceModalProps {
   isOpen: boolean;
@@ -27,8 +29,8 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentUser?.role !== 'Admin') {
-      setErrorMsg('Only Workspace Administrators (Admin role) can create new spaces.');
+    if (!canCreateSpace(currentUser)) {
+      setErrorMsg('Permission denied: Team Members and Viewers cannot create new spaces.');
       return;
     }
     if (!title.trim()) {
@@ -217,17 +219,19 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center gap-2 text-white transition-transform active:scale-95 ${
-                theme === 'light'
-                  ? 'bg-[#0D9488] hover:bg-[#0F766E] shadow-[#0D9488]/30'
-                  : 'bg-[#0773BB] hover:bg-[#0773BB]/80 shadow-[#0773BB]/30'
-              }`}
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Space</span>
-            </button>
+            <PermissionGuard action="create_space" disableInsteadOfHide tooltipText="Team Members and Viewers cannot create spaces">
+              <button
+                type="submit"
+                className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center gap-2 text-white transition-transform active:scale-95 ${
+                  theme === 'light'
+                    ? 'bg-[#0D9488] hover:bg-[#0F766E] shadow-[#0D9488]/30'
+                    : 'bg-[#0773BB] hover:bg-[#0773BB]/80 shadow-[#0773BB]/30'
+                }`}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Space</span>
+              </button>
+            </PermissionGuard>
           </div>
         </form>
       </div>

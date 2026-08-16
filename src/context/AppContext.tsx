@@ -29,7 +29,8 @@ import {
   TemplateDependency,
   TemplateVersionRecord,
   TemplateCleanupRules,
-  CustomFieldDefinition
+  CustomFieldDefinition,
+  Sprint
 } from '../types';
 
 import { INITIAL_TEMPLATES } from '../data/initialTemplates';
@@ -39,6 +40,13 @@ import {
   initializeUserInboxOnSignup,
   UserInboxConfig
 } from '../services/inboxConfigService';
+import {
+  canCreateUser,
+  canDeleteUser,
+  canCreateSpace,
+  canDeleteSpace,
+  canDeleteTask
+} from '../lib/permissions';
 import {
   INITIAL_COMPANIES,
   INITIAL_USERS,
@@ -51,7 +59,8 @@ import {
   INITIAL_AUTOMATIONS,
   INITIAL_FILES,
   INITIAL_TIME_ENTRIES,
-  INITIAL_CUSTOM_FIELDS
+  INITIAL_CUSTOM_FIELDS,
+  INITIAL_SPRINTS
 } from '../data/initialData';
 import { INITIAL_EMAIL_THREADS, INITIAL_EMAIL_CONFIG } from '../data/initialEmailData';
 import {
@@ -140,8 +149,13 @@ interface AppContextType {
       targetTemplateId?: string;
       versionNote?: string;
       isMajorVersion?: boolean;
-    }
+    },
+    customFieldIds?: string[],
+    cleanupRules?: TemplateCleanupRules
   ) => ProjectTemplate;
+  createProjectTemplate: (template: Omit<ProjectTemplate, 'id' | 'createdAt'>) => ProjectTemplate;
+  updateProjectTemplate: (id: string, updates: Partial<ProjectTemplate>) => void;
+  duplicateProjectTemplate: (templateId: string) => ProjectTemplate;
   instantiateProjectFromTemplate: (
     templateId: string,
     params: {
@@ -182,11 +196,21 @@ interface AppContextType {
   updateCustomField: (id: string, updates: Partial<CustomFieldDefinition>) => void;
   deleteCustomField: (id: string) => void;
 
+  // Sprints & Agile Planning
+  sprints: Sprint[];
+  addSprint: (sprint: Omit<Sprint, 'id' | 'createdAt' | 'updatedAt'>) => Sprint;
+  updateSprint: (id: string, updates: Partial<Sprint>) => void;
+  deleteSprint: (id: string) => void;
+  completeSprint: (id: string, rolloverToSprintId?: string | null) => void;
+  moveTaskToSprint: (taskId: string, sprintId: string | null) => void;
+
   // Time Tracking
   timer: TimerState;
   startTimer: (taskId: string, taskTitle: string) => void;
   stopTimer: (description?: string) => void;
+  discardTimer: () => void;
   logTimeManual: (taskId: string, hours: number, description: string, date?: string) => void;
+  deleteTimeEntry: (id: string) => void;
   timeEntries: TimeEntry[];
 
   // Files & AI
@@ -551,17 +575,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const logout = () => {
-    try {
-      sessionStorage.removeItem('dolphin_is_authenticated');
-      localStorage.removeItem('dolphin_is_authenticated');
-      saveToStorage('dolphin_is_authenticated', false);
-    } catch (e) {
-      console.warn('Logout error', e);
-    }
-    setIsAuthenticatedState(false);
-  };
-
   const [projects, setProjects] = useState<Project[]>(() => {
     const loaded: Project[] = loadFromStorage('dolphin_projects', INITIAL_PROJECTS);
     const merged = [...loaded];
@@ -590,6 +603,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => loadFromStorage('dolphin_time_entries', INITIAL_TIME_ENTRIES));
   const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>(() =>
     loadFromStorage('dolphin_custom_fields', INITIAL_CUSTOM_FIELDS)
+  );
+  const [sprints, setSprints] = useState<Sprint[]>(() =>
+    loadFromStorage('dolphin_sprints', INITIAL_SPRINTS)
   );
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => loadFromStorage('dolphin_logs', INITIAL_LOGS));
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('dolphin_notifs', INITIAL_NOTIFICATIONS));
@@ -739,6 +755,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const msg = err?.message || String(err);
       console.warn('Firebase Signout Note:', msg);
     }
+    logout();
   };
 
   // Auto-sync state to localStorage for 100% data preservation
@@ -847,13 +864,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Live Stopwatch Timer
-  const [timer, setTimer] = useState<TimerState>({
-    active: false,
-    taskId: null,
-    taskTitle: null,
-    seconds: 0,
-    startTime: null,
+  const [timer, setTimer] = useState<TimerState>(() => {
+    const saved = loadFromStorage<TimerState>('dolphin_active_timer', {
+      active: false,
+      taskId: null,
+      taskTitle: null,
+      seconds: 0,
+      startTime: null,
+    });
+    if (saved.active && saved.startTime) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - saved.startTime) / 1000));
+      return {
+        ...saved,
+        seconds: Math.max(saved.seconds, elapsed)
+      };
+    }
+    return saved;
   });
+
+  useEffect(() => {
+    if (timer.active) {
+      saveToStorage('dolphin_active_timer', timer);
+    } else {
+      localStorage.removeItem('dolphin_active_timer');
+    }
+  }, [timer]);
 
   useEffect(() => {
     let interval: any = null;
@@ -972,6 +1007,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [activeCompany?.id, currentUser?.id, currentUser?.name, currentUser?.avatar]);
 
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
+
+  const logout = useCallback(() => {
+    try {
+      if (auth.currentUser) {
+        signOut(auth).catch((err) => console.warn('Firebase signout note:', err));
+      }
+      setFirebaseUser(null);
+    } catch (e) {
+      console.warn('Firebase logout note', e);
+    }
+
+    try {
+      if (currentUser?.email) {
+        logActivity(
+          'user signed out',
+          currentUser.email,
+          'auth',
+          undefined,
+          undefined,
+          `User ${currentUser.name} signed out of workspace`,
+          'info'
+        );
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    try {
+      sessionStorage.removeItem('dolphin_is_authenticated');
+      sessionStorage.removeItem('dolphin_current_session');
+      sessionStorage.removeItem('session_last_activity');
+      localStorage.removeItem('dolphin_is_authenticated');
+      saveToStorage('dolphin_is_authenticated', false);
+    } catch (e) {
+      console.warn('Logout error', e);
+    }
+
+    setIsAuthenticatedState(false);
+    setIsActivityDrawerOpen(false);
+    setCommandPaletteOpen(false);
+    setSelectedProjectId(null);
+  }, [currentUser, logActivity]);
 
   const clearActivityLogs = useCallback(() => {
     setActivityLogs([]);
@@ -1105,6 +1182,13 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     password?: string,
     assignedSpaceIds?: string[]
   ) => {
+    if (!canCreateUser(currentUser)) {
+      return {
+        success: false,
+        error: 'Permission denied: Team Members and Viewers cannot create or invite users.'
+      };
+    }
+
     const targetComp = companyId ? companies.find((c) => c.id === companyId) : undefined;
 
     const val = validateDomain(email, companyId);
@@ -1196,6 +1280,9 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   };
 
   const updateUser = (userId: string, updates: Partial<User>) => {
+    const existingUser = users.find((x) => x.id === userId);
+    const oldRole = existingUser?.role;
+
     setUsers((prev) =>
       prev.map((u) => {
         if (u.id === userId) {
@@ -1209,11 +1296,37 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       })
     );
     updateUserInFirestore(userId, updates);
-    const u = users.find((x) => x.id === userId);
-    logActivity('updated user profile / role', u ? `${u.name} (${u.email})` : userId, 'permission', undefined, undefined, `Updated attributes: ${Object.keys(updates).join(', ')}`, 'warning');
+    const u = existingUser;
+    
+    if (updates.role && oldRole && oldRole !== updates.role) {
+      logActivity(
+        'changed user role',
+        u ? `${u.name} (${u.email})` : userId,
+        'permission',
+        undefined,
+        undefined,
+        `Role privileges modified from "${oldRole}" to "${updates.role}" by ${currentUser?.name || 'Administrator'}`,
+        'warning'
+      );
+    } else {
+      logActivity(
+        'updated user profile / role',
+        u ? `${u.name} (${u.email})` : userId,
+        'permission',
+        undefined,
+        undefined,
+        `Updated attributes: ${Object.keys(updates).join(', ')}${updates.role ? ` (Role: ${updates.role})` : ''}`,
+        'warning'
+      );
+    }
   };
 
   const deleteUser = (userId: string) => {
+    if (!canDeleteUser(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can remove or deactivate users.');
+      return;
+    }
+
     const u = users.find((x) => x.id === userId);
 
     // Save ID to deleted list in state and localStorage
@@ -1238,8 +1351,13 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
   };
 
-  // Projects
+  // Projects / Spaces
   const addProject = (projectData: Omit<Project, 'id' | 'progress' | 'spentBudget'> | Project): Project => {
+    if (!canCreateSpace(currentUser)) {
+      console.warn('Permission denied: Team Members and Viewers cannot create spaces.');
+      return null as any;
+    }
+
     const newProj: Project = {
       ...projectData,
       id: ('id' in projectData && projectData.id) ? projectData.id : `proj_${Date.now()}`,
@@ -1264,6 +1382,11 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   };
 
   const deleteProject = (id: string) => {
+    if (!canDeleteSpace(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can delete project spaces.');
+      return;
+    }
+
     const p = projects.find((x) => x.id === id);
     setProjects((prev) => prev.filter((x) => x.id !== id));
     if (p) {
@@ -1297,7 +1420,9 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       targetTemplateId?: string;
       versionNote?: string;
       isMajorVersion?: boolean;
-    }
+    },
+    customFieldIds?: string[],
+    cleanupRules?: TemplateCleanupRules
   ): ProjectTemplate => {
     const proj = projects.find((p) => p.id === projectId);
     if (!proj) throw new Error('Project not found');
@@ -1305,6 +1430,25 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     const projTasks = tasks.filter((t) => t.projectId === projectId);
     const projTaskIds = new Set(projTasks.map((t) => t.id));
     const projStartDate = new Date(proj.startDate).getTime();
+
+    // Determine custom fields to save with template
+    const relevantCustomFieldIds = new Set<string>();
+    if (customFieldIds && customFieldIds.length > 0) {
+      customFieldIds.forEach((id) => relevantCustomFieldIds.add(id));
+    } else {
+      // Auto-discover all custom fields used in project tasks, plus any active custom fields
+      projTasks.forEach((t) => {
+        if (t.customFields) {
+          Object.keys(t.customFields).forEach((k) => relevantCustomFieldIds.add(k));
+        }
+      });
+      // Also include general workspace custom fields
+      customFields.forEach((cf) => relevantCustomFieldIds.add(cf.id));
+    }
+
+    const templateCustomFields: CustomFieldDefinition[] = customFields.filter((cf) =>
+      relevantCustomFieldIds.has(cf.id)
+    );
 
     const taskIdToTempId: Record<string, string> = {};
     const templateTasks: TemplateTask[] = projTasks.map((t, idx) => {
@@ -1322,13 +1466,15 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       return {
         tempId,
         title: t.title,
-        description: t.description || '',
+        description: cleanupRules?.clearDescriptionNotes ? '' : (t.description || ''),
         priority: t.priority,
-        estimatedHours: t.estimatedHours || 10,
-        tags: t.tags || [],
+        estimatedHours: cleanupRules?.resetEstimatedHours ? 0 : (t.estimatedHours || 10),
+        tags: cleanupRules?.clearCustomTags ? [] : (t.tags || []),
         dayOffset: isNaN(dayOffset) ? 0 : dayOffset,
         durationDays: isNaN(durationDays) ? 5 : durationDays,
-        subtasks: taskSubs
+        subtasks: taskSubs,
+        customFields: t.customFields ? { ...t.customFields } : {},
+        listName: t.listName
       };
     });
 
@@ -1336,11 +1482,13 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       (d) => projTaskIds.has(d.taskId) && projTaskIds.has(d.dependsOnTaskId)
     );
 
-    const templateDeps: TemplateDependency[] = projDeps.map((d) => ({
-      taskTempId: taskIdToTempId[d.taskId],
-      dependsOnTaskTempId: taskIdToTempId[d.dependsOnTaskId],
-      type: d.type || 'finish_to_start'
-    }));
+    const templateDeps: TemplateDependency[] = cleanupRules?.clearDependencies
+      ? []
+      : projDeps.map((d) => ({
+          taskTempId: taskIdToTempId[d.taskId],
+          dependsOnTaskTempId: taskIdToTempId[d.dependsOnTaskId],
+          type: d.type || 'finish_to_start'
+        }));
 
     const projDueDate = new Date(proj.dueDate).getTime();
     const durationMs = projDueDate - projStartDate;
@@ -1367,7 +1515,9 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         estimatedBudget: existingTarget.estimatedBudget,
         estimatedDurationDays: existingTarget.estimatedDurationDays,
         tasks: [...existingTarget.tasks],
-        dependencies: [...existingTarget.dependencies]
+        dependencies: [...existingTarget.dependencies],
+        customFields: existingTarget.customFields ? [...existingTarget.customFields] : undefined,
+        defaultCleanupRules: cleanupRules || existingTarget.defaultCleanupRules
       };
 
       const updatedTemplate: ProjectTemplate = {
@@ -1380,6 +1530,10 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         version: nextVersionStr,
         tasks: templateTasks,
         dependencies: templateDeps,
+        customFields: templateCustomFields,
+        lists: proj.lists && proj.lists.length > 0 ? [...proj.lists] : existingTarget.lists,
+        defaultCleanupRules: cleanupRules || existingTarget.defaultCleanupRules,
+        updatedAt: new Date().toISOString(),
         versionHistory: [snapshotRecord, ...(existingTarget.versionHistory || [])]
       };
 
@@ -1402,7 +1556,9 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         estimatedBudget: proj.budget || 100000,
         estimatedDurationDays: estDurationDays,
         tasks: [...templateTasks],
-        dependencies: [...templateDeps]
+        dependencies: [...templateDeps],
+        customFields: templateCustomFields,
+        defaultCleanupRules: cleanupRules
       };
 
       const newTemplate: ProjectTemplate = {
@@ -1415,10 +1571,14 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         tags: [proj.category, 'Custom Template'],
         createdBy: currentUser?.name || 'Workspace User',
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         sourceProjectId: projectId,
         tasks: templateTasks,
         dependencies: templateDeps,
+        customFields: templateCustomFields,
+        lists: proj.lists && proj.lists.length > 0 ? [...proj.lists] : ['Planning', 'In Progress', 'Testing', 'Handover'],
         version: initialVer,
+        defaultCleanupRules: cleanupRules,
         versionHistory: [initialRecord]
       };
 
@@ -1426,6 +1586,75 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       logActivity('saved project as template', `${newTemplate.name} (${initialVer})`, 'project', proj.id);
       return newTemplate;
     }
+  };
+
+  const createProjectTemplate = (templateData: Omit<ProjectTemplate, 'id' | 'createdAt'>): ProjectTemplate => {
+    const id = `tpl_${Date.now()}`;
+    const initialVer = templateData.version || 'v1.0';
+
+    const initialRecord: TemplateVersionRecord = {
+      id: `vr_${Date.now()}_1`,
+      version: initialVer,
+      name: templateData.name,
+      description: templateData.description,
+      changeSummary: 'Initial creation of custom project template.',
+      createdAt: new Date().toISOString(),
+      createdBy: templateData.createdBy || currentUser?.name || 'Workspace User',
+      tasksCount: templateData.tasks.length,
+      dependenciesCount: templateData.dependencies.length,
+      estimatedBudget: templateData.estimatedBudget,
+      estimatedDurationDays: templateData.estimatedDurationDays,
+      tasks: [...templateData.tasks],
+      dependencies: [...templateData.dependencies],
+      customFields: templateData.customFields ? [...templateData.customFields] : undefined,
+      defaultCleanupRules: templateData.defaultCleanupRules
+    };
+
+    const newTemplate: ProjectTemplate = {
+      ...templateData,
+      id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: initialVer,
+      versionHistory: templateData.versionHistory || [initialRecord]
+    };
+
+    setProjectTemplates((prev) => [newTemplate, ...prev]);
+    logActivity('created project template', newTemplate.name, 'project');
+    return newTemplate;
+  };
+
+  const updateProjectTemplate = (id: string, updates: Partial<ProjectTemplate>) => {
+    setProjectTemplates((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
+    );
+    logActivity('updated project template', updates.name || id, 'project');
+  };
+
+  const duplicateProjectTemplate = (templateId: string): ProjectTemplate => {
+    const source = projectTemplates.find((t) => t.id === templateId);
+    if (!source) throw new Error('Template not found');
+
+    const newId = `tpl_${Date.now()}_copy`;
+    const clonedTemplate: ProjectTemplate = {
+      ...source,
+      id: newId,
+      name: `${source.name} (Copy)`,
+      createdBy: currentUser?.name || 'Workspace User',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      usageCount: 0,
+      lastUsedAt: undefined,
+      tasks: source.tasks.map((t) => ({ ...t, customFields: t.customFields ? { ...t.customFields } : {} })),
+      dependencies: source.dependencies.map((d) => ({ ...d })),
+      customFields: source.customFields ? [...source.customFields] : [],
+      lists: source.lists ? [...source.lists] : [],
+      versionHistory: []
+    };
+
+    setProjectTemplates((prev) => [clonedTemplate, ...prev]);
+    logActivity('duplicated project template', clonedTemplate.name, 'project');
+    return clonedTemplate;
   };
 
   const instantiateProjectFromTemplate = (
@@ -1442,18 +1671,45 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       cleanupRules?: TemplateCleanupRules;
     }
   ): Project => {
+    if (!canCreateSpace(currentUser)) {
+      console.warn('Permission denied: Team Members and Viewers cannot instantiate spaces.');
+      throw new Error('Permission denied: Team Members and Viewers cannot instantiate spaces.');
+    }
+
     const tpl = projectTemplates.find((t) => t.id === templateId);
     if (!tpl) throw new Error('Template not found');
 
     let sourceTasks = tpl.tasks;
     let sourceDeps = tpl.dependencies;
+    let sourceCustomFields = tpl.customFields;
 
     if (params.versionRecordId && tpl.versionHistory) {
       const vRecord = tpl.versionHistory.find((v) => v.id === params.versionRecordId);
       if (vRecord) {
         sourceTasks = vRecord.tasks;
         sourceDeps = vRecord.dependencies;
+        if (vRecord.customFields) {
+          sourceCustomFields = vRecord.customFields;
+        }
       }
+    }
+
+    // Auto-inject missing custom fields from template into global customFields state
+    if (sourceCustomFields && sourceCustomFields.length > 0) {
+      setCustomFields((prevCfs) => {
+        const existingIds = new Set(prevCfs.map((c) => c.id));
+        const existingNames = new Set(prevCfs.map((c) => c.name.toLowerCase()));
+        const toAdd: CustomFieldDefinition[] = [];
+        sourceCustomFields?.forEach((cf) => {
+          if (!existingIds.has(cf.id) && !existingNames.has(cf.name.toLowerCase())) {
+            toAdd.push(cf);
+          }
+        });
+        if (toAdd.length === 0) return prevCfs;
+        const updated = [...prevCfs, ...toAdd];
+        saveToStorage('dolphin_custom_fields', updated);
+        return updated;
+      });
     }
 
     const cleanup = params.cleanupRules || tpl.defaultCleanupRules || {};
@@ -1478,7 +1734,8 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       budget: params.budget ?? tpl.estimatedBudget ?? 100000,
       spentBudget: 0,
       category: tpl.category,
-      members: [params.managerId]
+      members: [params.managerId],
+      lists: tpl.lists && tpl.lists.length > 0 ? [...tpl.lists] : ['Backlog', 'In Progress', 'Testing', 'Completed']
     };
 
     const tempIdToNewTaskId: Record<string, string> = {};
@@ -1516,6 +1773,8 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         completedSubtasks: 0,
         dependencies: [],
         predecessors: [],
+        customFields: tt.customFields ? { ...tt.customFields } : {},
+        listName: tt.listName,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -1886,13 +2145,112 @@ Log into your workspace dashboard to review the task details.`,
     }
   };
 
+  // Sprints Management
+  const addSprint = (sprintData: Omit<Sprint, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newSprint: Sprint = {
+      ...sprintData,
+      id: `sprint_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setSprints((prev) => {
+      const updated = [...prev, newSprint];
+      saveToStorage('dolphin_sprints', updated);
+      return updated;
+    });
+    logActivity('created sprint', `Created sprint "${newSprint.name}"`, 'project', newSprint.projectId);
+    return newSprint;
+  };
+
+  const updateSprint = (id: string, updates: Partial<Sprint>) => {
+    setSprints((prev) => {
+      const updated = prev.map((s) => (s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s));
+      saveToStorage('dolphin_sprints', updated);
+      return updated;
+    });
+    logActivity('updated sprint', `Updated sprint details`, 'project');
+  };
+
+  const deleteSprint = (id: string) => {
+    const s = sprints.find((x) => x.id === id);
+    setSprints((prev) => {
+      const filtered = prev.filter((x) => x.id !== id);
+      saveToStorage('dolphin_sprints', filtered);
+      return filtered;
+    });
+    // Move tasks linked to this sprint to backlog
+    setTasks((prev) => prev.map((t) => (t.sprintId === id ? { ...t, sprintId: null } : t)));
+    if (s) {
+      logActivity('deleted sprint', `Deleted sprint "${s.name}" (tasks moved to backlog)`, 'project', s.projectId);
+    }
+  };
+
+  const completeSprint = (id: string, rolloverToSprintId?: string | null) => {
+    const sprint = sprints.find((s) => s.id === id);
+    if (!sprint) return;
+
+    // Calculate completed points
+    const sprintTasks = tasks.filter((t) => t.sprintId === id);
+    const completedTasks = sprintTasks.filter((t) => t.status === 'Done');
+    const completedPoints = completedTasks.reduce((sum, t) => sum + (t.storyPoints || Math.ceil((t.estimatedHours || 8) / 4)), 0);
+
+    // Update sprint to completed
+    updateSprint(id, {
+      status: 'completed',
+      completedStoryPoints: completedPoints
+    });
+
+    // Rollover incomplete tasks to rolloverToSprintId or null (backlog)
+    if (rolloverToSprintId !== undefined) {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.sprintId === id && t.status !== 'Done') {
+            return { ...t, sprintId: rolloverToSprintId || null, updatedAt: new Date().toISOString() };
+          }
+          return t;
+        })
+      );
+    }
+
+    logActivity('completed sprint', `Sprint "${sprint.name}" completed with ${completedTasks.length}/${sprintTasks.length} tasks finished`, 'project', sprint.projectId);
+  };
+
+  const moveTaskToSprint = (taskId: string, sprintId: string | null) => {
+    updateTask(taskId, { sprintId });
+    const targetSprint = sprintId ? sprints.find((s) => s.id === sprintId) : null;
+    const task = tasks.find((t) => t.id === taskId);
+    logActivity(
+      'moved task sprint assignment',
+      `Moved "${task?.title || taskId}" to ${targetSprint ? `Sprint "${targetSprint.name}"` : 'Backlog'}`,
+      'task',
+      task?.projectId,
+      taskId
+    );
+  };
+
   const deleteTask = (id: string) => {
+    if (!canDeleteTask(currentUser)) {
+      console.warn('Permission denied: Team Members cannot delete tasks. Contact your Project Manager or Admin.');
+      return;
+    }
+
     const t = tasks.find((x) => x.id === id);
+    const p = t ? projects.find((proj) => proj.id === t.projectId) : null;
+
     setTasks((prev) => prev.filter((x) => x.id !== id));
     setSubtasks((prev) => prev.filter((s) => s.taskId !== id));
     setDependencies((prev) => prev.filter((d) => d.taskId !== id && d.dependsOnTaskId !== id));
+
     if (t) {
-      logActivity('deleted task', t.title, 'task', t.projectId);
+      logActivity(
+        'deleted task',
+        t.title,
+        'task',
+        t.projectId,
+        t.id,
+        `Task "${t.title}" (Priority: ${t.priority}, Status: ${t.status}) deleted from Space "${p?.title || t.projectId}" by ${currentUser?.name || 'User'}`,
+        'warning'
+      );
     }
     deleteTaskFromFirestore(id);
   };
@@ -2196,6 +2554,31 @@ Log into your workspace dashboard to review the task details.`,
       seconds: 0,
       startTime: null,
     });
+    localStorage.removeItem('dolphin_active_timer');
+  };
+
+  const discardTimer = () => {
+    setTimer({
+      active: false,
+      taskId: null,
+      taskTitle: null,
+      seconds: 0,
+      startTime: null,
+    });
+    localStorage.removeItem('dolphin_active_timer');
+    logActivity('discarded active timer session', 'Stopwatch stopped without saving', 'task');
+  };
+
+  const deleteTimeEntry = (id: string) => {
+    const target = timeEntries.find((e) => e.id === id);
+    if (target) {
+      const task = tasks.find((t) => t.id === target.taskId);
+      if (task && task.loggedHours) {
+        updateTask(task.id, { loggedHours: Math.max(0, Math.round(((task.loggedHours || 0) - target.hours) * 100) / 100) });
+      }
+      setTimeEntries((prev) => prev.filter((e) => e.id !== id));
+      logActivity('deleted time log entry', `${target.hours} hrs`, 'task', target.projectId, target.taskId);
+    }
   };
 
   const logTimeManual = (taskId: string, hours: number, description: string, date?: string) => {
@@ -3021,6 +3404,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     setProjects([]);
     setTasks([]);
     setSubtasks([]);
+    setSprints([]);
     setTaskComments([]);
     setDependencies([]);
     setFiles([]);
@@ -3034,6 +3418,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     localStorage.removeItem('dolphin_projects');
     localStorage.removeItem('dolphin_tasks');
     localStorage.removeItem('dolphin_subtasks');
+    localStorage.removeItem('dolphin_sprints');
     localStorage.removeItem('dolphin_task_comments');
     localStorage.removeItem('dolphin_dependencies');
     localStorage.removeItem('dolphin_files');
@@ -3081,6 +3466,9 @@ Please log into your workspace dashboard to update task status or adjust target 
         addListToProject,
         projectTemplates,
         saveProjectAsTemplate,
+        createProjectTemplate,
+        updateProjectTemplate,
+        duplicateProjectTemplate,
         instantiateProjectFromTemplate,
         deleteProjectTemplate,
         rollbackTemplateVersion,
@@ -3103,10 +3491,18 @@ Please log into your workspace dashboard to update task status or adjust target 
         addCustomField,
         updateCustomField,
         deleteCustomField,
+        sprints,
+        addSprint,
+        updateSprint,
+        deleteSprint,
+        completeSprint,
+        moveTaskToSprint,
         timer,
         startTimer,
         stopTimer,
+        discardTimer,
         logTimeManual,
+        deleteTimeEntry,
         timeEntries,
         files,
         addFile,

@@ -1,13 +1,32 @@
 import { User, Project, Task, SpaceRole } from '../types';
 
+export type PermissionAction =
+  | 'create_user'
+  | 'delete_user'
+  | 'create_space'
+  | 'delete_space'
+  | 'delete_task'
+  | 'edit_space'
+  | 'manage_space_settings'
+  | 'view_space';
+
+/**
+ * Normalizes user role string for robust comparison (handles variations in casing/spacing).
+ */
+export function normalizeRole(role?: string | null): string {
+  return (role || '').toLowerCase().trim();
+}
+
 /**
  * Resolves the SpaceRole ('Admin' | 'Editor' | 'Viewer') for a given user in a project space.
  */
 export function getSpaceRole(user: User | null, project: Project | null): SpaceRole | null {
   if (!user || !project) return null;
 
+  const normalizedUserRole = normalizeRole(user.role);
+
   // Global system Admins always have Admin privileges across all project spaces
-  if (user.role === 'Admin') return 'Admin';
+  if (normalizedUserRole === 'admin') return 'Admin';
 
   // Project Manager has Admin privileges for their project space
   if (project.managerId === user.id) return 'Admin';
@@ -67,7 +86,7 @@ export function isViewerOnly(user: User | null, project: Project | null): boolea
  */
 export function canAccessProject(user: User | null, project: Project | null): boolean {
   if (!user || !project) return false;
-  if (user.role === 'Admin') return true;
+  if (normalizeRole(user.role) === 'admin') return true;
   return getSpaceRole(user, project) !== null;
 }
 
@@ -76,7 +95,7 @@ export function canAccessProject(user: User | null, project: Project | null): bo
  */
 export function getAccessibleProjects(user: User | null, projects: Project[]): Project[] {
   if (!user) return [];
-  if (user.role === 'Admin') return projects;
+  if (normalizeRole(user.role) === 'admin') return projects;
   return projects.filter((p) => canAccessProject(user, p));
 }
 
@@ -85,7 +104,7 @@ export function getAccessibleProjects(user: User | null, projects: Project[]): P
  */
 export function getAccessibleTasks(user: User | null, tasks: Task[], projects: Project[]): Task[] {
   if (!user) return [];
-  if (user.role === 'Admin') return tasks;
+  if (normalizeRole(user.role) === 'admin') return tasks;
 
   const accessibleProjectIds = new Set(getAccessibleProjects(user, projects).map((p) => p.id));
   return tasks.filter((t) => {
@@ -96,3 +115,118 @@ export function getAccessibleTasks(user: User | null, tasks: Task[], projects: P
   });
 }
 
+/**
+ * Checks if the user has permission to create or invite new users.
+ * Team Members and Viewers are strictly NOT allowed to create or invite users.
+ * Only Admins and Project Managers can create/invite users.
+ */
+export function canCreateUser(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  return role === 'admin' || role === 'project manager';
+}
+
+/**
+ * Checks if the user has permission to remove or delete users.
+ * Team Members, Viewers, and Project Managers are NOT allowed to delete users. Only Admins can.
+ */
+export function canDeleteUser(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  return role === 'admin';
+}
+
+/**
+ * Checks if the user has permission to create new project spaces.
+ * Team Members and Viewers are strictly NOT allowed to create spaces.
+ * Only Admins and Project Managers can create spaces.
+ */
+export function canCreateSpace(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  return role === 'admin' || role === 'project manager';
+}
+
+/**
+ * Checks if the user has permission to delete project spaces.
+ * Only Admins can delete project spaces.
+ */
+export function canDeleteSpace(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  return role === 'admin';
+}
+
+/**
+ * Checks if the user has permission to delete a task.
+ * Team Members and Viewers are strictly NOT allowed to delete tasks.
+ * Admins and Project Managers have deletion privileges.
+ */
+export function canDeleteTask(user: User | null, task?: Task | null, project?: Project | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  if (role === 'admin') return true;
+  if (role === 'project manager') {
+    if (project) {
+      return project.managerId === user.id || getSpaceRole(user, project) === 'Admin';
+    }
+    return true;
+  }
+  // Team Member and Viewer roles are strictly forbidden from deleting tasks
+  return false;
+}
+
+/**
+ * Evaluates whether the user has permission for a specific named action.
+ */
+export function hasPermission(
+  user: User | null,
+  action: PermissionAction,
+  options?: { task?: Task | null; project?: Project | null }
+): boolean {
+  switch (action) {
+    case 'create_user':
+      return canCreateUser(user);
+    case 'delete_user':
+      return canDeleteUser(user);
+    case 'create_space':
+      return canCreateSpace(user);
+    case 'delete_space':
+      return canDeleteSpace(user);
+    case 'delete_task':
+      return canDeleteTask(user, options?.task, options?.project);
+    case 'edit_space':
+      return canEditSpace(user, options?.project || null);
+    case 'manage_space_settings':
+      return canManageSpaceSettings(user, options?.project || null);
+    case 'view_space':
+      return canAccessProject(user, options?.project || null);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Returns a human-readable explanation when a permission check fails.
+ */
+export function getPermissionDeniedReason(user: User | null, action: PermissionAction): string {
+  const role = user?.role || 'Guest';
+  switch (action) {
+    case 'create_user':
+      return `Permission Denied: Users with role "${role}" cannot create or invite users. Only Admins and Project Managers have this permission.`;
+    case 'delete_user':
+      return `Permission Denied: Users with role "${role}" cannot delete users. Only Workspace Administrators can delete accounts.`;
+    case 'create_space':
+      return `Permission Denied: Users with role "${role}" cannot create spaces. Only Admins and Project Managers can create spaces.`;
+    case 'delete_space':
+      return `Permission Denied: Users with role "${role}" cannot delete spaces. Only Workspace Administrators can delete spaces.`;
+    case 'delete_task':
+      return `Permission Denied: Users with role "${role}" cannot delete tasks. Team Members and Viewers cannot delete tasks.`;
+    case 'edit_space':
+      return `Permission Denied: You have read-only access to this space.`;
+    case 'manage_space_settings':
+      return `Permission Denied: Only space administrators can configure space settings.`;
+    default:
+      return `Permission Denied: You do not have permission to perform this action.`;
+  }
+}

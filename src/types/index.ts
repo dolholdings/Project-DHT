@@ -94,7 +94,7 @@ export interface RecurrenceConfig {
   autoRegenerateOnComplete?: boolean;
 }
 
-export type CustomFieldType = 'text' | 'number' | 'dropdown';
+export type CustomFieldType = 'text' | 'number' | 'dropdown' | 'checkbox' | 'date' | 'rating';
 
 export interface CustomFieldDefinition {
   id: string;
@@ -103,7 +103,21 @@ export interface CustomFieldDefinition {
   options?: string[]; // for dropdown
   required?: boolean;
   description?: string;
-  defaultValue?: string | number;
+  defaultValue?: string | number | boolean;
+}
+
+export interface Sprint {
+  id: string;
+  projectId: string;
+  name: string;
+  goal?: string;
+  status: 'active' | 'future' | 'completed';
+  startDate: string;
+  endDate: string;
+  targetStoryPoints?: number;
+  completedStoryPoints?: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Task {
@@ -129,6 +143,11 @@ export interface Task {
   successors?: string[];   // Array of task IDs that depend on this task
   isCriticalPath?: boolean; // Flagged as Critical Path
   isMilestone?: boolean;    // Flagged as Milestone
+  sprintId?: string | null;  // Linked sprint ID (null or undefined for Backlog)
+  storyPoints?: number;     // Agile story points estimate (1, 2, 3, 5, 8, 13)
+  slackDays?: number;       // Calculated float/slack days from Critical Path Method
+  earliestStart?: string;   // CPM computed Earliest Start date
+  latestFinish?: string;    // CPM computed Latest Finish date
   recurrence?: RecurrenceConfig;
   listName?: string; // ClickUp list name within the space (e.g., 'Website Development', 'SEO & Google Ads')
   customFields?: Record<string, any>; // Mapping fieldId -> value
@@ -332,6 +351,8 @@ export interface TemplateTask {
   dayOffset: number;
   durationDays: number;
   subtasks?: string[];
+  customFields?: Record<string, any>;
+  listName?: string;
 }
 
 export interface TemplateDependency {
@@ -354,6 +375,7 @@ export interface TemplateVersionRecord {
   estimatedDurationDays: number;
   tasks: TemplateTask[];
   dependencies: TemplateDependency[];
+  customFields?: CustomFieldDefinition[];
   defaultCleanupRules?: TemplateCleanupRules;
 }
 
@@ -367,9 +389,12 @@ export interface ProjectTemplate {
   tags: string[];
   createdBy: string;
   createdAt: string;
+  updatedAt?: string;
   sourceProjectId?: string;
   tasks: TemplateTask[];
   dependencies: TemplateDependency[];
+  customFields?: CustomFieldDefinition[];
+  lists?: string[];
   version?: string;
   versionHistory?: TemplateVersionRecord[];
   defaultCleanupRules?: TemplateCleanupRules;
@@ -377,4 +402,14 @@ export interface ProjectTemplate {
   lastUsedAt?: string;
   avgTaskCompletionRate?: number;
   totalTasksSpawned?: number;
+}
+
+export interface AIDailyBrief {
+  summary: string;
+  urgentBlockers: string[];
+  keyMilestones?: string[];
+  keyProgress?: string[];
+  upcomingDeadlines?: string[];
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  suggestedActions?: string[];
 }

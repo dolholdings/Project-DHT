@@ -9,6 +9,7 @@ import { getAccessibleTasks, getAccessibleProjects } from '../../lib/permissions
 import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
+import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
 import {
   normalizeTaskStatus,
   getStatusBadgeStyle,
@@ -52,6 +53,7 @@ export const KanbanView: React.FC = () => {
   } = useApp();
 
   const [sortByPriority, setSortByPriority] = useState(true);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
   const [editingDescTaskId, setEditingDescTaskId] = useState<string | null>(null);
   const [editingDescValue, setEditingDescValue] = useState<string>('');
@@ -102,6 +104,17 @@ export const KanbanView: React.FC = () => {
         if (t.listName && t.listName.trim() !== '') return false;
       } else if (t.listName !== selectedListFilter) {
         return false;
+      }
+    }
+    if (assigneeFilter !== 'all') {
+      if (assigneeFilter === 'unassigned') {
+        if (t.assigneeIds && t.assigneeIds.length > 0 && t.assigneeIds.some((id) => id && id.trim() !== '')) {
+          return false;
+        }
+      } else {
+        if (!t.assigneeIds || !t.assigneeIds.includes(assigneeFilter)) {
+          return false;
+        }
       }
     }
     if (searchQuery) {
@@ -288,7 +301,15 @@ export const KanbanView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 no-print">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          {/* Assignee Filter Dropdown */}
+          <AssigneeFilterDropdown
+            value={assigneeFilter}
+            onChange={setAssigneeFilter}
+            users={users}
+            tasks={accessibleTasks.filter((t) => !selectedProjectId || t.projectId === selectedProjectId)}
+          />
+
           <button
             type="button"
             onClick={() => setSortByPriority(!sortByPriority)}
@@ -333,7 +354,7 @@ export const KanbanView: React.FC = () => {
         <EmptyStateCard
           variant="kanban"
           theme={theme === 'light' ? 'light' : 'dark'}
-          hasActiveFilters={Boolean(searchQuery || selectedListFilter)}
+          hasActiveFilters={Boolean(searchQuery || selectedListFilter || assigneeFilter !== 'all')}
           onPrimaryAction={() => handleCreateDefaultTask('To Do')}
           primaryActionLabel="Create Deliverable Task"
           onSecondaryAction={() => setShowCsvImportModal(true)}
@@ -343,6 +364,7 @@ export const KanbanView: React.FC = () => {
           onResetFilters={() => {
             if (setSearchQuery) setSearchQuery('');
             if (setSelectedListFilter) setSelectedListFilter(null);
+            setAssigneeFilter('all');
           }}
         />
       ) : (

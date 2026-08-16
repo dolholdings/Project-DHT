@@ -28,10 +28,14 @@ import {
   Mail,
   Trash2,
   LogOut,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Compass,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { HeaderSearchInput } from './HeaderSearchInput';
+import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
+import { startOnboardingTour, markUserTourCompleted } from '../../services/onboardingTour';
 
 export const ClickUpHeaderBanners: React.FC<{
   activeViewTab: string;
@@ -154,6 +158,9 @@ export const ClickUpHeaderBanners: React.FC<{
         <div className="flex items-center gap-2.5 text-xs font-medium">
           <HeaderSearchInput />
 
+          {/* Global Time Tracking Timer Widget */}
+          <GlobalTimeTrackerWidget />
+
           <button
             onClick={toggleTheme}
             className={`p-1.5 rounded-lg border transition-all ${
@@ -223,6 +230,28 @@ export const ClickUpHeaderBanners: React.FC<{
             </button>
           )}
 
+          {/* Guided Tour Trigger Button */}
+          <button
+            id="tour-trigger-btn"
+            onClick={() => {
+              startOnboardingTour({
+                theme: theme as 'dark' | 'light',
+                onComplete: () => {
+                  markUserTourCompleted(currentUser?.id);
+                }
+              });
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold text-xs transition-all shadow-xs ${
+              theme === 'light'
+                ? 'bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-700'
+                : 'bg-amber-400/15 hover:bg-amber-400/25 border-amber-400/30 text-amber-300'
+            }`}
+            title="Take a quick guided onboarding tour of Dolphin features & navigation"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current animate-pulse" />
+            <span className="hidden md:inline">Quick Tour</span>
+          </button>
+
           <button className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border font-bold transition-all ${
             theme === 'light'
               ? 'bg-[#0D9488]/10 hover:bg-[#0D9488]/20 border-[#0D9488]/30 text-[#0D9488]'
@@ -232,33 +261,35 @@ export const ClickUpHeaderBanners: React.FC<{
             <span>Share</span>
           </button>
 
-          <img
-            src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-            alt={currentUser?.name || 'User'}
-            onClick={onOpenLoginModal}
-            className={`w-7 h-7 rounded-full object-cover ring-2 cursor-pointer hover:opacity-80 transition-opacity ${
-              theme === 'light' ? 'ring-[#0D9488]' : 'ring-[#3BC0BB]'
-            }`}
-            title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'}) — Click to Switch User / Sign In`}
-          />
+          <div id="tour-user-menu" className="flex items-center gap-1.5">
+            <img
+              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
+              alt={currentUser?.name || 'User'}
+              onClick={onOpenLoginModal}
+              className={`w-7 h-7 rounded-full object-cover ring-2 cursor-pointer hover:opacity-80 transition-opacity ${
+                theme === 'light' ? 'ring-[#0D9488]' : 'ring-[#3BC0BB]'
+              }`}
+              title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'}) — Click to Switch User / Sign In`}
+            />
 
-          <button
-            onClick={logout}
-            className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 font-bold text-xs ${
-              theme === 'light'
-                ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
-                : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
-            }`}
-            title="Sign Out / Lock Workspace"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Sign Out</span>
-          </button>
+            <button
+              onClick={logout}
+              className={`p-1.5 rounded-lg border transition-all flex items-center gap-1 font-bold text-xs ${
+                theme === 'light'
+                  ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100'
+                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20'
+              }`}
+              title="Sign Out / Lock Workspace"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Sign Out</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* 4. ClickUp View Navigation Tabs Bar */}
-      <div className={`px-4 sm:px-6 py-1.5 flex items-center justify-between gap-2 overflow-x-auto ${theme === 'light' ? 'bg-[#F1F5F9]' : 'bg-[#0D1520]'}`}>
+      <div id="tour-view-tabs" className={`px-4 sm:px-6 py-1.5 flex items-center justify-between gap-2 overflow-x-auto ${theme === 'light' ? 'bg-[#F1F5F9]' : 'bg-[#0D1520]'}`}>
         <div className="flex items-center gap-1 min-w-max">
           {viewTabs.map((tab) => {
             const Icon = tab.icon;
@@ -329,6 +360,7 @@ export const ClickUpHeaderBanners: React.FC<{
 
           {/* Primary ClickUp + Task Button */}
           <button
+            id="tour-create-task-btn"
             onClick={onOpenCreateTaskModal}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl hover:opacity-95 text-white font-bold text-xs shadow-lg transition-all ${
               theme === 'light'

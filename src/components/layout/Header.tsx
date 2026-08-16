@@ -28,6 +28,7 @@ import { LoginModal } from '../auth/LoginModal';
 import { PWAInstallModal } from './PWAInstallModal';
 import { ExcelImportModal } from '../common/ExcelImportModal';
 import { HeaderSearchInput } from './HeaderSearchInput';
+import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
 import { DolphinTooltip } from '../common/DolphinTooltip';
 
 export const Header: React.FC = () => {
@@ -68,18 +69,8 @@ export const Header: React.FC = () => {
   }, []);
 
   const handleSignOut = () => {
-    logActivity(
-      'user signed out',
-      currentUser?.email || 'user',
-      'auth',
-      undefined,
-      undefined,
-      `User ${currentUser?.name} signed out`,
-      'info'
-    );
     logout();
     setShowUserMenu(false);
-    setShowAuthModal(true);
   };
 
   const formatSeconds = (sec: number) => {
@@ -120,31 +111,11 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Center: Global Search Input & Timer */}
-        <div className="flex items-center gap-4 flex-1 max-w-md mx-4">
+        <div className="flex items-center gap-3 flex-1 max-w-md mx-4">
           <HeaderSearchInput />
 
-          {/* Active Stopwatch Timer Widget */}
-          {timer.active ? (
-            <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse">
-              <Clock className="w-4 h-4 text-amber-400 animate-spin" />
-              <div className="truncate max-w-[120px]" title={timer.taskTitle || ''}>
-                {timer.taskTitle}
-              </div>
-              <span className="font-bold">{formatSeconds(timer.seconds)}</span>
-              <button
-                onClick={() => stopTimer('Completed timer log')}
-                className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
-                title="Stop Timer & Log Time"
-              >
-                <Square className="w-3.5 h-3.5 fill-current" />
-              </button>
-            </div>
-          ) : (
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549] text-xs text-slate-400">
-              <Clock className="w-3.5 h-3.5 text-slate-500" />
-              <span>Timer Idle</span>
-            </div>
-          )}
+          {/* Active Global Time Tracking Widget */}
+          <GlobalTimeTrackerWidget />
         </div>
 
         {/* Right: Theme Toggle, Export ZIP, Android App Install, Notifications, User Profile */}

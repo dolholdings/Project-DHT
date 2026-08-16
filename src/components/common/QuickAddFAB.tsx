@@ -181,6 +181,7 @@ export const QuickAddFAB: React.FC = () => {
         )}
 
         <button
+          id="tour-fab-quick-add"
           type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={`group relative flex items-center gap-2 px-4 py-3.5 rounded-full shadow-2xl transition-all duration-300 transform active:scale-95 cursor-pointer border ${

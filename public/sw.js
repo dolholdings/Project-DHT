@@ -1,5 +1,5 @@
-// Dolphin PWA Service Worker
-const CACHE_NAME = 'dolphin-portal-v2';
+// Dolphin PWA Service Worker v3
+const CACHE_NAME = 'dolphin-portal-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -10,9 +10,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
+          return caches.delete(key);
         })
       );
     }).then(() => self.clients.claim())
@@ -21,15 +19,8 @@ self.addEventListener('activate', (event) => {
 
 // Network-first without breaking API, Firestore, or module scripts
 self.addEventListener('fetch', (event) => {
-  // Do not intercept non-GET requests or external APIs/Firestore
-  if (
-    event.request.method !== 'GET' ||
-    event.request.url.includes('/api/') ||
-    event.request.url.includes('firestore.googleapis.com') ||
-    event.request.url.includes('identitytoolkit') ||
-    event.request.url.includes('googleapis.com')
-  ) {
-    return;
-  }
+  // Pass through all requests natively
+  return;
 });
+
 

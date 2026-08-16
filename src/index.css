@@ -610,3 +610,176 @@ html.light-theme .bg-tech-grid {
   box-shadow: 0 0 10px rgba(0, 245, 212, 0.25);
 }
 
+/* ==========================================================================
+   Driver.js Onboarding Tour Popover Custom Dolphin Aesthetics
+   ========================================================================== */
+.driver-popover.dolphin-tour-popover {
+  background: #16222F !important;
+  color: #F8FAFC !important;
+  border: 1px solid #233549 !important;
+  border-radius: 18px !important;
+  padding: 20px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(59, 192, 187, 0.2) !important;
+  font-family: var(--font-sans) !important;
+  max-width: 380px !important;
+  z-index: 1000000000 !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(13, 148, 136, 0.2) !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #3BC0BB !important;
+  margin-bottom: 8px !important;
+  letter-spacing: -0.01em !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-title {
+  color: #0D9488 !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-description {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  color: #94A3B8 !important;
+  margin-bottom: 16px !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-description {
+  color: #475569 !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-progress-text {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  font-family: var(--font-mono) !important;
+  color: #00AEA9 !important;
+  background: rgba(0, 174, 169, 0.12) !important;
+  padding: 3px 10px !important;
+  border-radius: 9999px !important;
+  border: 1px solid rgba(0, 174, 169, 0.3) !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-progress-text {
+  color: #0D9488 !important;
+  background: rgba(13, 148, 136, 0.1) !important;
+  border-color: rgba(13, 148, 136, 0.25) !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-top: 14px !important;
+  padding-top: 14px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-footer {
+  border-top: 1px solid #E2E8F0 !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-navigation-btns {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-btn {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 7px 16px !important;
+  border-radius: 12px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  text-shadow: none !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-prev-btn {
+  background: #0D1520 !important;
+  color: #94A3B8 !important;
+  border: 1px solid #233549 !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-prev-btn:hover {
+  background: #1A2838 !important;
+  color: #FFFFFF !important;
+  border-color: #3BC0BB !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-prev-btn {
+  background: #F1F5F9 !important;
+  color: #475569 !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-prev-btn:hover {
+  background: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-next-btn {
+  background: linear-gradient(135deg, #0773BB, #3BC0BB) !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(7, 115, 187, 0.35) !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-next-btn:hover {
+  opacity: 0.95 !important;
+  transform: translateY(-1px) !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-close-btn {
+  color: #94A3B8 !important;
+  padding: 4px !important;
+  border-radius: 8px !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-close-btn:hover {
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-close-btn:hover {
+  color: #0F172A !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.driver-popover.dolphin-tour-popover .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: #16222F !important;
+}
+.driver-popover.dolphin-tour-popover .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: #16222F !important;
+}
+.driver-popover.dolphin-tour-popover .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: #16222F !important;
+}
+.driver-popover.dolphin-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: #16222F !important;
+}
+
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: #FFFFFF !important;
+}
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: #FFFFFF !important;
+}
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: #FFFFFF !important;
+}
+.driver-popover.dolphin-tour-popover.light-theme .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: #FFFFFF !important;
+}
+
+

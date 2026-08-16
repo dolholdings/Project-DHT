@@ -33,6 +33,7 @@ import { useApp } from '../../context/AppContext';
 import { Task } from '../../types';
 import { EmptyStateCard } from '../common/EmptyStateCard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
+import { CriticalPathBanner } from './CriticalPathBanner';
 
 interface DragState {
   isDragging: boolean;
@@ -738,6 +739,13 @@ export const GanttView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Critical Path Method (CPM) Real-time Analysis Banner */}
+      <CriticalPathBanner
+        isCriticalPathHighlighted={highlightCriticalPath}
+        onToggleCriticalHighlight={() => setHighlightCriticalPath((prev) => !prev)}
+        onSelectTask={(id) => setSelectedTaskId(id)}
+      />
 
       {/* Task Dependency Connector Active Draw Mode Banner */}
       {isDrawModeActive && (

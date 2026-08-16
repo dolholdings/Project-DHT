@@ -46,6 +46,7 @@ import {
 } from 'recharts';
 import { useApp } from '../../context/AppContext';
 import { User, Role, Company } from '../../types';
+import { AdminAuditLogs } from './AdminAuditLogs';
 
 export const AdminView: React.FC = () => {
   const {
@@ -72,7 +73,7 @@ export const AdminView: React.FC = () => {
 
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'usage' | 'security'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'audit_logs' | 'usage' | 'security'>('users');
 
   // Search & Filter state for Users Tab
   const [userSearch, setUserSearch] = useState('');
@@ -372,6 +373,23 @@ export const AdminView: React.FC = () => {
           <span>Cross-Domain Governance</span>
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
             {authorizedDomains.length} Domains
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('audit_logs')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeTab === 'audit_logs'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Activity className="w-4 h-4 text-amber-500" />
+          <span>Audit Logs & Security Trail</span>
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
+            {activityLogs.length} Events
           </span>
         </button>
 
@@ -891,6 +909,11 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: AUDIT LOGS & SECURITY TRAIL */}
+      {activeTab === 'audit_logs' && (
+        <AdminAuditLogs isLight={isLight} />
       )}
 
       {/* TAB 3: SYSTEM USAGE & TELEMETRY */}

@@ -32,6 +32,7 @@ import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
 import { QuickAddFAB } from './components/common/QuickAddFAB';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { hasUserCompletedTour, markUserTourCompleted, startOnboardingTour } from './services/onboardingTour';
 
 const MainLayout: React.FC = () => {
   const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser, isAuthenticated } = useApp();
@@ -40,6 +41,24 @@ const MainLayout: React.FC = () => {
   const [showEmailGatewayModal, setShowEmailGatewayModal] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
+
+  // Trigger Onboarding Tour automatically on first login
+  React.useEffect(() => {
+    if (isAuthenticated && currentUser && currentUser.isEmailVerified !== false) {
+      const hasSeen = hasUserCompletedTour(currentUser.id);
+      if (!hasSeen) {
+        const timer = setTimeout(() => {
+          startOnboardingTour({
+            theme: theme as 'dark' | 'light',
+            onComplete: () => {
+              markUserTourCompleted(currentUser.id);
+            }
+          });
+        }, 700);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAuthenticated, currentUser?.id, currentUser?.isEmailVerified, theme]);
 
   // Derive activeViewTab directly from activeTab to prevent state divergence
   const activeViewTab = React.useMemo(() => {

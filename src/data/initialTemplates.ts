@@ -12,6 +12,43 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
     createdBy: 'Pawan Kumar',
     createdAt: '2026-06-15T09:00:00Z',
     version: 'v1.0',
+    lists: ['1. Engineering & Survey', '2. BIM & Procurement', '3. Site Installation', '4. Commissioning & TAB', '5. Civil Defence Signoff'],
+    customFields: [
+      {
+        id: 'cf_cfm_capacity',
+        name: 'Cooling Capacity (TR / CFM)',
+        type: 'number',
+        description: 'Target thermal cooling capacity in Tons of Refrigeration',
+        defaultValue: 250,
+        required: true
+      },
+      {
+        id: 'cf_refrigerant_type',
+        name: 'Refrigerant Specification',
+        type: 'dropdown',
+        options: ['R-410A', 'R-134a', 'R-32', 'R-1234ze (Low GWP)', 'Ammonia (NH3)'],
+        description: 'Chiller refrigerant chemical designation',
+        defaultValue: 'R-410A',
+        required: true
+      },
+      {
+        id: 'cf_civil_defence_cert',
+        name: 'Civil Defence Safety Signoff',
+        type: 'checkbox',
+        description: 'Civil defence fire & life safety mandatory verification',
+        defaultValue: false,
+        required: false
+      },
+      {
+        id: 'cf_bms_integration',
+        name: 'BMS Integration Protocol',
+        type: 'dropdown',
+        options: ['BACnet IP', 'Modbus RTU', 'LonWorks', 'MQTT / IoT Cloud'],
+        description: 'Building Management System automation interface protocol',
+        defaultValue: 'BACnet IP',
+        required: false
+      }
+    ],
     versionHistory: [
       {
         id: 'vr_1_hvac',
@@ -39,6 +76,11 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Site Work', 'Engineering'],
         dayOffset: 0,
         durationDays: 7,
+        listName: '1. Engineering & Survey',
+        customFields: {
+          cf_cfm_capacity: 250,
+          cf_refrigerant_type: 'R-410A'
+        },
         subtasks: ['Measure ceiling height and solar heat gain', 'Calculate CFM airflow requirements', 'Draft survey report']
       },
       {
@@ -50,6 +92,10 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['BIM', 'Design'],
         dayOffset: 7,
         durationDays: 14,
+        listName: '1. Engineering & Survey',
+        customFields: {
+          cf_bms_integration: 'BACnet IP'
+        },
         subtasks: ['Review Architectural Drawings', '3D Clash Detection', 'Client Engineering Approval']
       },
       {
@@ -61,6 +107,7 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Fabrication', 'Offsite'],
         dayOffset: 21,
         durationDays: 21,
+        listName: '2. BIM & Procurement',
         subtasks: ['Sheet Metal Fabrication', 'Pipe Hydrostatic Testing', 'Insulation Prep']
       },
       {
@@ -72,6 +119,11 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Procurement', 'Equipment'],
         dayOffset: 14,
         durationDays: 30,
+        listName: '2. BIM & Procurement',
+        customFields: {
+          cf_cfm_capacity: 300,
+          cf_refrigerant_type: 'R-134a'
+        },
         subtasks: ['Issue PO to manufacturer', 'Customs clearance & transit', 'Offloading at site']
       },
       {
@@ -83,6 +135,7 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Civil', 'Rigging'],
         dayOffset: 42,
         durationDays: 10,
+        listName: '3. Site Installation',
         subtasks: ['Crane permit approval', 'Rooftop steel frame inspection', 'Hoisting & bolting']
       },
       {
@@ -94,6 +147,7 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Installation', 'Site Work'],
         dayOffset: 45,
         durationDays: 25,
+        listName: '3. Site Installation',
         subtasks: ['Hanger rod installation', 'Duct section joint sealing', 'Chilled water pipe insulation']
       },
       {
@@ -105,6 +159,10 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Electrical', 'Controls'],
         dayOffset: 65,
         durationDays: 15,
+        listName: '3. Site Installation',
+        customFields: {
+          cf_bms_integration: 'BACnet IP'
+        },
         subtasks: ['Cable tray installation', 'VFD panel wiring', 'BMS sensor calibration']
       },
       {
@@ -116,6 +174,7 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Commissioning', 'QA/QC'],
         dayOffset: 75,
         durationDays: 10,
+        listName: '4. Commissioning & TAB',
         subtasks: ['Air balancer instrument setup', 'Chilled water GPM verification', 'Sound & vibration test']
       },
       {
@@ -127,6 +186,10 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Handover', 'Compliance'],
         dayOffset: 82,
         durationDays: 8,
+        listName: '5. Civil Defence Signoff',
+        customFields: {
+          cf_civil_defence_cert: true
+        },
         subtasks: ['Civil Defence inspection walk', 'As-built drawing submission', 'Client O&M manual handover']
       }
     ],
@@ -152,6 +215,34 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
     tags: ['Manufacturing', 'Radiators', 'Heavy Machinery', 'Automated'],
     createdBy: 'David Ross',
     createdAt: '2026-05-10T14:30:00Z',
+    lists: ['1. RFP & Civil Foundations', '2. Machinery Logistics', '3. CAB Furnace & Tube Mill', '4. QA & Pilot Run'],
+    customFields: [
+      {
+        id: 'cf_core_material',
+        name: 'Radiator Core Material',
+        type: 'dropdown',
+        options: ['High-Grade Aluminum (3003/4343)', 'Copper-Brass Heavy Duty', 'Stainless Steel (316L)'],
+        description: 'Raw metal alloy metallurgy specification',
+        defaultValue: 'High-Grade Aluminum (3003/4343)',
+        required: true
+      },
+      {
+        id: 'cf_daily_core_target',
+        name: 'Daily Core Output Target',
+        type: 'number',
+        description: 'Target production volume of radiator blocks per shift',
+        defaultValue: 150,
+        required: true
+      },
+      {
+        id: 'cf_iso_quality_lead',
+        name: 'Lead Quality Inspector',
+        type: 'text',
+        description: 'Designated QA Engineer for ISO 9001 batch certification',
+        defaultValue: 'Suhail Ahmed (QA/QC Lead)',
+        required: false
+      }
+    ],
     tasks: [
       {
         tempId: 'rt_1',
@@ -162,6 +253,11 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['RFP', 'Engineering'],
         dayOffset: 0,
         durationDays: 14,
+        listName: '1. RFP & Civil Foundations',
+        customFields: {
+          cf_core_material: 'High-Grade Aluminum (3003/4343)',
+          cf_daily_core_target: 150
+        },
         subtasks: ['Specify tube pitch and fin density', 'Issue RFP to German/Japanese vendors', 'Commercial bid comparison']
       },
       {
@@ -173,6 +269,7 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Civil', 'Factory'],
         dayOffset: 14,
         durationDays: 21,
+        listName: '1. RFP & Civil Foundations',
         subtasks: ['Reinforced Concrete Slab Pouring', 'Curing Period Monitoring', 'Utility Trenching']
       },
       {
@@ -183,7 +280,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 40,
         tags: ['Logistics', 'Machinery'],
         dayOffset: 28,
-        durationDays: 45
+        durationDays: 45,
+        listName: '2. Machinery Logistics'
       },
       {
         tempId: 'rt_4',
@@ -193,7 +291,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 110,
         tags: ['Installation', 'Automation'],
         dayOffset: 65,
-        durationDays: 20
+        durationDays: 20,
+        listName: '3. CAB Furnace & Tube Mill'
       },
       {
         tempId: 'rt_5',
@@ -203,7 +302,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 130,
         tags: ['Furnace', 'Thermal'],
         dayOffset: 75,
-        durationDays: 25
+        durationDays: 25,
+        listName: '3. CAB Furnace & Tube Mill'
       },
       {
         tempId: 'rt_6',
@@ -213,7 +313,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 45,
         tags: ['QA/QC', 'Testing'],
         dayOffset: 95,
-        durationDays: 10
+        durationDays: 10,
+        listName: '4. QA & Pilot Run'
       },
       {
         tempId: 'rt_7',
@@ -223,7 +324,12 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 70,
         tags: ['Pilot Run', 'Certification'],
         dayOffset: 105,
-        durationDays: 15
+        durationDays: 15,
+        listName: '4. QA & Pilot Run',
+        customFields: {
+          cf_iso_quality_lead: 'Suhail Ahmed (QA/QC Lead)',
+          cf_daily_core_target: 150
+        }
       }
     ],
     dependencies: [
@@ -245,6 +351,34 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
     tags: ['Refinery', 'Heat Exchanger', 'ASME', 'Maintenance'],
     createdBy: 'Pawan Kumar',
     createdAt: '2026-07-01T11:00:00Z',
+    lists: ['1. Isolation & Bundle Pulling', '2. Hydro-blast & NDT', '3. Retubing & Hydro-test', '4. Box-up & Delivery'],
+    customFields: [
+      {
+        id: 'cf_tpi_agency',
+        name: 'Third-Party Inspection (TPI) Agency',
+        type: 'dropdown',
+        options: ['SLB / Schlumberger', 'TUV Rheinland', 'Bureau Veritas', 'DNV GL', 'Velosi / ABS'],
+        description: 'Mandatory witness inspection certification agency',
+        defaultValue: 'SLB / Schlumberger',
+        required: true
+      },
+      {
+        id: 'cf_asme_u_stamp',
+        name: 'ASME "U" Stamp Certified',
+        type: 'checkbox',
+        description: 'ASME Section VIII Div 1 pressure vessel stamp signoff',
+        defaultValue: true,
+        required: true
+      },
+      {
+        id: 'cf_test_pressure_bar',
+        name: 'Hydro-test Pressure (Bar)',
+        type: 'number',
+        description: 'Design hydro-testing pressure rating in Bar gauge',
+        defaultValue: 35,
+        required: true
+      }
+    ],
     tasks: [
       {
         tempId: 'ht_1',
@@ -254,7 +388,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 30,
         tags: ['Safety', 'Shutdown'],
         dayOffset: 0,
-        durationDays: 3
+        durationDays: 3,
+        listName: '1. Isolation & Bundle Pulling'
       },
       {
         tempId: 'ht_2',
@@ -264,7 +399,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 40,
         tags: ['Rigging', 'Mechanical'],
         dayOffset: 3,
-        durationDays: 4
+        durationDays: 4,
+        listName: '1. Isolation & Bundle Pulling'
       },
       {
         tempId: 'ht_3',
@@ -275,6 +411,10 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         tags: ['Cleaning', 'NDT'],
         dayOffset: 6,
         durationDays: 5,
+        listName: '2. Hydro-blast & NDT',
+        customFields: {
+          cf_tpi_agency: 'SLB / Schlumberger'
+        },
         subtasks: ['Chemical Flushing', 'Ultrasonic Thickness Gauging', 'NDT Dye Penetrant Test']
       },
       {
@@ -285,7 +425,8 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 100,
         tags: ['Retubing', 'Machining'],
         dayOffset: 11,
-        durationDays: 18
+        durationDays: 18,
+        listName: '3. Retubing & Hydro-test'
       },
       {
         tempId: 'ht_5',
@@ -295,7 +436,13 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 35,
         tags: ['Testing', 'ASME'],
         dayOffset: 28,
-        durationDays: 5
+        durationDays: 5,
+        listName: '3. Retubing & Hydro-test',
+        customFields: {
+          cf_asme_u_stamp: true,
+          cf_test_pressure_bar: 35,
+          cf_tpi_agency: 'SLB / Schlumberger'
+        }
       },
       {
         tempId: 'ht_6',
@@ -305,7 +452,11 @@ export const INITIAL_TEMPLATES: ProjectTemplate[] = [
         estimatedHours: 45,
         tags: ['Commissioning', 'Handover'],
         dayOffset: 33,
-        durationDays: 7
+        durationDays: 7,
+        listName: '4. Box-up & Delivery',
+        customFields: {
+          cf_asme_u_stamp: true
+        }
       }
     ],
     dependencies: [

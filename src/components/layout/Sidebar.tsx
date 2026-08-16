@@ -36,7 +36,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
-import { WorkspaceSwitcher } from '../workspace/WorkspaceSwitcher';
+import { PermissionGuard } from '../common/PermissionGuard';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -166,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <div className="flex flex-col items-center space-y-4 w-full">
             {/* ClickUp / Dolphin Branding Logo & Mobile Close */}
-            <div className="relative flex flex-col items-center gap-1">
+            <div id="tour-brand-logo" className="relative flex flex-col items-center gap-1">
               <div
                 onClick={() => handleTabClick('dashboard')}
                 className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg hover:scale-105 transition-transform cursor-pointer ${
@@ -192,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-8 h-[1px] bg-white/10 my-1" />
 
             {/* Primary Navigation Icons */}
-            <div className="flex flex-col items-center space-y-2 w-full px-1">
+            <div id="tour-dock-nav" className="flex flex-col items-center space-y-2 w-full px-1">
               <button
                 onClick={() => handleTabClick('dashboard')}
                 className={`p-2.5 rounded-xl transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00AEA9] focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 disabled:opacity-40 disabled:cursor-not-allowed ${
@@ -383,7 +383,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                     <button
                       onClick={() => {
-                        logActivity('user signed out', currentUser?.email || 'user', 'auth', undefined, undefined, `User ${currentUser?.name} signed out`, 'info');
                         logout();
                         setShowMoreMenu(false);
                       }}
@@ -433,7 +432,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               />
               <button
                 onClick={() => {
-                  logActivity('user signed out', currentUser?.email || 'user', 'auth', undefined, undefined, `User ${currentUser?.name} signed out`, 'info');
                   logout();
                 }}
                 className="p-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white transition-all cursor-pointer"
@@ -447,7 +445,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* 2. SECONDARY SPACES DRAWER (Collapsible) */}
         {!isSecondaryCollapsed && (
-          <aside className={`w-56 sm:w-60 flex flex-col justify-between overflow-y-auto ${theme === 'light' ? 'bg-slate-50 text-slate-800 border-r border-slate-200' : 'bg-[#0D1520] text-slate-200'}`}>
+          <aside id="tour-workspace-switcher" className={`w-56 sm:w-60 flex flex-col justify-between overflow-y-auto ${theme === 'light' ? 'bg-slate-50 text-slate-800 border-r border-slate-200' : 'bg-[#0D1520] text-slate-200'}`}>
             <div className="p-3 space-y-4">
               {/* Top Dropdown Header */}
               <div className={`flex items-center justify-between px-2 py-1.5 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F]/60 border-[#233549]/60 text-white'}`}>
@@ -463,11 +461,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
               </div>
-
-              {/* Workspace Switcher */}
-              <WorkspaceSwitcher
-                onOpenCreateSpaceModal={currentUser?.role === 'Admin' ? () => setShowCreateSpaceModal(true) : undefined}
-              />
 
               {/* Quick ClickUp Menu Items */}
               <div className="space-y-0.5 text-xs font-medium">
@@ -603,18 +596,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span>Spaces</span>
                   </button>
                   <div className="flex items-center gap-1">
-                    {currentUser?.role === 'Admin' && (
+                    <PermissionGuard action="create_space">
                       <button
                         onClick={() => setShowCreateSpaceModal(true)}
                         className={`px-2 py-0.5 rounded text-white text-[10px] font-bold flex items-center gap-1 shadow-sm transition-all ${
                           theme === 'light' ? 'bg-[#0D9488] hover:bg-[#0F766E]' : 'bg-[#0773BB] hover:bg-[#0773BB]/80'
                         }`}
-                        title="Create New Space (Admin Only)"
+                        title="Create New Space"
                       >
                         <Plus className="w-3 h-3" />
                         <span>Space</span>
                       </button>
-                    )}
+                    </PermissionGuard>
                     <button
                       onClick={() => handleTabClick('workspace')}
                       className={`p-0.5 text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded transition-all ${
@@ -653,7 +646,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           theme === 'light' ? 'bg-slate-100 border-slate-300' : 'bg-[#16222F]/40 border-[#233549]'
                         }`}>
                           <p className={`text-[11px] ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>No granted spaces found.</p>
-                          {currentUser?.role === 'Admin' && (
+                          <PermissionGuard action="create_space">
                             <button
                               onClick={() => setShowCreateSpaceModal(true)}
                               className={`w-full py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
@@ -664,7 +657,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             >
                               + Create Space
                             </button>
-                          )}
+                          </PermissionGuard>
                         </div>
                       ) : (
                         <>
@@ -719,33 +712,37 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     }`}>
                                       {spaceTaskCount}
                                     </span>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setNewListSpaceId(p.id);
-                                      }}
-                                      className="hidden group-hover:block p-1 rounded hover:bg-[#0D9488]/20 text-[#0D9488] transition-all"
-                                      title="Add List to this Space"
-                                    >
-                                      <Plus className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (window.confirm(`Are you sure you want to delete Space "${p.title}"?`)) {
-                                          deleteProject(p.id);
-                                          if (selectedProjectId === p.id) {
-                                            setSelectedProjectId(null);
+                                    {(currentUser?.role === 'Admin' || currentUser?.role === 'Project Manager') && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setNewListSpaceId(p.id);
+                                        }}
+                                        className="hidden group-hover:block p-1 rounded hover:bg-[#0D9488]/20 text-[#0D9488] transition-all"
+                                        title="Add List to this Space"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {currentUser?.role === 'Admin' && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm(`Are you sure you want to delete Space "${p.title}"?`)) {
+                                            deleteProject(p.id);
+                                            if (selectedProjectId === p.id) {
+                                              setSelectedProjectId(null);
+                                            }
                                           }
-                                        }
-                                      }}
-                                      className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-500 transition-all"
-                                      title="Delete Space"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                        }}
+                                        className="hidden group-hover:block p-1 rounded hover:bg-rose-500/20 text-rose-500 transition-all"
+                                        title="Delete Space"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
 
@@ -878,7 +875,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             );
                           })}
 
-                          {currentUser?.role === 'Admin' && (
+                          <PermissionGuard action="create_space">
                             <button
                               onClick={() => setShowCreateSpaceModal(true)}
                               className={`w-full mt-2 py-1.5 px-2.5 rounded-lg text-xs font-bold border border-dashed flex items-center justify-center gap-1.5 transition-all ${
@@ -890,7 +887,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               <Plus className="w-3.5 h-3.5" />
                               <span>+ Add New Space</span>
                             </button>
-                          )}
+                          </PermissionGuard>
                         </>
                       )}
                     </div>

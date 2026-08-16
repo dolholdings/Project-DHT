@@ -61,6 +61,8 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus, SpaceRole, ProjectTemplate, TemplateVersionRecord, TemplateCleanupRules, Task, TaskDependency, TemplateTask, TemplateDependency } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
+import { canCreateSpace, canDeleteSpace } from '../../lib/permissions';
+import { PermissionGuard } from '../common/PermissionGuard';
 import { DependencyPreviewModal } from './DependencyPreviewModal';
 import { CompareTemplatesModal } from './CompareTemplatesModal';
 import { ResourceCapacityPlannerModal } from './ResourceCapacityPlannerModal';
@@ -893,13 +895,15 @@ export const WorkspaceManager: React.FC = () => {
                 </h3>
               </div>
 
-              <button
-                onClick={() => setShowCreateSpaceModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Space</span>
-              </button>
+              <PermissionGuard action="create_space">
+                <button
+                  onClick={() => setShowCreateSpaceModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs flex items-center gap-1.5 shadow"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Space</span>
+                </button>
+              </PermissionGuard>
             </div>
 
             {(() => {
@@ -911,12 +915,14 @@ export const WorkspaceManager: React.FC = () => {
                   <div className="p-8 text-center rounded-2xl border border-dashed border-[#233549] bg-[#0D1520]/50 space-y-3">
                     <FolderKanban className="w-10 h-10 text-slate-500 mx-auto" />
                     <p className="text-sm font-semibold text-slate-300">No active spaces found in {activeCompany.name}.</p>
-                    <button
-                      onClick={() => setShowCreateSpaceModal(true)}
-                      className="px-4 py-2 rounded-xl bg-[#0773BB] text-white font-bold text-xs"
-                    >
-                      + Create First Space in {activeCompany.name}
-                    </button>
+                    <PermissionGuard action="create_space">
+                      <button
+                        onClick={() => setShowCreateSpaceModal(true)}
+                        className="px-4 py-2 rounded-xl bg-[#0773BB] text-white font-bold text-xs"
+                      >
+                        + Create First Space in {activeCompany.name}
+                      </button>
+                    </PermissionGuard>
                   </div>
                 );
               }
@@ -1380,33 +1386,39 @@ export const WorkspaceManager: React.FC = () => {
                   </button>
 
                   <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => {
-                        setTemplateSourceProjectId(project.id);
-                        setTemplateName(`${project.title} Structure Template`);
-                        setTemplateDesc(project.description || '');
-                        setTemplateCategory(project.category);
-                        setShowSaveAsTemplateModal(true);
-                      }}
-                      className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-purple-500/20 text-purple-400 hover:text-purple-200 border border-[#233549] hover:border-purple-500/40 transition-all"
-                      title="Save Space Configuration as Reusable Template"
-                    >
-                      <Bookmark className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setConfiguringProject(project)}
-                      className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-[#233549] text-slate-300 hover:text-white border border-[#233549] transition-all"
-                      title="Configure Space & ClickApps"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirmProject(project)}
-                      className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-all"
-                      title="Delete Space / Project"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <PermissionGuard action="create_space">
+                      <button
+                        onClick={() => {
+                          setTemplateSourceProjectId(project.id);
+                          setTemplateName(`${project.title} Structure Template`);
+                          setTemplateDesc(project.description || '');
+                          setTemplateCategory(project.category);
+                          setShowSaveAsTemplateModal(true);
+                        }}
+                        className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-purple-500/20 text-purple-400 hover:text-purple-200 border border-[#233549] hover:border-purple-500/40 transition-all"
+                        title="Save Space Configuration as Reusable Template"
+                      >
+                        <Bookmark className="w-3.5 h-3.5" />
+                      </button>
+                    </PermissionGuard>
+                    {(currentUser?.role === 'Admin' || currentUser?.role === 'Project Manager') && (
+                      <button
+                        onClick={() => setConfiguringProject(project)}
+                        className="p-1.5 rounded-lg bg-[#0D1520] hover:bg-[#233549] text-slate-300 hover:text-white border border-[#233549] transition-all"
+                        title="Configure Space & ClickApps"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <PermissionGuard action="delete_space">
+                      <button
+                        onClick={() => setDeleteConfirmProject(project)}
+                        className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-all"
+                        title="Delete Space / Project"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </PermissionGuard>
                   </div>
                 </div>
               </div>
@@ -1508,25 +1520,29 @@ export const WorkspaceManager: React.FC = () => {
                             >
                               Open
                             </button>
-                            <button
-                              onClick={() => {
-                                setTemplateSourceProjectId(p.id);
-                                setTemplateName(`${p.title} Structure Template`);
-                                setTemplateDesc(p.description || '');
-                                setTemplateCategory(p.category);
-                                setShowSaveAsTemplateModal(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-[#0D1520] text-purple-400 hover:text-purple-200 border border-[#233549]"
-                              title="Save Space as Template"
-                            >
-                              <Bookmark className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setConfiguringProject(p)}
-                              className="p-1.5 rounded-lg bg-[#0D1520] text-slate-300 border border-[#233549]"
-                            >
-                              <Settings className="w-3.5 h-3.5" />
-                            </button>
+                            <PermissionGuard action="create_space">
+                              <button
+                                onClick={() => {
+                                  setTemplateSourceProjectId(p.id);
+                                  setTemplateName(`${p.title} Structure Template`);
+                                  setTemplateDesc(p.description || '');
+                                  setTemplateCategory(p.category);
+                                  setShowSaveAsTemplateModal(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-[#0D1520] text-purple-400 hover:text-purple-200 border border-[#233549]"
+                                title="Save Space as Template"
+                              >
+                                <Bookmark className="w-3.5 h-3.5" />
+                              </button>
+                            </PermissionGuard>
+                            {(currentUser?.role === 'Admin' || currentUser?.role === 'Project Manager') && (
+                              <button
+                                onClick={() => setConfiguringProject(p)}
+                                className="p-1.5 rounded-lg bg-[#0D1520] text-slate-300 border border-[#233549]"
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1658,16 +1674,18 @@ export const WorkspaceManager: React.FC = () => {
                       <span className="text-xs text-slate-400 font-mono">({compProjects.length} Spaces)</span>
                     </div>
 
-                    <button
-                      onClick={() => {
-                        setActiveCompany(comp);
-                        setShowCreateSpaceModal(true);
-                      }}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-bold"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>Add Space to {comp.code}</span>
-                    </button>
+                    <PermissionGuard action="create_space">
+                      <button
+                        onClick={() => {
+                          setActiveCompany(comp);
+                          setShowCreateSpaceModal(true);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-bold"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Space to {comp.code}</span>
+                      </button>
+                    </PermissionGuard>
                   </div>
 
                   <div className="p-3 space-y-2 pl-6">
@@ -2808,31 +2826,35 @@ export const WorkspaceManager: React.FC = () => {
                         <span>History ({tpl.versionHistory?.length || 1})</span>
                       </button>
 
-                      <button
-                        onClick={() => {
-                          setSelectedTemplateForInstantiate(tpl);
-                          setSelectedVersionRecordIdForInstantiate('');
-                          setInstantiateTitle(`${tpl.name} Project`);
-                          setInstantiateCode(`CL-${Math.floor(100 + Math.random() * 900)}`);
-                          setInstantiateDescription(tpl.description);
-                          setInstantiateBudget(tpl.estimatedBudget || 250000);
-                          setInstantiateBlankSpace(false);
-                          setShowInstantiateModal(true);
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 flex items-center gap-1.5"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Instantiate / Clone Space</span>
-                      </button>
+                      <PermissionGuard action="create_space">
+                        <button
+                          onClick={() => {
+                            setSelectedTemplateForInstantiate(tpl);
+                            setSelectedVersionRecordIdForInstantiate('');
+                            setInstantiateTitle(`${tpl.name} Project`);
+                            setInstantiateCode(`CL-${Math.floor(100 + Math.random() * 900)}`);
+                            setInstantiateDescription(tpl.description);
+                            setInstantiateBudget(tpl.estimatedBudget || 250000);
+                            setInstantiateBlankSpace(false);
+                            setShowInstantiateModal(true);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 flex items-center gap-1.5"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Instantiate / Clone Space</span>
+                        </button>
+                      </PermissionGuard>
 
                       {tpl.tags?.includes('Custom Template') && (
-                        <button
-                          onClick={() => deleteProjectTemplate(tpl.id)}
-                          className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 text-xs transition-all"
-                          title="Delete Custom Template"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <PermissionGuard action="delete_space">
+                          <button
+                            onClick={() => deleteProjectTemplate(tpl.id)}
+                            className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 text-xs transition-all"
+                            title="Delete Custom Template"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </PermissionGuard>
                       )}
                     </div>
                   </div>

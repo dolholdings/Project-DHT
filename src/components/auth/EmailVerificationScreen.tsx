@@ -21,7 +21,7 @@ import { useApp } from '../../context/AppContext';
 import { getCompanyByEmail, COMPANY_DOMAIN_MAPPINGS } from '../../config/auth';
 
 export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ onVerified }) => {
-  const { currentUser, setCurrentUser, firebaseUser, signOutFirebase, logActivity } = useApp();
+  const { currentUser, setCurrentUser, firebaseUser, signOutFirebase, logout, logActivity } = useApp();
 
   const userEmail = firebaseUser?.email || currentUser?.email || 'user@dolphingroup.ae';
   const companyInfo = getCompanyByEmail(userEmail);
@@ -316,8 +316,7 @@ export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ 
 
           <button
             onClick={() => {
-              signOutFirebase();
-              setCurrentUser({ ...currentUser, isEmailVerified: false });
+              logout();
             }}
             className="text-slate-400 hover:text-white flex items-center gap-1 font-semibold transition-colors"
           >

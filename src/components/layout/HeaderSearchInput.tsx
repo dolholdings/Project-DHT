@@ -147,7 +147,7 @@ export const HeaderSearchInput: React.FC = () => {
   const isDebouncing = inputVal !== debouncedQuery;
 
   return (
-    <div ref={containerRef} className="relative flex-1 max-w-md">
+    <div id="tour-global-search" ref={containerRef} className="relative flex-1 max-w-md">
       {/* Header Search Bar Input */}
       <div
         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${

@@ -38,12 +38,15 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, Project, User } from '../../types';
+import { canDeleteTask } from '../../lib/permissions';
+import { PermissionGuard } from '../common/PermissionGuard';
 import { normalizeTaskStatus, getStatusBadgeStyle } from '../kanban/KanbanView';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { canEditSpace } from '../../lib/permissions';
 import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
+import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 
 type SortField = 'title' | 'status' | 'priority' | 'dueDate' | 'estimatedHours' | 'projectId' | 'priorityScore' | 'createdAt';
@@ -71,7 +74,8 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
     searchQuery: globalSearchQuery,
     theme,
     currentUser,
-    customFields
+    customFields,
+    sprints
   } = useApp();
 
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
@@ -84,6 +88,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [projectFilter, setProjectFilter] = useState<string>(selectedProjectId || 'all');
+  const [sprintFilter, setSprintFilter] = useState<string>('all');
 
   // Sorting State
   const [sortField, setSortField] = useState<SortField>('priority');
@@ -180,6 +185,15 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
         }
       }
 
+      // Sprint Filter
+      if (sprintFilter !== 'all') {
+        if (sprintFilter === 'backlog') {
+          if (t.sprintId) return false;
+        } else if (t.sprintId !== sprintFilter) {
+          return false;
+        }
+      }
+
       // Search Query (combine global search and table local search)
       const q = (localSearch || globalSearchQuery || '').toLowerCase().trim();
       if (q) {
@@ -208,6 +222,7 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
     statusFilter,
     priorityFilter,
     assigneeFilter,
+    sprintFilter,
     localSearch,
     globalSearchQuery,
     users,
@@ -377,6 +392,11 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
   };
 
   const handleBulkDelete = () => {
+    if (!canDeleteTask(currentUser)) {
+      showToast('Permission denied: Team Members and Viewers cannot delete tasks.');
+      setShowBulkDeleteConfirm(false);
+      return;
+    }
     if (selectedTaskIds.length === 0) return;
     let count = 0;
     selectedTaskIds.forEach((id) => {
@@ -489,31 +509,15 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
           </div>
 
           {/* Assignee Filter */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <label className="text-[11px] font-bold text-slate-400 hidden sm:inline">Assignee:</label>
-            <select
-              value={assigneeFilter}
-              onChange={(e) => {
-                setAssigneeFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className={`text-xs font-semibold px-3 py-2 rounded-xl border focus:outline-none ${
-                isLight
-                  ? 'bg-slate-50 border-slate-300 text-slate-800'
-                  : 'bg-[#0D1520] border-[#233549] text-slate-200'
-              }`}
-            >
-              <option value="all">All Team Members</option>
-              <option value="unassigned">Unassigned Tasks</option>
-              <optgroup label="Specific Team Members">
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role})
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
+          <AssigneeFilterDropdown
+            value={assigneeFilter}
+            onChange={(val) => {
+              setAssigneeFilter(val);
+              setCurrentPage(1);
+            }}
+            users={users}
+            tasks={tasks}
+          />
 
           {/* Space / Project Filter */}
           <div className="flex items-center gap-1.5 shrink-0">
@@ -536,6 +540,33 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                   {p.code} - {p.title}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Sprint / Backlog Filter */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <label className="text-[11px] font-bold text-slate-400 hidden sm:inline">Sprint:</label>
+            <select
+              value={sprintFilter}
+              onChange={(e) => {
+                setSprintFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className={`text-xs font-semibold px-3 py-2 rounded-xl border focus:outline-none max-w-[170px] truncate ${
+                isLight
+                  ? 'bg-slate-50 border-slate-300 text-slate-800'
+                  : 'bg-[#0D1520] border-[#233549] text-slate-200'
+              }`}
+            >
+              <option value="all">All Sprints & Backlog</option>
+              <option value="backlog">Product Backlog Only</option>
+              <optgroup label="Sprints">
+                {sprints.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.status})
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
         </div>
@@ -767,14 +798,16 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
             </div>
 
             {/* Delete Selected Button */}
-            <button
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30 active:scale-95"
-              title="Delete all selected tasks permanently"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Delete Selected</span>
-            </button>
+            <PermissionGuard action="delete_task">
+              <button
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-rose-600/30 active:scale-95"
+                title="Delete all selected tasks permanently"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Delete Selected</span>
+              </button>
+            </PermissionGuard>
 
             {/* Clear Selection */}
             <button
@@ -915,6 +948,16 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                 {/* List Location Column */}
                 <th className="p-3.5 w-36">List</th>
 
+                {/* Sprint Column */}
+                <th className="p-3.5 w-36">Sprint</th>
+
+                {/* Custom Fields Dynamic Headers */}
+                {customFields.map((cf) => (
+                  <th key={cf.id} className="p-3.5 whitespace-nowrap min-w-[120px]">
+                    <span title={cf.description || cf.name}>{cf.name}</span>
+                  </th>
+                ))}
+
                 {/* Due Date Column */}
                 <th
                   onClick={() => handleSort('dueDate')}
@@ -957,11 +1000,11 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
             <tbody className="divide-y divide-[#233549]/60">
               {paginatedTasks.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-6">
+                  <td colSpan={11 + customFields.length} className="p-6">
                     <EmptyStateCard
                       variant="list"
                       theme={isLight ? 'light' : 'dark'}
-                      hasActiveFilters={Boolean(localSearch || statusFilter !== 'all' || priorityFilter !== 'all' || assigneeFilter !== 'all' || projectFilter !== 'all' || globalSearchQuery)}
+                      hasActiveFilters={Boolean(localSearch || statusFilter !== 'all' || priorityFilter !== 'all' || assigneeFilter !== 'all' || projectFilter !== 'all' || sprintFilter !== 'all' || globalSearchQuery)}
                       onPrimaryAction={() => {
                         addTask({
                           projectId: selectedProjectId || projects[0]?.id || 'proj_1',
@@ -1051,6 +1094,14 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                             >
                               {getDisplayTaskTitle(t)}
                             </span>
+                            {t.isCriticalPath && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-0.5 shrink-0"
+                                title="Critical Path Activity (Slack: 0 days)"
+                              >
+                                <span>CPM</span>
+                              </span>
+                            )}
                             {blocked && (
                               <span className="p-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Blocked by predecessor tasks">
                                 <Lock className="w-3 h-3 text-amber-400" />
@@ -1238,6 +1289,120 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                         </select>
                       </td>
 
+                      {/* Sprint Selector */}
+                      <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={t.sprintId || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateTask(t.id, { sprintId: val ? val : undefined });
+                          }}
+                          className={`w-full text-[11px] font-semibold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer transition-all ${
+                            t.sprintId
+                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 hover:bg-amber-500/20'
+                              : 'bg-slate-800/40 text-slate-400 border-slate-700 hover:text-slate-200'
+                          }`}
+                        >
+                          <option value="" className="bg-[#0D1520] text-slate-300">📦 Backlog</option>
+                          {sprints.map((s) => (
+                            <option key={s.id} value={s.id} className="bg-[#0D1520] text-amber-200">
+                              ⚡ {s.name} ({s.status})
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+
+                      {/* Custom Fields Dynamic Cells */}
+                      {customFields.map((cf) => {
+                        const val = t.customFields?.[cf.id];
+                        return (
+                          <td key={cf.id} className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                            {cf.type === 'checkbox' ? (
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(val)}
+                                  onChange={(e) => {
+                                    const next = { ...(t.customFields || {}), [cf.id]: e.target.checked };
+                                    updateTask(t.id, { customFields: next });
+                                  }}
+                                  className="w-4 h-4 rounded text-[#3BC0BB] focus:ring-0 bg-[#0D1520] border-[#233549]"
+                                />
+                                <span className="text-[11px] text-slate-300">{val ? 'Yes' : 'No'}</span>
+                              </label>
+                            ) : cf.type === 'dropdown' ? (
+                              <select
+                                value={String(val || '')}
+                                onChange={(e) => {
+                                  const next = { ...(t.customFields || {}), [cf.id]: e.target.value };
+                                  updateTask(t.id, { customFields: next });
+                                }}
+                                className="w-full text-[11px] font-medium px-2 py-1 rounded-lg bg-[#0D1520] border border-[#233549] text-slate-200 focus:outline-none focus:border-[#3BC0BB]"
+                              >
+                                <option value="">Select...</option>
+                                {(cf.options || []).map((opt) => (
+                                  <option key={opt} value={opt}>
+                                    {opt}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : cf.type === 'rating' ? (
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <button
+                                    key={star}
+                                    type="button"
+                                    onClick={() => {
+                                      const nextVal = val === star ? 0 : star;
+                                      const next = { ...(t.customFields || {}), [cf.id]: nextVal };
+                                      updateTask(t.id, { customFields: next });
+                                    }}
+                                    className={`text-xs ${
+                                      Number(val) >= star ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'
+                                    }`}
+                                  >
+                                    ★
+                                  </button>
+                                ))}
+                              </div>
+                            ) : cf.type === 'number' ? (
+                              <input
+                                type="number"
+                                value={val !== undefined ? String(val) : ''}
+                                onChange={(e) => {
+                                  const num = e.target.value === '' ? undefined : Number(e.target.value);
+                                  const next = { ...(t.customFields || {}), [cf.id]: num };
+                                  updateTask(t.id, { customFields: next });
+                                }}
+                                placeholder="0"
+                                className="w-20 text-[11px] px-2 py-1 rounded-lg bg-[#0D1520] border border-[#233549] text-slate-200 focus:outline-none focus:border-[#3BC0BB]"
+                              />
+                            ) : cf.type === 'date' ? (
+                              <input
+                                type="date"
+                                value={String(val || '')}
+                                onChange={(e) => {
+                                  const next = { ...(t.customFields || {}), [cf.id]: e.target.value };
+                                  updateTask(t.id, { customFields: next });
+                                }}
+                                className="text-[11px] px-2 py-1 rounded-lg bg-[#0D1520] border border-[#233549] text-slate-200 focus:outline-none focus:border-[#3BC0BB]"
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={String(val || '')}
+                                onChange={(e) => {
+                                  const next = { ...(t.customFields || {}), [cf.id]: e.target.value };
+                                  updateTask(t.id, { customFields: next });
+                                }}
+                                placeholder="Value..."
+                                className="w-full text-[11px] px-2 py-1 rounded-lg bg-[#0D1520] border border-[#233549] text-slate-200 focus:outline-none focus:border-[#3BC0BB]"
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+
                       {/* Due Date */}
                       <td className="p-3.5">
                         <span className="font-mono text-slate-300">
@@ -1267,13 +1432,15 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => deleteTask(t.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                            title="Delete Task"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <PermissionGuard action="delete_task" target={t}>
+                            <button
+                              onClick={() => deleteTask(t.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                              title="Delete Task"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </PermissionGuard>
                         </div>
                       </td>
                     </tr>

@@ -560,15 +560,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                   <button
                     type="button"
                     onClick={() => {
-                      logActivity(
-                        'user signed out',
-                        currentUser.email,
-                        'auth',
-                        undefined,
-                        undefined,
-                        `User ${currentUser.name} signed out`,
-                        'info'
-                      );
                       logout();
                       setSuccessMsg('You have successfully signed out.');
                       setTimeout(() => setSuccessMsg(''), 3000);
