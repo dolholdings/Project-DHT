@@ -607,7 +607,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [sprints, setSprints] = useState<Sprint[]>(() =>
     loadFromStorage('dolphin_sprints', INITIAL_SPRINTS)
   );
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => loadFromStorage('dolphin_logs', INITIAL_LOGS));
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
+    const loaded: ActivityLog[] = loadFromStorage('dolphin_logs', INITIAL_LOGS);
+    // Filter out any legacy embedded mock audit logs
+    const cleanLogs = (loaded || []).filter(
+      (l) => !l.id?.startsWith('log_audit_') && l.userName !== 'Rohan (Admin)' && l.userName !== 'Tariq Al-Mansoor'
+    );
+    return cleanLogs;
+  });
   const [notifications, setNotifications] = useState<Notification[]>(() => loadFromStorage('dolphin_notifs', INITIAL_NOTIFICATIONS));
   const [snoozedTasks, setSnoozedTasks] = useState<Record<string, SnoozeRecord>>(() => loadFromStorage('dolphin_snoozed_notifs', {}));
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(() =>

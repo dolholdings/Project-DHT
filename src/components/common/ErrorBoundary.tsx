@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import { isAbortError } from '../../lib/errorUtils';
 
 interface Props {
   children: ReactNode;
@@ -23,10 +24,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public static getDerivedStateFromError(error: Error): State {
+    if (isAbortError(error)) {
+      return { hasError: false, error: null, errorInfo: null };
+    }
     return { hasError: true, error, errorInfo: null };
   }
 
   public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    if (isAbortError(error)) return;
     console.error('Uncaught Error in Component:', error, errorInfo);
     this.setState({ errorInfo });
   }

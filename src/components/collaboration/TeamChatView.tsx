@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, Priority } from '../../types';
+import { isAbortError } from '../../lib/errorUtils';
 
 interface VoiceMessage {
   id: string;
@@ -208,7 +209,7 @@ export const TeamChatView: React.FC = () => {
       setToastMessage('Voice memo recorded & transcribed!');
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+      if (isAbortError(err)) return;
       console.warn('Voice transcription fallback used:', err?.message || err);
       const fallbackVoiceMsg: VoiceMessage = {
         id: `vm_${Date.now()}`,
@@ -268,7 +269,7 @@ export const TeamChatView: React.FC = () => {
       setToastMessage('Sample voice memo transcribed into task details!');
       setTimeout(() => setToastMessage(null), 4000);
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+      if (isAbortError(err)) return;
       console.warn('Voice transcription fallback active:', err?.message || err);
       const fallbackMsg: VoiceMessage = {
         id: `vm_${Date.now()}`,

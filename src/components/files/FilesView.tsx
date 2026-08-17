@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ProjectFile, FileVersion } from '../../types';
+import { isAbortError } from '../../lib/errorUtils';
 
 export const FilesView: React.FC = () => {
   const {
@@ -129,7 +130,7 @@ export const FilesView: React.FC = () => {
         throw new Error(data.error || 'Failed to extract tasks');
       }
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+      if (isAbortError(err)) return;
       console.warn('Task Extraction API fallback active:', err?.message || err);
       const fallback = [
         {

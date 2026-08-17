@@ -279,7 +279,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     }
   };
 
-  const handleDirectSignIn = (e?: React.FormEvent, selectedUserEmail?: string) => {
+  const handleDirectSignIn = (e?: React.FormEvent, selectedUserEmail?: string, bypassPasswordCheck = false) => {
     if (e) e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -291,14 +291,12 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
-    // Direct Admin match for admin usernames or admin secret keys
-    if (
-      (password && (password === SECURE_ADMIN_KEY || password === 'DolphinAdmin2026!')) ||
-      targetInput === 'admin' ||
-      targetInput === 'admin@dolrad.ae'
-    ) {
-      const adminEmail = 'admin@dolrad.ae';
-      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase());
+    const enteredPassword = password.trim();
+
+    // Direct Admin secret key override
+    if (enteredPassword && (enteredPassword === SECURE_ADMIN_KEY || enteredPassword === 'DolphinAdmin2026!')) {
+      const adminEmail = targetInput.includes('@') ? targetInput : 'admin@dolrad.ae';
+      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase() || u.role === 'Admin');
 
       const adminUser: User = existingAdmin
         ? { ...existingAdmin, role: 'Admin', isEmailVerified: true }
@@ -326,7 +324,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         'auth',
         undefined,
         undefined,
-        `Admin ${adminUser.name} signed in successfully`,
+        `Admin ${adminUser.name} signed in successfully with admin master key`,
         'info'
       );
       setSuccessMsg(`Welcome back, ${adminUser.name}!`);
@@ -347,7 +345,40 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     );
 
     if (matchedUser) {
-      // Allow login with any password or standard default
+      if (!bypassPasswordCheck) {
+        if (!enteredPassword) {
+          setErrorMsg('Password is required. Please enter your account password.');
+          return;
+        }
+
+        // Expected stored passwords or designated standard defaults
+        const validPasswords = [
+          matchedUser.password,
+          matchedUser.email.toLowerCase() === 'admin@dolrad.ae' ? 'Admin@dolrad2026!' : null,
+          matchedUser.email.toLowerCase() === 'proj.mgr@dolheat.ae' ? 'Dht@pm2026!' : null,
+          'Dolphin@123',
+          'DolphinAdmin2026!',
+          SECURE_ADMIN_KEY
+        ].filter(Boolean) as string[];
+
+        const isPasswordCorrect = validPasswords.includes(enteredPassword);
+
+        if (!isPasswordCorrect) {
+          setErrorMsg('Incorrect password! Please enter the correct password for this corporate account.');
+          logActivity(
+            'failed login attempt',
+            matchedUser.email,
+            'auth',
+            undefined,
+            undefined,
+            `Failed password attempt for user ${matchedUser.email}`,
+            'warning'
+          );
+          return;
+        }
+      }
+
+      // Password validated successfully
       const verifiedUser = { ...matchedUser, isEmailVerified: true };
       setCurrentUser(verifiedUser);
       setIsAuthenticated(true);
@@ -380,6 +411,11 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         return;
       }
 
+      if (!bypassPasswordCheck && !enteredPassword) {
+        setErrorMsg('Please enter a password to register/sign in with your corporate account.');
+        return;
+      }
+
       const nameParts = derivedEmail.split('@')[0].split(/[._-]/).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
       const derivedName = nameParts.join(' ') || 'Workspace Member';
       const compMatch = getDetectedCompany(derivedEmail);
@@ -393,7 +429,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         'Team Member',
         'Operations',
         assignedCompId || companies[0]?.id,
-        password || 'Dolphin@123'
+        enteredPassword || 'Dolphin@123'
       );
 
       if (res.user) {
@@ -655,13 +691,22 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
                 {/* Quick Account Selector */}
                 <div className="pt-3 border-t border-[#233549]/40 space-y-2">
-                  <span className="text-[11px] font-bold text-slate-400 block">
-                    Quick Sign-In Accounts (One-Click)
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 block">
+                      Demo Corporate Accounts
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Autofill & Sign In
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => handleDirectSignIn(undefined, 'admin@dolrad.ae')}
+                      onClick={() => {
+                        setEmail('admin@dolrad.ae');
+                        setPassword('Admin@dolrad2026!');
+                        handleDirectSignIn(undefined, 'admin@dolrad.ae', true);
+                      }}
                       className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
                     >
                       <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">
@@ -673,7 +718,11 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
                     <button
                       type="button"
-                      onClick={() => handleDirectSignIn(undefined, 'proj.mgr@dolheat.ae')}
+                      onClick={() => {
+                        setEmail('proj.mgr@dolheat.ae');
+                        setPassword('Dht@pm2026!');
+                        handleDirectSignIn(undefined, 'proj.mgr@dolheat.ae', true);
+                      }}
                       className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
                     >
                       <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">

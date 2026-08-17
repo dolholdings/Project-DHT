@@ -20,6 +20,22 @@ if (typeof window !== 'undefined') {
   } catch (e) {
     // Graceful fallback
   }
+
+  // Gracefully handle harmless abort errors / cancelled fetch requests
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    if (
+      reason?.name === 'AbortError' ||
+      reason?.code === 20 ||
+      (typeof reason?.message === 'string' &&
+        (reason.message.toLowerCase().includes('aborted') ||
+         reason.message.toLowerCase().includes('abort') ||
+         reason.message.includes('The user aborted a request')))
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
 }
 
 import {StrictMode} from 'react';

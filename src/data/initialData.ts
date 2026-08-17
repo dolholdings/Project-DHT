@@ -80,6 +80,7 @@ export const INITIAL_USERS: User[] = [
     maxWeeklyHours: 40,
     status: 'Active',
     isEmailVerified: true,
+    password: 'Admin@dolrad2026!',
     lastActive: new Date().toISOString()
   },
   {
@@ -94,6 +95,7 @@ export const INITIAL_USERS: User[] = [
     maxWeeklyHours: 40,
     status: 'Active',
     isEmailVerified: true,
+    password: 'Dht@pm2026!',
     lastActive: new Date().toISOString()
   }
 ];
@@ -615,110 +617,7 @@ export const INITIAL_SUBTASKS: Subtask[] = [];
 
 export const INITIAL_DEPENDENCIES: TaskDependency[] = [];
 
-export const INITIAL_LOGS: ActivityLog[] = [
-  {
-    id: 'log_audit_001',
-    companyId: 'comp_dht',
-    projectId: 'proj_dht_akkas',
-    taskId: 'tsk_akk_fab_tag6',
-    userId: 'usr_1',
-    userName: 'Rohan (Admin)',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    action: 'updated user profile / role',
-    target: 'Tariq Al-Mansoor (tariq@dolphinheat.com)',
-    timestamp: '2026-08-16T12:45:00.000Z',
-    type: 'permission',
-    severity: 'warning',
-    details: 'Role elevated from Team Member to Project Manager for DHT Enterprise Space.',
-    ipAddress: '192.168.1.104'
-  },
-  {
-    id: 'log_audit_002',
-    companyId: 'comp_dht',
-    projectId: 'proj_dht_weekly_critical',
-    userId: 'usr_pm_dht',
-    userName: 'Tariq Al-Mansoor',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    action: 'deleted task',
-    target: '[ARCHIVED] Job 1098 Obsolete Weld Spec Test Task',
-    timestamp: '2026-08-16T11:20:00.000Z',
-    type: 'task',
-    severity: 'warning',
-    details: 'Milestone task tsk_obsolete_99 deleted from Weekly Critical Items project by Project Manager.',
-    ipAddress: '10.240.4.12'
-  },
-  {
-    id: 'log_audit_003',
-    companyId: 'comp_corp',
-    userId: 'usr_1',
-    userName: 'Rohan (Admin)',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    action: 'updated domain security policy',
-    target: '@dolphinglobalsolutions.com -> mfaRequired: true, crossTenantCollab: true',
-    timestamp: '2026-08-16T10:15:00.000Z',
-    type: 'permission',
-    severity: 'warning',
-    details: 'Enforced tenant-wide MFA and enabled cross-domain project sharing for authorized engineers.',
-    ipAddress: '192.168.1.104'
-  },
-  {
-    id: 'log_audit_004',
-    companyId: 'comp_corp',
-    userId: 'usr_1',
-    userName: 'Rohan (Admin)',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    action: 'updated user space & project access permissions',
-    target: 'Fatima Al-Zahra (fatima@dolphinheat.com)',
-    timestamp: '2026-08-16T09:30:00.000Z',
-    type: 'permission',
-    severity: 'info',
-    details: 'Granted access to 3 project spaces: Akkas Field, Weekly Critical, and Radiator Production.',
-    ipAddress: '192.168.1.104'
-  },
-  {
-    id: 'log_audit_005',
-    companyId: 'comp_dht',
-    projectId: 'proj_dht_akkas',
-    userId: 'usr_pm_dht',
-    userName: 'Tariq Al-Mansoor',
-    userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    action: 'created task',
-    target: 'Tag ON-E-1401C: TEG Cooler - Pipe [18 Inch] Shell & Baffles Fabrication',
-    timestamp: '2026-08-15T16:00:00.000Z',
-    type: 'task',
-    severity: 'info',
-    details: 'Created fabrication milestone with 90 estimated hours and assigned to engineering team.',
-    ipAddress: '10.240.4.12'
-  },
-  {
-    id: 'log_audit_006',
-    companyId: 'comp_corp',
-    userId: 'usr_1',
-    userName: 'Rohan (Admin)',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    action: 'deactivated tenant user',
-    target: 'Sarah Jenkins (sarah.temp@contractor.com)',
-    timestamp: '2026-08-15T14:10:00.000Z',
-    type: 'permission',
-    severity: 'warning',
-    details: 'User account deactivated after contractor tenure expiration. Space tokens revoked.',
-    ipAddress: '192.168.1.104'
-  },
-  {
-    id: 'log_audit_007',
-    companyId: 'comp_corp',
-    userId: 'usr_1',
-    userName: 'Rohan (Admin)',
-    userAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    action: 'user signed in',
-    target: 'dolphingroup786@gmail.com',
-    timestamp: '2026-08-15T08:00:00.000Z',
-    type: 'auth',
-    severity: 'info',
-    details: 'Tenant Administrator authenticated successfully via OAuth credential exchange.',
-    ipAddress: '192.168.1.104'
-  }
-];
+export const INITIAL_LOGS: ActivityLog[] = [];
 
 export const INITIAL_NOTIFICATIONS: Notification[] = [];
 

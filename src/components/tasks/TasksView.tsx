@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, RecurrenceType, RecurrenceConfig } from '../../types';
+import { isAbortError } from '../../lib/errorUtils';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
@@ -224,7 +225,7 @@ export const TasksView: React.FC = () => {
         throw new Error('No recommendations in response');
       }
     } catch (err: any) {
-      if (err?.name === 'AbortError') return;
+      if (isAbortError(err)) return;
       console.warn('Smart Priority API fallback active:', err?.message || err);
       const fallbackRecs = tasksToAnalyze.map((t, idx) => {
         const estH = t.estimatedHours || 10;
@@ -661,145 +662,31 @@ export const TasksView: React.FC = () => {
           ? 'bg-white border-slate-200 shadow-slate-200/50'
           : 'bg-gradient-to-r from-[#121B26] via-[#1A2634] to-[#121B26] border-[#233549]'
       }`}>
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center gap-3.5 min-w-0">
           <div className={`p-2.5 rounded-xl border shrink-0 ${
             theme === 'light' ? 'bg-teal-50 border-teal-200 text-teal-700' : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
           }`}>
             <Workflow className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className={`text-sm font-bold flex flex-wrap items-center gap-2 ${
+            <h2 className={`text-base font-bold flex flex-wrap items-center gap-2.5 ${
               theme === 'light' ? 'text-slate-900' : 'text-white'
             }`}>
-              <span className="truncate">Task Management & Dependencies</span>
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold whitespace-nowrap border ${
+              <span>Task Management & Dependencies</span>
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold whitespace-nowrap border ${
                 theme === 'light' ? 'bg-teal-100 text-teal-800 border-teal-300' : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
               }`}>
                 Finish-to-Start (FS)
               </span>
             </h2>
-            <p className={`text-xs ${theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}`}>
-              Define predecessor/successor tasks and automatically propagate timeline schedule changes.
+            <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-slate-600 font-medium' : 'text-slate-400'}`}>
+              Define predecessor/successor tasks and automatically propagate timeline schedule changes across dependencies.
             </p>
           </div>
         </div>
 
+        {/* Primary Action Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {/* View Mode Toggle Switch (Data Table vs Grouped List vs Sprints) */}
-          <div className="p-1 rounded-2xl bg-[#0D1520] border border-[#233549] flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setTasksViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                tasksViewMode === 'table'
-                  ? 'bg-[#3BC0BB] text-slate-950 shadow-md shadow-[#3BC0BB]/30'
-                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-              }`}
-              title="Interactive Data Table with multi-select checkboxes, batch status/priority operations, and sorting"
-            >
-              <Table className="w-3.5 h-3.5" />
-              <span>Data Table</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTasksViewMode('list')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                tasksViewMode === 'list'
-                  ? 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30'
-                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-              }`}
-              title="Grouped Accordions view by status"
-            >
-              <ListOrdered className="w-3.5 h-3.5" />
-              <span>Grouped List</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setTasksViewMode('sprints')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                tasksViewMode === 'sprints'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
-                  : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-              }`}
-              title="Agile Scrum Sprint Planning, Backlog Estimations, and Velocity Management"
-            >
-              <Flame className="w-3.5 h-3.5 text-amber-400" />
-              <span>Sprint Planning</span>
-            </button>
-          </div>
-
-          {/* Assignee Filter Dropdown */}
-          <AssigneeFilterDropdown
-            value={assigneeFilter}
-            onChange={setAssigneeFilter}
-            users={users}
-            tasks={accessibleTasks.filter((t) => !selectedProjectId || t.projectId === selectedProjectId)}
-          />
-
-          {/* Custom Fields Manager Modal Trigger */}
-          <button
-            type="button"
-            onClick={() => setShowCustomFieldsModal(true)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${
-              theme === 'light'
-                ? 'bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-800'
-                : 'bg-purple-950/40 hover:bg-purple-900/40 border-purple-500/40 text-purple-300'
-            }`}
-            title="Configure and manage custom fields across all tasks"
-          >
-            <Sliders className="w-4 h-4 text-purple-400" />
-            <span>Custom Fields</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold">
-              {customFields.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenSmartPriorityModal(false)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20 active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
-            title="Analyze deadlines, effort estimates, and critical path to reorder all tasks"
-          >
-            <Sparkles className="w-4 h-4 fill-current text-white animate-pulse" />
-            <span>AI Smart Priority</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleOpenSmartPriorityModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-amber-600/20 active:scale-95 border border-amber-400/40 whitespace-nowrap"
-            title="Use Gemini to analyze deadlines and effort estimates to tag unassigned tasks High/Medium/Low"
-          >
-            <Sparkles className="w-4 h-4 text-amber-200 fill-current" />
-            <span>Smart Priority (Unassigned)</span>
-            <span className="px-1.5 py-0.5 rounded-full bg-black/30 text-amber-100 text-[10px] font-mono font-extrabold">
-              {unassignedTasks.length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDownloadCsv}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all shadow-sm active:scale-95 whitespace-nowrap ${
-              theme === 'light'
-                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-800'
-                : 'bg-[#0D1520] hover:bg-[#233549] border-[#233549] text-cyan-300'
-            }`}
-            title="Export current tasks view to CSV for external auditing"
-          >
-            <Download className="w-4 h-4 text-[#3BC0BB]" />
-            <span>Download CSV</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowCsvImportModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:scale-105 text-white text-xs font-bold transition-all shadow-lg shadow-[#0773BB]/20 active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
-            title="Import tasks or Action Tracker directly from CSV or Excel file"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-white" />
-            <span>Import CSV / Tracker</span>
-          </button>
-
           <button
             type="button"
             onClick={() => {
@@ -816,6 +703,7 @@ export const TasksView: React.FC = () => {
                 ? 'bg-teal-50 hover:bg-teal-100 border-teal-300 text-teal-800'
                 : 'bg-cyan-500/20 hover:bg-cyan-500/30 border-cyan-500/40 text-cyan-200'
             }`}
+            title="Automatically adjust schedule dates for successor tasks according to predecessor finish dates"
           >
             <RefreshCw className="w-4 h-4 text-teal-600 dark:text-cyan-400" />
             <span>Auto-Recalculate Timeline (FS)</span>
@@ -828,7 +716,7 @@ export const TasksView: React.FC = () => {
             }}
             disabled={!userCanEdit}
             title={!userCanEdit ? 'Task creation is disabled in Viewer mode' : 'Create a new task'}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 whitespace-nowrap ${
               !userCanEdit
                 ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
                 : 'bg-[#7B68EE] hover:bg-[#6854e4] text-white'
@@ -836,6 +724,149 @@ export const TasksView: React.FC = () => {
           >
             <Plus className="w-4 h-4" />
             <span>Create Task</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Task View Toolbar & Filters Strip */}
+      <div className={`p-3 rounded-2xl border shadow-sm flex flex-wrap items-center justify-between gap-3 ${
+        theme === 'light'
+          ? 'bg-slate-50 border-slate-200'
+          : 'bg-[#121B26] border-[#233549]'
+      }`}>
+        {/* Left: View Mode Toggle Switch (Data Table vs Grouped List vs Sprints) */}
+        <div className={`p-1 rounded-xl border flex items-center gap-1 shrink-0 ${
+          theme === 'light' ? 'bg-slate-200/70 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
+        }`}>
+          <button
+            type="button"
+            onClick={() => setTasksViewMode('table')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tasksViewMode === 'table'
+                ? theme === 'light'
+                  ? 'bg-white text-teal-900 shadow-sm border border-slate-200 font-extrabold'
+                  : 'bg-[#3BC0BB] text-slate-950 shadow-md shadow-[#3BC0BB]/30 font-extrabold'
+                : theme === 'light'
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+            }`}
+            title="Interactive Data Table with multi-select checkboxes, batch status/priority operations, and sorting"
+          >
+            <Table className="w-3.5 h-3.5" />
+            <span>Data Table</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTasksViewMode('list')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tasksViewMode === 'list'
+                ? theme === 'light'
+                  ? 'bg-white text-[#0773BB] shadow-sm border border-slate-200 font-extrabold'
+                  : 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30 font-extrabold'
+                : theme === 'light'
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+            }`}
+            title="Grouped Accordions view by status"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>Grouped List</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTasksViewMode('sprints')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tasksViewMode === 'sprints'
+                ? theme === 'light'
+                  ? 'bg-white text-amber-900 shadow-sm border border-slate-200 font-extrabold'
+                  : 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 font-extrabold'
+                : theme === 'light'
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+            }`}
+            title="Agile Scrum Sprint Planning, Backlog Estimations, and Velocity Management"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-500" />
+            <span>Sprint Planning</span>
+          </button>
+        </div>
+
+        {/* Right: Filters & Tools */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Assignee Filter Dropdown */}
+          <AssigneeFilterDropdown
+            value={assigneeFilter}
+            onChange={setAssigneeFilter}
+            users={users}
+            tasks={accessibleTasks.filter((t) => !selectedProjectId || t.projectId === selectedProjectId)}
+          />
+
+          {/* Custom Fields Manager Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setShowCustomFieldsModal(true)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs active:scale-95 whitespace-nowrap ${
+              theme === 'light'
+                ? 'bg-purple-50 hover:bg-purple-100 border-purple-300 text-purple-800'
+                : 'bg-purple-950/40 hover:bg-purple-900/40 border-purple-500/40 text-purple-300'
+            }`}
+            title="Configure and manage custom fields across all tasks"
+          >
+            <Sliders className="w-3.5 h-3.5 text-purple-400" />
+            <span>Custom Fields</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold">
+              {customFields.length}
+            </span>
+          </button>
+
+          {/* AI Smart Priority */}
+          <button
+            type="button"
+            onClick={() => handleOpenSmartPriorityModal(false)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:opacity-90 text-white text-xs font-bold transition-all shadow-xs active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
+            title="Analyze deadlines, effort estimates, and critical path to reorder all tasks"
+          >
+            <Sparkles className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
+            <span>AI Smart Priority</span>
+          </button>
+
+          {/* Smart Priority (Unassigned) */}
+          <button
+            type="button"
+            onClick={() => handleOpenSmartPriorityModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:opacity-90 text-white text-xs font-bold transition-all shadow-xs active:scale-95 border border-amber-400/40 whitespace-nowrap"
+            title="Use Gemini to analyze deadlines and effort estimates to tag unassigned tasks High/Medium/Low"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-200 fill-current" />
+            <span>Smart Priority (Unassigned)</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-amber-100 text-[10px] font-mono font-extrabold">
+              {unassignedTasks.length}
+            </span>
+          </button>
+
+          {/* CSV Export & Import */}
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs active:scale-95 whitespace-nowrap ${
+              theme === 'light'
+                ? 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800'
+                : 'bg-[#0D1520] hover:bg-[#233549] border-[#233549] text-cyan-300'
+            }`}
+            title="Export current tasks view to CSV for external auditing"
+          >
+            <Download className="w-3.5 h-3.5 text-[#3BC0BB]" />
+            <span>CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCsvImportModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:opacity-90 text-white text-xs font-bold transition-all shadow-xs active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
+            title="Import tasks or Action Tracker directly from CSV or Excel file"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+            <span>Import Tracker</span>
           </button>
         </div>
       </div>

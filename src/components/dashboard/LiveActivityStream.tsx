@@ -49,118 +49,16 @@ export const LiveActivityStream: React.FC = () => {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
-  // Auto-stream simulation: occasionally generates realistic live telemetry activity
+  // Monitor real-time incoming activity logs to flash visual pulse on newest entry
   useEffect(() => {
-    if (!isLiveAutoStreaming) return;
-
-    const interval = setInterval(() => {
-      // Pick random simulated action type
-      const actionTypes = ['completion', 'document', 'status'];
-      const pickedType = actionTypes[Math.floor(Math.random() * actionTypes.length)];
-
-      const randomUser = users[Math.floor(Math.random() * users.length)] || currentUser;
-      const randomProj = projects[Math.floor(Math.random() * projects.length)];
-      const projCode = randomProj ? randomProj.code : 'DOL';
-      const projId = randomProj ? randomProj.id : undefined;
-
-      if (pickedType === 'completion') {
-        const sampleTasks = [
-          'HVAC Ducting Safety Sign-off',
-          'MEP Pressure Testing Protocol',
-          'Solar Inverter Wire Diagram Verification',
-          'Structural Steel Coating Quality Check',
-          'Substation Load Balancing Audit'
-        ];
-        const taskTitle = sampleTasks[Math.floor(Math.random() * sampleTasks.length)];
-        logActivity(
-          'completed task',
-          `Completed "${taskTitle}"`,
-          'task',
-          projId,
-          undefined,
-          `Verified by ${randomUser.name}. 100% QA pass score.`,
-          'info'
-        );
-      } else if (pickedType === 'document') {
-        const sampleDocs = [
-          `Engineering_Blueprint_${projCode}_v2.4.pdf`,
-          `Site_Safety_Inspection_${projCode}.docx`,
-          `HVAC_Thermal_Calculation_Sheet.xlsx`,
-          `Subcontractor_ISO_Compliance_Cert.pdf`
-        ];
-        const docName = sampleDocs[Math.floor(Math.random() * sampleDocs.length)];
-        logActivity(
-          'uploaded document',
-          docName,
-          'document',
-          projId,
-          undefined,
-          `File size: ${(Math.random() * 4 + 1).toFixed(1)} MB • Cloud Sync Complete`,
-          'info'
-        );
-      } else {
-        const sampleStatuses = [
-          { task: 'Substation Foundation Prep', from: 'In Progress', to: 'In Review' },
-          { task: 'Solar Panel Array Wiring', from: 'To Do', to: 'In Progress' },
-          { task: 'Fire Safety Circuit Signoff', from: 'In Review', to: 'Done' }
-        ];
-        const stat = sampleStatuses[Math.floor(Math.random() * sampleStatuses.length)];
-        logActivity(
-          'changed task status',
-          `Updated "${stat.task}" status from ${stat.from} ➔ ${stat.to}`,
-          'task',
-          projId,
-          undefined,
-          `Workflow transition executed by ${randomUser.name}`,
-          'info'
-        );
-      }
-
-      // Highlight top activity log
-      if (activityLogs.length > 0) {
-        setHighlightedId(activityLogs[0].id);
-        setTimeout(() => setHighlightedId(null), 2500);
-      }
-    }, 20000); // Trigger live event every 20 seconds if active
-
-    return () => clearInterval(interval);
-  }, [isLiveAutoStreaming, users, projects, currentUser?.id, logActivity]);
-
-  // Quick manually triggered simulation actions for instant feedback
-  const handleTriggerSimulatedAction = (type: 'completion' | 'document' | 'status') => {
-    const randomProj = projects[0] || { id: 'p1', code: 'DOL' };
-    if (type === 'completion') {
-      logActivity(
-        'completed task',
-        'Completed "High-Voltage Transformer Circuit Calibration"',
-        'task',
-        randomProj.id,
-        undefined,
-        'Simulated completion logged from live telemetry console.',
-        'info'
-      );
-    } else if (type === 'document') {
-      logActivity(
-        'uploaded document',
-        'Structural_Load_Bearing_Analysis_2026.pdf',
-        'document',
-        randomProj.id,
-        undefined,
-        'Size: 3.4 MB • Automated OCR indexing completed.',
-        'info'
-      );
-    } else {
-      logActivity(
-        'changed task status',
-        'Updated "HVAC Airflow Balancing" status to In Review',
-        'task',
-        randomProj.id,
-        undefined,
-        'Transitioned status to In Review for team verification.',
-        'info'
-      );
+    if (!isLiveAutoStreaming || activityLogs.length === 0) return;
+    const topId = activityLogs[0]?.id;
+    if (topId) {
+      setHighlightedId(topId);
+      const timer = setTimeout(() => setHighlightedId(null), 2500);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [activityLogs, isLiveAutoStreaming]);
 
   // Helper to categorize log item
   const getCategory = (log: ActivityLog): 'completion' | 'document' | 'status' | 'system' => {
@@ -261,35 +159,6 @@ export const LiveActivityStream: React.FC = () => {
             {isLiveAutoStreaming ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
             <span>{isLiveAutoStreaming ? 'Auto-Stream ON' : 'Resume Feed'}</span>
           </button>
-
-          {/* Simulate Action Drops */}
-          <div className="flex items-center bg-[#0D1520] border border-[#233549] rounded-xl p-1 gap-1">
-            <span className="text-[10px] font-mono text-slate-400 px-2 uppercase font-bold">Simulate:</span>
-            <button
-              onClick={() => handleTriggerSimulatedAction('completion')}
-              className="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[10px] font-mono font-bold border border-emerald-500/30 flex items-center gap-1 transition-all"
-              title="Simulate task completion event"
-            >
-              <CheckCircle2 className="w-3 h-3" />
-              <span>+Done</span>
-            </button>
-            <button
-              onClick={() => handleTriggerSimulatedAction('document')}
-              className="px-2 py-1 rounded bg-[#0773BB]/20 text-[#3BC0BB] hover:bg-[#0773BB]/30 text-[10px] font-mono font-bold border border-[#0773BB]/40 flex items-center gap-1 transition-all"
-              title="Simulate document upload event"
-            >
-              <FileUp className="w-3 h-3" />
-              <span>+Doc</span>
-            </button>
-            <button
-              onClick={() => handleTriggerSimulatedAction('status')}
-              className="px-2 py-1 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-[10px] font-mono font-bold border border-amber-500/30 flex items-center gap-1 transition-all"
-              title="Simulate status change event"
-            >
-              <RefreshCw className="w-3 h-3" />
-              <span>+Status</span>
-            </button>
-          </div>
 
           {/* Open Activity Log Drawer */}
           <button

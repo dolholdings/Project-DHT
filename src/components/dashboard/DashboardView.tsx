@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Task, Project, TaskDependency, AIDailyBrief } from '../../types';
+import { isAbortError } from '../../lib/errorUtils';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { getStatusBadgeStyle } from '../../lib/statusUtils';
@@ -475,12 +476,13 @@ export const DashboardView: React.FC = () => {
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const [hoveredStatCard, setHoveredStatCard] = useState<string | null>(null);
 
-  const fetchDailyBrief = async () => {
+  const fetchDailyBrief = async (signal?: AbortSignal) => {
     setBriefLoading(true);
     try {
       const res = await fetch('/api/ai/daily-brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal,
         body: JSON.stringify({
           tasks: companyTasks,
           projects: companyProjects,
@@ -505,7 +507,7 @@ export const DashboardView: React.FC = () => {
         throw new Error(data.error || 'Failed to generate brief');
       }
     } catch (e: any) {
-      if (e?.name === 'AbortError') return;
+      if (isAbortError(e)) return;
       console.warn('Daily brief API fallback used:', e?.message || e);
       const doneCount = companyTasks.filter(t => t.status === 'Done').length;
       const urgentList = companyTasks.filter(t => t.priority === 'Urgent' && t.status !== 'Done');
@@ -536,12 +538,12 @@ export const DashboardView: React.FC = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
+    const controller = new AbortController();
     if (!dailyBrief) {
-      fetchDailyBrief();
+      fetchDailyBrief(controller.signal);
     }
     return () => {
-      isMounted = false;
+      controller.abort();
     };
   }, []);
 
