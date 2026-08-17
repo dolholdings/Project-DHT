@@ -37,6 +37,7 @@ import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 import { PermissionGuard } from '../common/PermissionGuard';
+import { normalizeRole } from '../../lib/permissions';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     activeTab,
     setActiveTab,
     currentUser,
+    users,
     tasks,
     projects,
     selectedProjectId,
@@ -75,7 +77,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [newListSpaceId, setNewListSpaceId] = useState<string | null>(null);
   const [newListTitle, setNewListTitle] = useState('');
 
-  const isAdmin = currentUser?.role === 'Admin';
+  // Dynamically resolve user profile & role stored in Firestore user profile or current session
+  const userProfile = React.useMemo(() => {
+    if (!currentUser) return null;
+    const match = users?.find(
+      (u) =>
+        u.id === currentUser.id ||
+        (currentUser.email && u.email?.toLowerCase() === currentUser.email.toLowerCase())
+    );
+    return match || currentUser;
+  }, [users, currentUser]);
+
+  const effectiveRole = userProfile?.role || currentUser?.role;
+  const isAdmin = normalizeRole(effectiveRole) === 'admin';
+
+  // Guard: If a non-admin user lands on 'admin' or 'settings' tab, redirect them to dashboard
+  useEffect(() => {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'settings')) {
+      setActiveTab('dashboard');
+    }
+  }, [isAdmin, activeTab, setActiveTab]);
 
   const accessibleProjects = React.useMemo(() => {
     if (!currentUser) return [];
@@ -305,20 +326,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <CheckSquare className="w-5 h-5" />
               </button>
 
-              <button
-                onClick={() => handleTabClick('admin')}
-                className={`p-2.5 rounded-xl transition-all relative ${
-                  activeTab === 'admin'
-                    ? theme === 'light'
-                      ? 'bg-amber-400 text-slate-950 shadow-md font-bold'
-                      : 'bg-amber-500/25 text-amber-400 border border-amber-500/40 shadow-md'
-                    : 'text-amber-300/80 hover:text-amber-300 hover:bg-amber-500/10'
-                }`}
-                title="Tenant Administration & Multi-Domain Governance"
-              >
-                <ShieldAlert className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse border-2 border-slate-900"></span>
-              </button>
+              {/* Admin tab: Only visible to users with Admin role in their Firestore profile */}
+              {isAdmin && (
+                <button
+                  onClick={() => handleTabClick('admin')}
+                  className={`p-2.5 rounded-xl transition-all relative ${
+                    activeTab === 'admin'
+                      ? theme === 'light'
+                        ? 'bg-amber-400 text-slate-950 shadow-md font-bold'
+                        : 'bg-amber-500/25 text-amber-400 border border-amber-500/40 shadow-md'
+                      : 'text-amber-300/80 hover:text-amber-300 hover:bg-amber-500/10'
+                  }`}
+                  title="Tenant Administration & Multi-Domain Governance"
+                >
+                  <ShieldAlert className="w-5 h-5" />
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse border-2 border-slate-900"></span>
+                </button>
+              )}
 
               <div className="relative">
                 <button
@@ -361,26 +385,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <Sparkles className="w-4 h-4 text-purple-400" />
                       <span>ClickUp Automations</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        handleTabClick('settings');
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
-                    >
-                      <Settings className="w-4 h-4 text-slate-400" />
-                      <span>Workspace Settings</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleTabClick('admin');
-                        setShowMoreMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-amber-300 hover:text-amber-200 flex items-center gap-2"
-                    >
-                      <ShieldAlert className="w-4 h-4 text-amber-400" />
-                      <span>Admin Governance</span>
-                    </button>
+                    {/* Settings & Admin tabs: Conditionally displayed only for Admin role */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          handleTabClick('settings');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-slate-200 hover:text-white flex items-center gap-2"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" />
+                        <span>Workspace Settings</span>
+                      </button>
+                    )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          handleTabClick('admin');
+                          setShowMoreMenu(false);
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#233549] text-amber-300 hover:text-amber-200 flex items-center gap-2"
+                      >
+                        <ShieldAlert className="w-4 h-4 text-amber-400" />
+                        <span>Admin Governance</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         logout();
@@ -513,30 +542,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>Skills & Access Rules</span>
                 </button>
 
-                <button
-                  onClick={() => handleTabClick('admin')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all ${
-                    activeTab === 'admin'
-                      ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
-                      : theme === 'light'
-                      ? 'text-amber-800 hover:bg-amber-100/60'
-                      : 'text-amber-400/90 hover:text-amber-300 hover:bg-[#16222F]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <ShieldAlert className={`w-4 h-4 ${activeTab === 'admin' ? 'text-white' : 'text-amber-500'}`} />
-                    <span>Admin Portal</span>
-                  </div>
-                  <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
-                    activeTab === 'admin'
-                      ? 'bg-white/30 text-white'
-                      : theme === 'light'
-                      ? 'bg-amber-200/80 text-amber-900 border border-amber-300'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  }`}>
-                    PRO
-                  </span>
-                </button>
+                {/* Admin Portal Tab: Hidden for non-admin users based on Firestore profile */}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleTabClick('admin')}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all ${
+                      activeTab === 'admin'
+                        ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
+                        : theme === 'light'
+                        ? 'text-amber-800 hover:bg-amber-100/60'
+                        : 'text-amber-400/90 hover:text-amber-300 hover:bg-[#16222F]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className={`w-4 h-4 ${activeTab === 'admin' ? 'text-white' : 'text-amber-500'}`} />
+                      <span>Admin Portal</span>
+                    </div>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                      activeTab === 'admin'
+                        ? 'bg-white/30 text-white'
+                        : theme === 'light'
+                        ? 'bg-amber-200/80 text-amber-900 border border-amber-300'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      PRO
+                    </span>
+                  </button>
+                )}
+
+                {/* Settings Tab: Hidden for non-admin users based on Firestore profile */}
+                {isAdmin && (
+                  <button
+                    onClick={() => handleTabClick('settings')}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all ${
+                      activeTab === 'settings'
+                        ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
+                        : theme === 'light'
+                        ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                        : 'text-slate-300 hover:text-white hover:bg-[#16222F]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Settings className={`w-4 h-4 ${activeTab === 'settings' ? 'text-white' : theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`} />
+                      <span>Settings</span>
+                    </div>
+                  </button>
+                )}
 
                 <button
                   onClick={() => handleTabClick('calendar')}
@@ -608,17 +659,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Space</span>
                       </button>
                     </PermissionGuard>
-                    <button
-                      onClick={() => handleTabClick('workspace')}
-                      className={`p-0.5 text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded transition-all ${
-                        theme === 'light'
-                          ? 'bg-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-slate-300'
-                          : 'bg-[#233549]/60 text-slate-400 hover:text-white'
-                      }`}
-                      title="Manage Workspaces & Spaces"
-                    >
-                      <Settings className={`w-3 h-3 ${theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`} />
-                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => handleTabClick('workspace')}
+                        className={`p-0.5 text-[10px] font-bold flex items-center gap-1 px-1.5 py-0.5 rounded transition-all ${
+                          theme === 'light'
+                            ? 'bg-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-slate-300'
+                            : 'bg-[#233549]/60 text-slate-400 hover:text-white'
+                        }`}
+                        title="Manage Workspaces & Spaces"
+                      >
+                        <Settings className={`w-3 h-3 ${theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`} />
+                      </button>
+                    )}
                   </div>
                 </div>
 

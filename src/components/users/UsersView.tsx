@@ -1,7 +1,45 @@
 import React, { useState } from 'react';
-import { ShieldCheck, UserPlus, AlertTriangle, Check, X, Building2, Key, Plus, Globe, Briefcase, ExternalLink, Users as UsersIcon, Trash2, Mail, Lock, Edit2, ShieldAlert, Clock, FolderKanban, Layers, Send } from 'lucide-react';
+import {
+  ShieldCheck,
+  UserPlus,
+  AlertTriangle,
+  Check,
+  X,
+  Building2,
+  Key,
+  Plus,
+  Globe,
+  Briefcase,
+  ExternalLink,
+  Users as UsersIcon,
+  Trash2,
+  Mail,
+  Lock,
+  Edit2,
+  ShieldAlert,
+  Clock,
+  FolderKanban,
+  Layers,
+  Send,
+  Search,
+  Filter,
+  CheckCircle2,
+  Copy,
+  Eye,
+  EyeOff,
+  Sparkles,
+  RefreshCw,
+  UserCheck,
+  UserX,
+  SlidersHorizontal,
+  ArrowUpDown,
+  UserCog,
+  CheckCheck,
+  Zap,
+  Info
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { APPROVED_DOMAINS, Role, CompanyType, Company } from '../../types';
+import { APPROVED_DOMAINS, Role, CompanyType, Company, User } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
 import { canCreateUser, canDeleteUser } from '../../lib/permissions';
 import { PermissionGuard } from '../common/PermissionGuard';
@@ -64,7 +102,33 @@ export const UsersView: React.FC = () => {
   const [inviteError, setInviteError] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
 
-  // User Controller inline edit state
+  // Search & Filter state for Team Members
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
+
+  // Password Reset Modal State
+  const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(true);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState('');
+
+  // Edit User Profile Modal State
+  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserEmail, setEditUserEmail] = useState('');
+  const [editUserDepartment, setEditUserDepartment] = useState('');
+  const [editUserRole, setEditUserRole] = useState<Role>('Team Member');
+  const [editUserCompanyId, setEditUserCompanyId] = useState('');
+  const [editUserHourlyRate, setEditUserHourlyRate] = useState(100);
+  const [editUserMaxHours, setEditUserMaxHours] = useState(40);
+  const [editUserStatus, setEditUserStatus] = useState<'Active' | 'Offline' | 'In Meeting' | 'On Leave'>('Active');
+  const [editUserSuccess, setEditUserSuccess] = useState('');
+
+  // Legacy inline edit state (fallback)
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editDepartment, setEditDepartment] = useState('');
@@ -84,21 +148,115 @@ export const UsersView: React.FC = () => {
   const [compError, setCompError] = useState('');
   const [compSuccess, setCompSuccess] = useState('');
 
-  // Filter Users
-  const [companyFilter, setCompanyFilter] = useState('all');
-
+  // Filtered Users computation
   const filteredUsers = users.filter((u) => {
-    if (companyFilter === 'all') return true;
+    // Company filter
     if (companyFilter === 'internal') {
       const c = companies.find((comp) => comp.id === u.companyId);
-      return !c?.isExternal;
-    }
-    if (companyFilter === 'external') {
+      if (c?.isExternal) return false;
+    } else if (companyFilter === 'external') {
       const c = companies.find((comp) => comp.id === u.companyId);
-      return c?.isExternal;
+      if (!c?.isExternal) return false;
+    } else if (companyFilter !== 'all' && u.companyId !== companyFilter) {
+      return false;
     }
-    return u.companyId === companyFilter;
+
+    // Role filter
+    if (roleFilter !== 'all' && u.role !== roleFilter) {
+      return false;
+    }
+
+    // Status filter
+    if (statusFilter !== 'all' && u.status !== statusFilter) {
+      return false;
+    }
+
+    // Search query (name, email, department, company code, id)
+    if (userSearchQuery.trim()) {
+      const q = userSearchQuery.toLowerCase().trim();
+      const comp = companies.find((c) => c.id === u.companyId);
+      const matchName = u.name?.toLowerCase().includes(q);
+      const matchEmail = u.email?.toLowerCase().includes(q);
+      const matchDept = u.department?.toLowerCase().includes(q);
+      const matchComp = comp?.name?.toLowerCase().includes(q) || comp?.code?.toLowerCase().includes(q);
+      const matchRole = u.role?.toLowerCase().includes(q);
+      const matchId = u.id?.toLowerCase().includes(q);
+
+      if (!matchName && !matchEmail && !matchDept && !matchComp && !matchRole && !matchId) {
+        return false;
+      }
+    }
+
+    return true;
   });
+
+  // Password reset handlers
+  const handleOpenPasswordResetModal = (u: User) => {
+    setPasswordResetUser(u);
+    // Pre-populate with existing password or generate a clean secure default
+    const initialPass = u.password || 'Dolphin@' + (2026 + Math.floor(Math.random() * 100)) + '!';
+    setNewPasswordInput(initialPass);
+    setShowPassword(true);
+    setPasswordCopied(false);
+    setPasswordResetSuccess('');
+  };
+
+  const handleExecutePasswordReset = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordResetUser || !newPasswordInput.trim()) return;
+
+    const trimmedPassword = newPasswordInput.trim();
+    updateUser(passwordResetUser.id, { password: trimmedPassword });
+
+    setPasswordResetSuccess(`Password for ${passwordResetUser.name} (${passwordResetUser.email}) updated successfully to "${trimmedPassword}"!`);
+
+    setTimeout(() => {
+      setPasswordResetUser(null);
+      setPasswordResetSuccess('');
+    }, 1800);
+  };
+
+  // Toggle user status handler
+  const handleToggleUserStatus = (u: User) => {
+    const nextStatus: 'Active' | 'Offline' = u.status === 'Active' ? 'Offline' : 'Active';
+    updateUser(u.id, { status: nextStatus });
+  };
+
+  // Open Edit User Modal
+  const handleOpenEditUserModal = (u: User) => {
+    setUserToEdit(u);
+    setEditUserName(u.name);
+    setEditUserEmail(u.email);
+    setEditUserDepartment(u.department || 'Engineering');
+    setEditUserRole(u.role);
+    setEditUserCompanyId(u.companyId || companies[0]?.id || 'comp_5');
+    setEditUserHourlyRate(u.hourlyRate || 100);
+    setEditUserMaxHours(u.maxWeeklyHours || 40);
+    setEditUserStatus(u.status || 'Active');
+    setEditUserSuccess('');
+  };
+
+  // Save Edit User Modal
+  const handleSaveEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEdit) return;
+
+    updateUser(userToEdit.id, {
+      name: editUserName,
+      department: editUserDepartment,
+      role: editUserRole,
+      companyId: editUserCompanyId,
+      hourlyRate: Number(editUserHourlyRate) || 100,
+      maxWeeklyHours: Number(editUserMaxHours) || 40,
+      status: editUserStatus
+    });
+
+    setEditUserSuccess('User profile details updated successfully!');
+    setTimeout(() => {
+      setUserToEdit(null);
+      setEditUserSuccess('');
+    }, 1200);
+  };
 
   const [invitedCode, setInvitedCode] = useState<string | null>(null);
 
@@ -475,344 +633,612 @@ export const UsersView: React.FC = () => {
         </div>
       </div>
 
-      {/* VIEW 1: Active Users Table */}
+      {/* VIEW 1: Active Users Table & Modern Directory */}
       {activeSubTab === 'users' && (
-        <div className={`p-6 rounded-2xl backdrop-blur-md space-y-4 shadow-xl ${
-          isLight ? 'bg-white border border-slate-200 text-slate-900' : 'bg-[#16222F]/80 border border-[#233549] text-white'
-        }`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className={`text-sm font-bold uppercase tracking-wider flex items-center gap-2 ${
-                isLight ? 'text-slate-900' : 'text-white'
-              }`}>
-                <UsersIcon className="w-4 h-4 text-[#0773BB]" />
-                <span>Team Members & Organization Users ({filteredUsers.length})</span>
-              </h2>
-              <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                Manage user access levels (Viewer, Member, PM, Admin), edit user details, or remove user access.
-              </p>
+        <div className="space-y-6">
+          {/* Quick Metrics Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F]/90 border-[#233549] shadow-lg'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Total Team Members
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-[#0773BB]/10 text-[#0773BB] flex items-center justify-center">
+                  <UsersIcon className="w-4 h-4" />
+                </div>
+              </div>
+              <div className={`text-2xl font-black mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {users.length}
+              </div>
+              <div className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Across {companies.length} corporate entities
+              </div>
             </div>
 
-            {/* Filter & Add User Button */}
-            <div className="flex items-center gap-2">
-              <span className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Company:</span>
-              <select
-                value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                className={`text-xs font-medium rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#0773BB] ${
-                  isLight
-                    ? 'bg-slate-100 border border-slate-300 text-slate-800'
-                    : 'bg-[#0D1520] border border-[#233549] text-slate-200'
-                }`}
-              >
-                <option value="all">All Companies</option>
-                <option value="internal">Dolphin Entities Only (Internal)</option>
-                <option value="external">External Partner Companies Only</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F]/90 border-[#233549] shadow-lg'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Active Online
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className={`text-2xl font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  {users.filter((u) => u.status === 'Active').length}
+                </span>
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+              </div>
+              <div className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Live session authenticated
+              </div>
+            </div>
 
-              {currentUser?.role === 'Admin' && (
-                <>
-                  <button
-                    onClick={() => {
-                      setShowWorkspaceInviteModal(true);
-                      setWsInviteError('');
-                      setWsInviteSuccess('');
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#3BC0BB] hover:bg-[#3BC0BB]/90 text-slate-900 font-bold text-xs shadow-md transition-all shrink-0 ml-2"
-                  >
-                    <FolderKanban className="w-4 h-4" />
-                    <span>Invite to Workspace</span>
-                  </button>
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F]/90 border-[#233549] shadow-lg'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Admins & Governance
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+              </div>
+              <div className={`text-2xl font-black mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {users.filter((u) => u.role === 'Admin').length}
+              </div>
+              <div className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Full system clearance
+              </div>
+            </div>
 
-                  <button
-                    onClick={() => setShowInviteModal(true)}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-md transition-all shrink-0 ml-1"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>+ Add User</span>
-                  </button>
-                </>
-              )}
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F]/90 border-[#233549] shadow-lg'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Project Managers & PMs
+                </span>
+                <div className="w-8 h-8 rounded-xl bg-[#3BC0BB]/10 text-[#0F766E] flex items-center justify-center">
+                  <Briefcase className="w-4 h-4" />
+                </div>
+              </div>
+              <div className={`text-2xl font-black mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                {users.filter((u) => u.role === 'Project Manager').length}
+              </div>
+              <div className={`text-[11px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                Leading workspace spaces
+              </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className={`w-full text-left text-xs ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
-              <thead className={`font-semibold uppercase tracking-wider border-b ${
-                isLight
-                  ? 'bg-slate-100 text-slate-700 border-slate-200'
-                  : 'bg-[#0D1520] text-slate-400 border-[#233549]'
-              }`}>
-                <tr>
-                  <th className="p-3">User Profile</th>
-                  <th className="p-3">Company Entity</th>
-                  <th className="p-3">Department</th>
-                  <th className="p-3">Access Level (Role Controller)</th>
-                  <th className="p-3">Assigned Spaces</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Last Active</th>
-                  <th className="p-3 text-right">Controller Actions</th>
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-[#233549]'}`}>
-                {filteredUsers.map((u) => {
-                  const comp = companies.find((c) => c.id === u.companyId);
-                  const isEditing = editingUserId === u.id;
+          {/* Main Table Card */}
+          <div className={`p-6 rounded-2xl backdrop-blur-md space-y-5 shadow-xl border ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F]/80 border-[#233549] text-white'
+          }`}>
+            {/* Header Title & Action Buttons */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#0773BB]/10 text-[#0773BB] flex items-center justify-center">
+                    <UsersIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                      <span>Team Members & Organization Users</span>
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/20">
+                        {filteredUsers.length} of {users.length}
+                      </span>
+                    </h2>
+                    <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      Manage user credentials, passwords, workspace assignments, roles, and real-time statuses.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-                  return (
-                    <tr key={u.id} className={isLight ? 'hover:bg-slate-50' : 'hover:bg-[#0D1520]/80'}>
-                      {/* User Profile */}
-                      <td className={`p-3 font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                        <div className="flex items-center gap-2.5">
-                          <img
-                            src={u.avatar}
-                            alt={u.name}
-                            className="w-8 h-8 rounded-full object-cover ring-1 ring-[#0773BB]"
-                          />
-                          <div>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className={`border rounded px-2 py-1 text-xs font-bold ${
-                                  isLight
-                                    ? 'bg-white border-[#0773BB] text-slate-900'
-                                    : 'bg-[#0D1520] border-[#0773BB] text-white'
-                                }`}
-                              />
-                            ) : (
-                              <div className={`font-bold flex items-center gap-1.5 ${
-                                isLight ? 'text-slate-900' : 'text-white'
-                              }`}>
-                                <span>{u.name}</span>
-                              </div>
-                            )}
-                            <div className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                              {u.email} • ID: {u.id.slice(0, 10)}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {currentUser?.role === 'Admin' && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowWorkspaceInviteModal(true);
+                        setWsInviteError('');
+                        setWsInviteSuccess('');
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all shrink-0"
+                    >
+                      <FolderKanban className="w-3.5 h-3.5" />
+                      <span>Invite to Workspace</span>
+                    </button>
 
-                      {/* Company Entity */}
-                      <td className="p-3">
-                        <div className="flex items-center gap-1.5">
-                          <span>{comp?.logo || '🏢'}</span>
-                          <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>{comp?.name || 'Dolphin Group'}</span>
-                          <span className={`text-[10px] font-mono ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>({comp?.code})</span>
-                        </div>
-                      </td>
+                    <button
+                      onClick={() => setShowInviteModal(true)}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs shadow-md transition-all shrink-0"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>+ Add User</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
 
-                      {/* Department */}
-                      <td className={`p-3 ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editDepartment}
-                            onChange={(e) => setEditDepartment(e.target.value)}
-                            className={`border rounded px-2 py-1 text-xs ${
-                              isLight ? 'bg-white border-[#0773BB] text-slate-900' : 'bg-[#0D1520] border-[#0773BB] text-white'
-                            }`}
-                          />
-                        ) : (
-                          u.department
-                        )}
-                      </td>
+            {/* Filter & Search Toolbar */}
+            <div className={`p-3.5 rounded-xl border flex flex-col md:flex-row items-stretch md:items-center gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              {/* Search Bar */}
+              <div className="relative flex-1">
+                <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Search user by name, email, department, company..."
+                  className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0773BB] transition-all ${
+                    isLight
+                      ? 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400'
+                      : 'bg-[#16222F] border border-[#233549] text-white placeholder:text-slate-500'
+                  }`}
+                />
+                {userSearchQuery && (
+                  <button
+                    onClick={() => setUserSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-                      {/* Access Level */}
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <select
-                            value={u.role}
-                            onChange={(e) => updateUser(u.id, { role: e.target.value as Role })}
-                            className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0773BB] ${
-                              u.role === 'Admin'
-                                ? 'bg-amber-500/20 text-amber-700 border-amber-500/40'
-                                : u.role === 'Project Manager'
-                                ? 'bg-[#0773BB]/20 text-[#0773BB] border-[#0773BB]/40'
-                                : u.role === 'Team Member'
-                                ? 'bg-[#3BC0BB]/20 text-[#0F766E] border-[#3BC0BB]/40'
-                                : isLight ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-800 text-slate-300 border-slate-700'
-                            }`}
-                            title="Change Access Role"
+              {/* Filters Group */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Company Filter */}
+                <div className="flex items-center gap-1">
+                  <span className={`text-[11px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Entity:</span>
+                  <select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    className={`text-xs font-medium rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#0773BB] ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-800'
+                        : 'bg-[#16222F] border border-[#233549] text-slate-200'
+                    }`}
+                  >
+                    <option value="all">All Companies</option>
+                    <option value="internal">Dolphin Internal Only</option>
+                    <option value="external">External Partners Only</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Role Filter */}
+                <div className="flex items-center gap-1">
+                  <span className={`text-[11px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Role:</span>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    className={`text-xs font-medium rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#0773BB] ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-800'
+                        : 'bg-[#16222F] border border-[#233549] text-slate-200'
+                    }`}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Project Manager">Project Manager</option>
+                    <option value="Team Member">Team Member</option>
+                    <option value="Viewer">Viewer</option>
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1">
+                  <span className={`text-[11px] font-bold ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Status:</span>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className={`text-xs font-medium rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#0773BB] ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-slate-800'
+                        : 'bg-[#16222F] border border-[#233549] text-slate-200'
+                    }`}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="Active">Active</option>
+                    <option value="Offline">Offline</option>
+                  </select>
+                </div>
+
+                {/* Reset Filters */}
+                {(userSearchQuery || companyFilter !== 'all' || roleFilter !== 'all' || statusFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setUserSearchQuery('');
+                      setCompanyFilter('all');
+                      setRoleFilter('all');
+                      setStatusFilter('all');
+                    }}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                      isLight ? 'bg-slate-200 text-slate-700 hover:bg-slate-300' : 'bg-[#16222F] text-slate-300 hover:text-white border border-[#233549]'
+                    }`}
+                    title="Clear search and filters"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200/80 dark:border-[#233549]">
+              <table className={`w-full text-left text-xs ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
+                <thead className={`font-bold uppercase tracking-wider ${
+                  isLight
+                    ? 'bg-slate-100/90 text-slate-700 border-b border-slate-200'
+                    : 'bg-[#0D1520] text-slate-400 border-b border-[#233549]'
+                }`}>
+                  <tr>
+                    <th className="p-3.5 pl-4">User Profile</th>
+                    <th className="p-3.5">Company Entity</th>
+                    <th className="p-3.5">Department</th>
+                    <th className="p-3.5">Access Role</th>
+                    <th className="p-3.5">Assigned Spaces</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Last Active</th>
+                    <th className="p-3.5 pr-4 text-right">Controller Actions</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${isLight ? 'divide-slate-200' : 'divide-[#233549]'}`}>
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-10">
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <UsersIcon className="w-8 h-8 text-slate-400 stroke-1" />
+                          <p className={`text-sm font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                            No team members found matching your search criteria
+                          </p>
+                          <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+                            Try adjusting your search terms, entity filter, or role filter.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setUserSearchQuery('');
+                              setCompanyFilter('all');
+                              setRoleFilter('all');
+                              setStatusFilter('all');
+                            }}
+                            className="mt-2 px-3 py-1.5 rounded-xl bg-[#0773BB] text-white text-xs font-bold"
                           >
-                            <option value="Viewer" className={isLight ? 'bg-white text-slate-800' : 'bg-[#0D1520] text-slate-300'}>
-                              Viewer (Read-Only)
-                            </option>
-                            <option value="Team Member" className={isLight ? 'bg-white text-teal-800' : 'bg-[#0D1520] text-[#3BC0BB]'}>
-                              Team Member (Standard)
-                            </option>
-                            <option value="Project Manager" className={isLight ? 'bg-white text-blue-800' : 'bg-[#0D1520] text-[#0773BB]'}>
-                              Project Manager (PM)
-                            </option>
-                            <option value="Admin" className={isLight ? 'bg-white text-amber-800' : 'bg-[#0D1520] text-amber-400'}>
-                              Admin (Super Admin)
-                            </option>
-                          </select>
+                            Reset All Filters
+                          </button>
                         </div>
-                      </td>
-
-                      {/* Assigned Spaces */}
-                      <td className="p-3">
-                        {u.role === 'Admin' ? (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30">
-                            All Spaces (Admin Access)
-                          </span>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            {(() => {
-                              const userSpaces = projects.filter(
-                                (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
-                              );
-                              if (userSpaces.length === 0) {
-                                return (
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 border border-amber-500/30">
-                                    0 Spaces Assigned
-                                  </span>
-                                );
-                              }
-                              return userSpaces.slice(0, 2).map((sp) => (
-                                <span
-                                  key={sp.id}
-                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/20"
-                                >
-                                  {sp.title}
-                                </span>
-                              ));
-                            })()}
-                            {(() => {
-                              const userSpaces = projects.filter(
-                                (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
-                              );
-                              if (userSpaces.length > 2) {
-                                return (
-                                  <span className="text-[10px] font-bold text-slate-500">
-                                    +{userSpaces.length - 2}
-                                  </span>
-                                );
-                              }
-                              return null;
-                            })()}
-                            {currentUser?.role === 'Admin' && (
-                              <button
-                                onClick={() => setManagingSpacesUserId(u.id)}
-                                className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#3BC0BB]/20 text-[#0F766E] hover:bg-[#3BC0BB]/30 border border-[#3BC0BB]/30 transition-all flex items-center gap-1 shrink-0"
-                                title="Assign or modify spaces for this user"
-                              >
-                                <FolderKanban className="w-3 h-3" />
-                                <span>Manage</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          isLight ? 'bg-emerald-100 text-emerald-800' : 'bg-emerald-500/20 text-emerald-400'
-                        }`}>
-                          {u.status}
-                        </span>
-                      </td>
-
-                      {/* Last Active */}
-                      <td className="p-3 font-mono">
-                        {(() => {
-                          const lastActiveInfo = getUserLastActive(u, activityLogs);
-                          return (
-                            <div
-                              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl w-fit text-xs font-semibold ${
-                                isLight
-                                  ? 'bg-slate-100 text-slate-700 border border-slate-200'
-                                  : 'bg-[#0D1520] text-teal-300 border border-[#233549]'
-                              }`}
-                              title={`Last active on platform: ${lastActiveInfo.fullDate}`}
-                            >
-                              <Clock className="w-3.5 h-3.5 text-[#3BC0BB]" />
-                              <span>{lastActiveInfo.text}</span>
-                            </div>
-                          );
-                        })()}
-                      </td>
-
-                      {/* Controller Actions */}
-                      <td className="p-3 text-right">
-                        {isEditing ? (
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => {
-                                updateUser(u.id, {
-                                  name: editName,
-                                  department: editDepartment,
-                                  ...(editPassword.trim() ? { password: editPassword.trim() } : {})
-                                });
-                                setEditingUserId(null);
-                              }}
-                              className="px-2 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1"
-                            >
-                              <Check className="w-3.5 h-3.5" /> Save
-                            </button>
-                            <button
-                              onClick={() => setEditingUserId(null)}
-                              className={`px-2 py-1 rounded-lg text-xs ${
-                                isLight ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 'bg-slate-800 hover:bg-slate-700 text-slate-400'
-                              }`}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end gap-2">
-                            {(currentUser?.role === 'Admin' || currentUser?.id === u.id) && (
-                              <button
-                                onClick={() => {
-                                  setEditingUserId(u.id);
-                                  setEditName(u.name);
-                                  setEditDepartment(u.department);
-                                  setEditPassword(u.password || '');
-                                }}
-                                className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 ${
-                                  isLight
-                                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                                    : 'bg-[#0D1520] hover:bg-[#1C2C3D] text-slate-300 border border-[#233549]'
-                                }`}
-                                title="Edit User Info"
-                              >
-                                <Edit2 className="w-3.5 h-3.5 text-amber-500" />
-                              </button>
-                            )}
-
-                            <PermissionGuard action="delete_user">
-                              {u.id !== currentUser?.id && (
-                                <button
-                                  onClick={() => setUserToDelete({ id: u.id, name: u.name, email: u.email })}
-                                  className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 ${
-                                    isLight
-                                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
-                                      : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                  }`}
-                                  title="Remove User Access"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span className="hidden sm:inline">Remove</span>
-                                </button>
-                              )}
-                            </PermissionGuard>
-                          </div>
-                        )}
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const comp = companies.find((c) => c.id === u.companyId);
+                      const isCurrentUser = currentUser?.id === u.id;
+                      const isOnline = u.status === 'Active';
+
+                      return (
+                        <tr
+                          key={u.id}
+                          className={`transition-colors ${
+                            isLight
+                              ? 'hover:bg-sky-50/50'
+                              : 'hover:bg-[#0D1520]/80'
+                          }`}
+                        >
+                          {/* User Profile */}
+                          <td className="p-3.5 pl-4">
+                            <div className="flex items-center gap-3">
+                              <div className="relative shrink-0">
+                                <img
+                                  src={u.avatar}
+                                  alt={u.name}
+                                  className={`w-9 h-9 rounded-full object-cover ring-2 ${
+                                    isOnline ? 'ring-emerald-500/80' : 'ring-slate-400/50'
+                                  }`}
+                                />
+                                <span
+                                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-[#16222F] ${
+                                    isOnline ? 'bg-emerald-500' : 'bg-slate-400'
+                                  }`}
+                                  title={isOnline ? 'Active Online' : 'Offline'}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`font-bold text-sm truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                    {u.name}
+                                  </span>
+                                  {isCurrentUser && (
+                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-[#0773BB]/20 text-[#0773BB] border border-[#0773BB]/30">
+                                      You
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className={`text-[11px] font-mono truncate ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                                    {u.email}
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(u.email);
+                                      setCopiedEmailId(u.id);
+                                      setTimeout(() => setCopiedEmailId(null), 1500);
+                                    }}
+                                    className={`p-0.5 rounded transition-all ${
+                                      copiedEmailId === u.id
+                                        ? 'text-emerald-500 font-bold'
+                                        : isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-500 hover:text-slate-300'
+                                    }`}
+                                    title={copiedEmailId === u.id ? 'Copied!' : 'Copy email address'}
+                                  >
+                                    {copiedEmailId === u.id ? (
+                                      <Check className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-400">
+                                  ID: {u.id}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Company Entity */}
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{comp?.logo || '🏢'}</span>
+                              <div>
+                                <div className={`font-bold text-xs ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
+                                  {comp?.name || 'Dolphin Group'}
+                                </div>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                                    isLight ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-[#0D1520] text-slate-400 border border-[#233549]'
+                                  }`}>
+                                    {comp?.code || 'CORP'}
+                                  </span>
+                                  {comp?.isExternal && (
+                                    <span className="text-[9px] font-bold px-1 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                                      External
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Department */}
+                          <td className="p-3.5">
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                              isLight
+                                ? 'bg-slate-100 text-slate-800 border border-slate-200'
+                                : 'bg-[#0D1520] text-slate-300 border border-[#233549]'
+                            }`}>
+                              {u.department || 'Engineering'}
+                            </span>
+                          </td>
+
+                          {/* Access Level (Role Controller) */}
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={u.role}
+                                onChange={(e) => updateUser(u.id, { role: e.target.value as Role })}
+                                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0773BB] shadow-sm ${
+                                  u.role === 'Admin'
+                                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                    : u.role === 'Project Manager'
+                                    ? 'bg-[#0773BB]/15 text-[#0773BB] dark:text-[#38BDF8] border-[#0773BB]/30'
+                                    : u.role === 'Team Member'
+                                    ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30'
+                                    : isLight
+                                    ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}
+                                title="Change Access Role"
+                              >
+                                <option value="Viewer" className={isLight ? 'bg-white text-slate-800' : 'bg-[#0D1520] text-slate-300'}>
+                                  Viewer (Read-Only)
+                                </option>
+                                <option value="Team Member" className={isLight ? 'bg-white text-teal-800' : 'bg-[#0D1520] text-teal-400'}>
+                                  Team Member (Standard)
+                                </option>
+                                <option value="Project Manager" className={isLight ? 'bg-white text-blue-800' : 'bg-[#0D1520] text-[#38BDF8]'}>
+                                  Project Manager (PM)
+                                </option>
+                                <option value="Admin" className={isLight ? 'bg-white text-amber-800' : 'bg-[#0D1520] text-amber-400'}>
+                                  Admin (Super Admin)
+                                </option>
+                              </select>
+                            </div>
+                          </td>
+
+                          {/* Assigned Spaces */}
+                          <td className="p-3.5">
+                            {u.role === 'Admin' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                <ShieldCheck className="w-3 h-3" />
+                                <span>All Workspaces (Admin)</span>
+                              </span>
+                            ) : (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {(() => {
+                                  const userSpaces = projects.filter(
+                                    (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
+                                  );
+                                  if (userSpaces.length === 0) {
+                                    return (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                                        0 Spaces Assigned
+                                      </span>
+                                    );
+                                  }
+                                  return userSpaces.slice(0, 2).map((sp) => (
+                                    <span
+                                      key={sp.id}
+                                      className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0773BB]/10 text-[#0773BB] dark:text-[#38BDF8] border border-[#0773BB]/20"
+                                      title={sp.title}
+                                    >
+                                      {sp.title.length > 14 ? sp.title.slice(0, 14) + '...' : sp.title}
+                                    </span>
+                                  ));
+                                })()}
+                                {(() => {
+                                  const userSpaces = projects.filter(
+                                    (p) => p.managerId === u.id || (p.members && p.members.includes(u.id)) || (p.memberRoles && p.memberRoles[u.id])
+                                  );
+                                  if (userSpaces.length > 2) {
+                                    return (
+                                      <span className="text-[10px] font-bold text-slate-500">
+                                        +{userSpaces.length - 2}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                                {currentUser?.role === 'Admin' && (
+                                  <button
+                                    onClick={() => setManagingSpacesUserId(u.id)}
+                                    className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-400 hover:bg-teal-500/25 border border-teal-500/30 transition-all flex items-center gap-1 shrink-0"
+                                    title="Assign or modify spaces for this user"
+                                  >
+                                    <FolderKanban className="w-3 h-3" />
+                                    <span>Manage</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3.5">
+                            <button
+                              onClick={() => handleToggleUserStatus(u)}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-sm ${
+                                isOnline
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
+                                  : 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/30 hover:bg-slate-500/25'
+                              }`}
+                              title={`Click to switch status to ${isOnline ? 'Offline' : 'Active'}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                              <span>{u.status}</span>
+                            </button>
+                          </td>
+
+                          {/* Last Active */}
+                          <td className="p-3.5 font-mono">
+                            {(() => {
+                              const lastActiveInfo = getUserLastActive(u, activityLogs);
+                              return (
+                                <div
+                                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl w-fit text-xs font-semibold ${
+                                    isLight
+                                      ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                                      : 'bg-[#0D1520] text-teal-300 border border-[#233549]'
+                                  }`}
+                                  title={`Last active: ${lastActiveInfo.fullDate}`}
+                                >
+                                  <Clock className="w-3.5 h-3.5 text-teal-500" />
+                                  <span>{lastActiveInfo.text}</span>
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Controller Actions */}
+                          <td className="p-3.5 pr-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* 1. Reset Password Action Button */}
+                              {(currentUser?.role === 'Admin' || currentUser?.id === u.id) && (
+                                <button
+                                  onClick={() => handleOpenPasswordResetModal(u)}
+                                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-sm"
+                                  title="Reset User Password & Credentials"
+                                >
+                                  <Key className="w-3.5 h-3.5" />
+                                  <span className="hidden sm:inline">Reset Password</span>
+                                </button>
+                              )}
+
+                              {/* 2. Manage Spaces Shortcut */}
+                              {currentUser?.role === 'Admin' && u.role !== 'Admin' && (
+                                <button
+                                  onClick={() => setManagingSpacesUserId(u.id)}
+                                  className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
+                                    isLight
+                                      ? 'bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200'
+                                      : 'bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                                  }`}
+                                  title="Manage Workspaces"
+                                >
+                                  <FolderKanban className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* 3. Edit Profile Modal Trigger */}
+                              {(currentUser?.role === 'Admin' || currentUser?.id === u.id) && (
+                                <button
+                                  onClick={() => handleOpenEditUserModal(u)}
+                                  className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
+                                    isLight
+                                      ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border border-sky-200'
+                                      : 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#38BDF8] border border-[#0773BB]/30'
+                                  }`}
+                                  title="Edit User Profile Details"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+
+                              {/* 4. Delete User (Protected) */}
+                              <PermissionGuard action="delete_user">
+                                {u.id !== currentUser?.id && (
+                                  <button
+                                    onClick={() => setUserToDelete({ id: u.id, name: u.name, email: u.email })}
+                                    className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
+                                      isLight
+                                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                                        : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                    }`}
+                                    title="Remove User Access"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </PermissionGuard>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -2260,6 +2686,375 @@ export const UsersView: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* MODAL: Dedicated Password Reset */}
+      {passwordResetUser && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className={`rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+          }`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <span>Reset Password & Credentials</span>
+                  </h2>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Update authentication password for this corporate account
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordResetUser(null);
+                  setPasswordResetSuccess('');
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target User Info Card */}
+            <div className={`p-3 rounded-xl border flex items-center gap-3 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <img
+                src={passwordResetUser.avatar}
+                alt={passwordResetUser.name}
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-[#0773BB]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm truncate">{passwordResetUser.name}</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/20">
+                    {passwordResetUser.role}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-400 font-mono truncate mt-0.5">
+                  {passwordResetUser.email}
+                </div>
+              </div>
+            </div>
+
+            {/* Success Alert */}
+            {passwordResetSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{passwordResetSuccess}</span>
+              </div>
+            )}
+
+            {/* Reset Form */}
+            <form onSubmit={handleExecutePasswordReset} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    New Security Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const genPass = 'Dolphin@' + (2026 + Math.floor(Math.random() * 900)) + '!';
+                      setNewPasswordInput(genPass);
+                    }}
+                    className="text-[11px] font-bold text-[#0773BB] hover:underline flex items-center gap-1"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Generate Strong Password</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <Lock className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    required
+                    placeholder="Enter new password (e.g. Dolphin@2026!)"
+                    className={`w-full pl-9 pr-20 py-2.5 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#0773BB] transition-all ${
+                      isLight
+                        ? 'bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400'
+                        : 'bg-[#0D1520] border border-[#233549] text-white placeholder:text-slate-500'
+                    }`}
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1 text-slate-400 hover:text-white"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPasswordInput);
+                        setPasswordCopied(true);
+                        setTimeout(() => setPasswordCopied(false), 2000);
+                      }}
+                      className={`p-1 transition-all ${
+                        passwordCopied ? 'text-emerald-500 font-bold' : 'text-slate-400 hover:text-white'
+                      }`}
+                      title={passwordCopied ? 'Copied!' : 'Copy to clipboard'}
+                    >
+                      {passwordCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informational notice */}
+              <div className={`p-3 rounded-xl border flex items-start gap-2 text-xs ${
+                isLight ? 'bg-sky-50/70 border-sky-200 text-sky-900' : 'bg-[#0773BB]/10 border-[#0773BB]/30 text-sky-200'
+              }`}>
+                <Info className="w-4 h-4 text-[#0773BB] shrink-0 mt-0.5" />
+                <span>
+                  Saving will immediately update this user's password in the database and local authentication cache. The user can log in with this new password right away.
+                </span>
+              </div>
+
+              {/* Actions */}
+              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordResetUser(null);
+                    setPasswordResetSuccess('');
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] hover:bg-[#16222F] text-slate-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white text-xs font-bold shadow-lg shadow-[#0773BB]/30 transition-all"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Update & Save Password</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Edit User Details */}
+      {userToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl border ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
+          }`}>
+            {/* Header */}
+            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/30">
+                  <UserCog className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <span>Edit Team Member Profile</span>
+                  </h2>
+                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Modify user details, company association, department, and billing rates
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserToEdit(null);
+                  setEditUserSuccess('');
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Success Alert */}
+            {editUserSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{editUserSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEditUser} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                {/* Full Name */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserName}
+                    onChange={(e) => setEditUserName(e.target.value)}
+                    required
+                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Email Address */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editUserEmail}
+                    disabled
+                    className={`w-full text-xs font-mono font-semibold rounded-xl p-2.5 border opacity-70 cursor-not-allowed ${
+                      isLight ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+                    }`}
+                  />
+                </div>
+
+                {/* Company Entity */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Company / Entity
+                  </label>
+                  <select
+                    value={editUserCompanyId}
+                    onChange={(e) => setEditUserCompanyId(e.target.value)}
+                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  >
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Department */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Department
+                  </label>
+                  <input
+                    type="text"
+                    value={editUserDepartment}
+                    onChange={(e) => setEditUserDepartment(e.target.value)}
+                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Role */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Access Role
+                  </label>
+                  <select
+                    value={editUserRole}
+                    onChange={(e) => setEditUserRole(e.target.value as Role)}
+                    className={`w-full text-xs font-bold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  >
+                    <option value="Admin">Admin (Super Admin)</option>
+                    <option value="Project Manager">Project Manager (PM)</option>
+                    <option value="Team Member">Team Member (Standard)</option>
+                    <option value="Viewer">Viewer (Read-Only)</option>
+                  </select>
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Active Status
+                  </label>
+                  <select
+                    value={editUserStatus}
+                    onChange={(e) => setEditUserStatus(e.target.value as any)}
+                    className={`w-full text-xs font-bold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Offline">Offline</option>
+                    <option value="In Meeting">In Meeting</option>
+                    <option value="On Leave">On Leave</option>
+                  </select>
+                </div>
+
+                {/* Hourly Billing Rate ($) */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Hourly Rate ($/hr)
+                  </label>
+                  <input
+                    type="number"
+                    value={editUserHourlyRate}
+                    onChange={(e) => setEditUserHourlyRate(Number(e.target.value))}
+                    min={0}
+                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  />
+                </div>
+
+                {/* Max Weekly Hours */}
+                <div>
+                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Max Weekly Hours
+                  </label>
+                  <input
+                    type="number"
+                    value={editUserMaxHours}
+                    onChange={(e) => setEditUserMaxHours(Number(e.target.value))}
+                    min={1}
+                    max={168}
+                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
+                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserToEdit(null);
+                    setEditUserSuccess('');
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] hover:bg-[#16222F] text-slate-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white text-xs font-bold shadow-lg shadow-[#0773BB]/30 transition-all"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Save Profile Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

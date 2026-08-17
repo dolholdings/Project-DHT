@@ -334,8 +334,22 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
+    // Look up user in state and local storage fallback for immediate sync
+    let targetUsersList = users;
+    try {
+      const stored = localStorage.getItem('dolphin_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          targetUsersList = parsed;
+        }
+      }
+    } catch (e) {
+      // fallback to state users
+    }
+
     // Match by email, name, username prefix, or common variations (proj/prog)
-    const matchedUser = users.find(
+    const matchedUser = targetUsersList.find(
       (u) =>
         u.email.toLowerCase() === targetInput ||
         u.name.toLowerCase() === targetInput ||
@@ -352,19 +366,32 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         }
 
         // Expected stored passwords or designated standard defaults
-        const validPasswords = [
-          matchedUser.password,
-          matchedUser.email.toLowerCase() === 'admin@dolrad.ae' ? 'Admin@dolrad2026!' : null,
-          matchedUser.email.toLowerCase() === 'proj.mgr@dolheat.ae' ? 'Dht@pm2026!' : null,
-          'Dolphin@123',
-          'DolphinAdmin2026!',
-          SECURE_ADMIN_KEY
-        ].filter(Boolean) as string[];
+        const validPasswords: string[] = [];
+        if (matchedUser.password) {
+          validPasswords.push(matchedUser.password.trim());
+        }
+        if (matchedUser.email.toLowerCase() === 'admin@dolrad.ae') {
+          validPasswords.push('Admin@dolrad2026!');
+        }
+        if (matchedUser.email.toLowerCase() === 'proj.mgr@dolheat.ae') {
+          validPasswords.push('Dht@pm2026!');
+        }
+        // Fallback default password if user has no password at all
+        if (!matchedUser.password) {
+          validPasswords.push('Dolphin@123');
+        }
+        // Admin master key overrides
+        validPasswords.push('DolphinAdmin2026!');
+        if (SECURE_ADMIN_KEY) {
+          validPasswords.push(SECURE_ADMIN_KEY);
+        }
 
-        const isPasswordCorrect = validPasswords.includes(enteredPassword);
+        const isPasswordCorrect = validPasswords.some(
+          (valid) => valid.trim() === enteredPassword
+        );
 
         if (!isPasswordCorrect) {
-          setErrorMsg('Incorrect password! Please enter the correct password for this corporate account.');
+          setErrorMsg('Incorrect password! Please enter the correct password for this account.');
           logActivity(
             'failed login attempt',
             matchedUser.email,
@@ -687,51 +714,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                   >
                     <span>Sign In</span>
                   </button>
-                </div>
-
-                {/* Quick Account Selector */}
-                <div className="pt-3 border-t border-[#233549]/40 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-400 block">
-                      Demo Corporate Accounts
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Autofill & Sign In
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('admin@dolrad.ae');
-                        setPassword('Admin@dolrad2026!');
-                        handleDirectSignIn(undefined, 'admin@dolrad.ae', true);
-                      }}
-                      className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
-                    >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">
-                        <span>DML Admin</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-300 font-semibold">Admin</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">admin@dolrad.ae</div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('proj.mgr@dolheat.ae');
-                        setPassword('Dht@pm2026!');
-                        handleDirectSignIn(undefined, 'proj.mgr@dolheat.ae', true);
-                      }}
-                      className="p-2.5 rounded-xl bg-[#0D1520] hover:bg-[#0773BB]/20 border border-[#233549] hover:border-[#0773BB] text-left transition-all group"
-                    >
-                      <div className="font-bold text-white group-hover:text-[#3BC0BB] text-xs flex items-center justify-between">
-                        <span>DHT PM</span>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#0773BB]/30 text-[#3BC0BB] font-semibold">DHT</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5">proj.mgr@dolheat.ae</div>
-                    </button>
-                  </div>
                 </div>
               </form>
             </motion.div>

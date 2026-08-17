@@ -22,6 +22,7 @@ import {
   Trash2,
   ShieldCheck,
   UserCheck,
+  UserX,
   Settings,
   RefreshCw,
   Clock,
@@ -29,7 +30,12 @@ import {
   Zap,
   Edit2,
   Check,
-  X
+  X,
+  Eye,
+  EyeOff,
+  Copy,
+  FolderKanban,
+  Briefcase
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -73,7 +79,7 @@ export const AdminView: React.FC = () => {
 
   const isLight = theme === 'light';
 
-  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'audit_logs' | 'usage' | 'security'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'audit_logs' | 'usage' | 'security'>('users');
 
   // Search & Filter state for Users Tab
   const [userSearch, setUserSearch] = useState('');
@@ -98,6 +104,13 @@ export const AdminView: React.FC = () => {
   const [editDepartment, setEditDepartment] = useState('');
   const [editRate, setEditRate] = useState<number>(100);
 
+  // Password Reset Modal State
+  const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(true);
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState('');
+  const [passwordCopied, setPasswordCopied] = useState(false);
+
   // Space & Project Access Permissions Modal State
   const [spaceAccessUser, setSpaceAccessUser] = useState<User | null>(null);
   const [selectedUserCompanyId, setSelectedUserCompanyId] = useState<string>('');
@@ -110,6 +123,53 @@ export const AdminView: React.FC = () => {
     const userProjects = projects.filter((p) => p.members?.includes(user.id)).map((p) => p.id);
     setSelectedProjectIds(userProjects);
     setAccessSavedMessage('');
+  };
+
+  const handleOpenPasswordResetModal = (user: User) => {
+    setPasswordResetUser(user);
+    const randomGen = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000) + '!';
+    setNewPasswordInput(user.password || randomGen);
+    setShowPassword(true);
+    setPasswordResetSuccess('');
+    setPasswordCopied(false);
+  };
+
+  const handleExecutePasswordReset = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordResetUser || !newPasswordInput.trim()) return;
+
+    const trimmedPassword = newPasswordInput.trim();
+    updateUser(passwordResetUser.id, { password: trimmedPassword });
+
+    logActivity(
+      'reset user credentials / password',
+      passwordResetUser.email,
+      'auth',
+      undefined,
+      undefined,
+      `Administrator ${currentUser.name} reset password credentials for user ${passwordResetUser.name} (${passwordResetUser.email})`,
+      'warning'
+    );
+
+    setPasswordResetSuccess(`Password for ${passwordResetUser.name} has been updated successfully!`);
+    setTimeout(() => {
+      setPasswordResetSuccess('');
+      setPasswordResetUser(null);
+    }, 1800);
+  };
+
+  const handleToggleUserStatus = (user: User) => {
+    const nextStatus = user.status === 'Active' ? 'Offline' : 'Active';
+    updateUser(user.id, { status: nextStatus });
+    logActivity(
+      'toggled user status',
+      user.email,
+      'auth',
+      undefined,
+      undefined,
+      `Status for user ${user.name} changed to ${nextStatus} by ${currentUser.name}`,
+      'info'
+    );
   };
 
   const handleToggleProjectAccess = (projId: string) => {
@@ -351,12 +411,26 @@ export const AdminView: React.FC = () => {
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>Tenant Users & Roles</span>
+          <span>Tenant Users & Directory</span>
           <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
             isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
           }`}>
             {users.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('matrix')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeTab === 'matrix'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-amber-500" />
+          <span>Role & Privilege Matrix</span>
         </button>
 
         <button
@@ -370,9 +444,28 @@ export const AdminView: React.FC = () => {
           }`}
         >
           <Globe className="w-4 h-4 text-emerald-500" />
-          <span>Cross-Domain Governance</span>
+          <span>Domain Governance & SSO</span>
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
-            {authorizedDomains.length} Domains
+            {authorizedDomains.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('companies')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeTab === 'companies'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Building2 className="w-4 h-4 text-sky-400" />
+          <span>Subsidiaries & Entities</span>
+          <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+            isLight ? 'bg-slate-200 text-slate-700' : 'bg-slate-800 text-slate-300'
+          }`}>
+            {companies.length}
           </span>
         </button>
 
@@ -387,9 +480,9 @@ export const AdminView: React.FC = () => {
           }`}
         >
           <Activity className="w-4 h-4 text-amber-500" />
-          <span>Audit Logs & Security Trail</span>
+          <span>Security Audit Trail</span>
           <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 font-mono text-[10px] font-bold border border-amber-500/30">
-            {activityLogs.length} Events
+            {activityLogs.length}
           </span>
         </button>
 
@@ -614,19 +707,21 @@ export const AdminView: React.FC = () => {
                           {/* Status */}
                           <td className="py-3.5 px-4 align-top">
                             <div className="flex flex-col gap-1 items-start">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${
+                              <button
+                                onClick={() => handleToggleUserStatus(u)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer hover:opacity-80 ${
                                   u.status === 'Active'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                                    : isLight ? 'bg-slate-200 text-slate-600' : 'bg-slate-800 text-slate-400'
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                    : isLight ? 'bg-slate-200 text-slate-600 border border-slate-300' : 'bg-slate-800 text-slate-400 border border-slate-700'
                                 }`}
+                                title="Click to toggle Active / Offline status"
                               >
-                                <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'Active' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                                <span className={`w-1.5 h-1.5 rounded-full ${u.status === 'Active' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
                                 <span>{u.status}</span>
-                              </span>
+                              </button>
                               <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono flex items-center gap-1">
                                 <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                <span>Email Verified</span>
+                                <span>Verified</span>
                               </span>
                             </div>
                           </td>
@@ -651,7 +746,20 @@ export const AdminView: React.FC = () => {
                                 </button>
                               </div>
                             ) : (
-                              <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenPasswordResetModal(u)}
+                                  className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm border ${
+                                    isLight
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                      : 'bg-[#0D1520] hover:bg-[#1C2C3D] text-amber-300 border-amber-500/30'
+                                  }`}
+                                  title="Reset / Set Password for this user"
+                                >
+                                  <Key className="w-3.5 h-3.5 text-amber-500" />
+                                  <span className="hidden xl:inline font-semibold">Password</span>
+                                </button>
+
                                 <button
                                   onClick={() => handleOpenSpaceAccessModal(u)}
                                   className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm border ${
@@ -679,8 +787,8 @@ export const AdminView: React.FC = () => {
                                   }`}
                                   title="Edit Role & Details"
                                 >
-                                  <Edit2 className="w-3.5 h-3.5 text-amber-500" />
-                                  <span className="hidden sm:inline">Edit Role</span>
+                                  <Edit2 className="w-3.5 h-3.5 text-sky-500" />
+                                  <span className="hidden sm:inline">Role</span>
                                 </button>
 
                                 {u.id !== currentUser.id && (
@@ -722,6 +830,188 @@ export const AdminView: React.FC = () => {
                 Showing <strong className={isLight ? 'text-slate-900' : 'text-white'}>{filteredUsers.length}</strong> of <strong className={isLight ? 'text-slate-900' : 'text-white'}>{users.length}</strong> tenant users
               </div>
               <div className="text-[11px] text-slate-500 font-mono">Multi-Tenant RBAC Active</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: ROLE & PRIVILEGE MATRIX */}
+      {activeTab === 'matrix' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className={`border rounded-2xl p-6 shadow-sm ${
+            isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-[#233549]">
+              <div>
+                <h2 className={`text-lg font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <ShieldCheck className="w-5 h-5 text-amber-500" />
+                  <span>Role-Based Access Control (RBAC) Privilege Matrix</span>
+                </h2>
+                <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Comprehensive mapping of security permissions, system capabilities, and administrative powers per user role.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto mt-6">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className={`border-b text-[11px] uppercase tracking-wider font-mono ${
+                    isLight ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-[#233549] bg-[#0D1520] text-slate-400'
+                  }`}>
+                    <th className="py-3.5 px-4 font-bold">System Capability / Operation</th>
+                    <th className="py-3.5 px-4 text-center font-bold text-amber-500">Super Admin</th>
+                    <th className="py-3.5 px-4 text-center font-bold text-[#0773BB]">Project Manager</th>
+                    <th className="py-3.5 px-4 text-center font-bold text-[#3BC0BB]">Team Member</th>
+                    <th className="py-3.5 px-4 text-center font-bold text-slate-400">Viewer</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y text-xs ${isLight ? 'divide-slate-200' : 'divide-[#233549]'}`}>
+                  {[
+                    { capability: 'Multi-Tenant Governance & Domain Whitelisting', admin: true, pm: false, member: false, viewer: false },
+                    { capability: 'Direct Password Management & User Provisioning', admin: true, pm: false, member: false, viewer: false },
+                    { capability: 'Full Security Audit Logs & Export Trails', admin: true, pm: false, member: false, viewer: false },
+                    { capability: 'Create & Configure Project Spaces', admin: true, pm: true, member: false, viewer: false },
+                    { capability: 'Manage Member Space & Project Assignments', admin: true, pm: true, member: false, viewer: false },
+                    { capability: 'Create, Assign & Estimate Tasks & Sprints', admin: true, pm: true, member: true, viewer: false },
+                    { capability: 'Update Task Progress, Checklists & Dependencies', admin: true, pm: true, member: true, viewer: false },
+                    { capability: 'Log Timesheets & Track Work Hours', admin: true, pm: true, member: true, viewer: false },
+                    { capability: 'View Hourly Rates, Budgets & Financial Metrics', admin: true, pm: true, member: false, viewer: false },
+                    { capability: 'Upload, Version & Share Documents & CAD Files', admin: true, pm: true, member: true, viewer: false },
+                    { capability: 'Export Gantt Timelines, PDF Reports & CSV Data', admin: true, pm: true, member: true, viewer: true },
+                    { capability: 'Interactive Read-Only Dashboard & Real-Time Tracking', admin: true, pm: true, member: true, viewer: true },
+                  ].map((row, idx) => (
+                    <tr key={idx} className={`transition-colors ${isLight ? 'hover:bg-slate-50' : 'hover:bg-[#1C2C3D]/50'}`}>
+                      <td className={`py-3 px-4 font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                        {row.capability}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {row.admin ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-500 font-bold">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-0.5 bg-slate-400/40 rounded"></span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {row.pm ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#0773BB]/20 text-[#0773BB] font-bold">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-0.5 bg-slate-400/40 rounded"></span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {row.member ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#3BC0BB]/20 text-[#3BC0BB] font-bold">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-0.5 bg-slate-400/40 rounded"></span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {row.viewer ? (
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-500/20 text-slate-400 font-bold">
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                          </span>
+                        ) : (
+                          <span className="inline-block w-4 h-0.5 bg-slate-400/40 rounded"></span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: SUBSIDIARIES & ENTITIES */}
+      {activeTab === 'companies' && (
+        <div className="space-y-6 animate-in fade-in">
+          <div className={`border rounded-2xl p-6 shadow-sm ${
+            isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-[#233549]">
+              <div>
+                <h2 className={`text-lg font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  <Building2 className="w-5 h-5 text-sky-400" />
+                  <span>Dolphin Group Holding Subsidiaries & Tenant Entities</span>
+                </h2>
+                <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Active corporate business units, manufacturing plants, and service entities operating on the unified platform.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-6">
+              {companies.map((comp) => {
+                const compUsers = users.filter((u) => u.companyId === comp.id);
+                const compProjects = projects.filter((p) => p.companyId === comp.id);
+                const compTasks = tasks.filter((t) => {
+                  const proj = projects.find((p) => p.id === t.projectId);
+                  return proj?.companyId === comp.id;
+                });
+
+                return (
+                  <div
+                    key={comp.id}
+                    className={`border rounded-2xl p-5 transition-all flex flex-col justify-between ${
+                      isLight ? 'bg-slate-50 border-slate-200 hover:border-slate-300' : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]/50'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-10 h-10 rounded-xl bg-[#0773BB]/20 border border-[#0773BB]/40 flex items-center justify-center font-bold text-sm text-[#0773BB]">
+                            {comp.code || 'DOL'}
+                          </div>
+                          <div>
+                            <h3 className={`font-bold text-sm ${isLight ? 'text-slate-900' : 'text-white'}`}>{comp.name}</h3>
+                            <span className="text-[11px] font-mono text-emerald-500">@{comp.domain}</span>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                          Active Entity
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 mt-5 text-center">
+                        <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'}`}>
+                          <div className={`text-base font-black ${isLight ? 'text-slate-900' : 'text-white'}`}>{compUsers.length}</div>
+                          <div className="text-[10px] text-slate-500 uppercase font-mono mt-0.5">Users</div>
+                        </div>
+                        <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'}`}>
+                          <div className="text-base font-black text-[#0773BB]">{compProjects.length}</div>
+                          <div className="text-[10px] text-slate-500 uppercase font-mono mt-0.5">Projects</div>
+                        </div>
+                        <div className={`p-2.5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'}`}>
+                          <div className="text-base font-black text-[#3BC0BB]">{compTasks.length}</div>
+                          <div className="text-[10px] text-slate-500 uppercase font-mono mt-0.5">Tasks</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 pt-4 border-t border-slate-200 dark:border-[#233549] flex items-center justify-between">
+                      <button
+                        onClick={() => {
+                          setCompanyFilter(comp.id);
+                          setActiveTab('users');
+                        }}
+                        className="text-xs font-bold text-[#0773BB] hover:underline flex items-center gap-1"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>View All {compUsers.length} Users</span>
+                      </button>
+                      <span className="text-[10px] text-slate-400 font-mono">ID: {comp.id}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1451,6 +1741,163 @@ export const AdminView: React.FC = () => {
                 <span>Save Space Permissions</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESET USER PASSWORD */}
+      {passwordResetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            {/* Modal Header */}
+            <div className={`p-5 border-b flex items-center justify-between ${
+              isLight ? 'bg-amber-500/10 border-slate-200' : 'bg-[#182738] border-[#223548]'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`font-black text-sm tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    Reset User Password
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Update authentication credentials for account
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPasswordResetUser(null)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-[#223548] text-slate-400'
+                }`}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleExecutePasswordReset} className="p-5 space-y-4">
+              {/* User Identity Display */}
+              <div className={`p-3.5 rounded-xl border flex items-center gap-3 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#223549]'
+              }`}>
+                <img
+                  src={passwordResetUser.avatar}
+                  alt={passwordResetUser.name}
+                  className="w-10 h-10 rounded-full object-cover border border-slate-400/40"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className={`font-bold text-xs truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    {passwordResetUser.name}
+                  </div>
+                  <div className="text-[11px] font-mono text-slate-500 truncate">
+                    {passwordResetUser.email}
+                  </div>
+                  <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
+                    Role: {passwordResetUser.role}
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    New Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const randomPass = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000) + '!';
+                      setNewPasswordInput(randomPass);
+                    }}
+                    className="text-[10px] font-bold text-amber-500 hover:underline flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Generate Strong Password</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    required
+                    placeholder="Enter new secure password"
+                    className={`w-full px-3.5 py-2.5 pr-20 border rounded-xl text-xs font-mono transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
+                        : 'bg-[#0D1520] border-[#223548] text-white focus:border-amber-500'
+                    }`}
+                  />
+
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="p-1.5 text-slate-400 hover:text-slate-200 transition-colors"
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newPasswordInput);
+                        setPasswordCopied(true);
+                        setTimeout(() => setPasswordCopied(false), 2000);
+                      }}
+                      className="p-1.5 text-amber-500 hover:text-amber-400 transition-colors"
+                      title="Copy to clipboard"
+                    >
+                      {passwordCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                {passwordCopied && (
+                  <p className="text-[10px] text-emerald-500 font-bold">Password copied to clipboard!</p>
+                )}
+              </div>
+
+              {/* Status & Feedback Message */}
+              {passwordResetSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  <span>{passwordResetSuccess}</span>
+                </div>
+              )}
+
+              {/* Explanatory Notice */}
+              <div className="p-3 rounded-xl bg-slate-500/10 border border-slate-500/20 text-slate-500 text-[11px] leading-relaxed">
+                The user can immediately log in with their email and this new password. An entry has been added to the Security Audit Trail.
+              </div>
+
+              {/* Modal Footer */}
+              <div className={`pt-3 border-t flex items-center justify-end gap-3 ${
+                isLight ? 'border-slate-200' : 'border-[#223548]'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setPasswordResetUser(null)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+                    isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-lg shadow-amber-500/20 transition-all flex items-center gap-1.5"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>Save & Sync Password</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

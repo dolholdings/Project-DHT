@@ -1219,7 +1219,11 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       password: assignedPassword
     };
 
-    setUsers((prev) => [...prev, newUser]);
+    setUsers((prev) => {
+      const nextUsers = [...prev, newUser];
+      saveToStorage('dolphin_users', nextUsers);
+      return nextUsers;
+    });
     createUserInFirestore(newUser);
 
     // Assign spaces to the new user if specified
@@ -1290,22 +1294,39 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     const existingUser = users.find((x) => x.id === userId);
     const oldRole = existingUser?.role;
 
-    setUsers((prev) =>
-      prev.map((u) => {
+    setUsers((prev) => {
+      const nextUsers = prev.map((u) => {
         if (u.id === userId) {
           const updated = { ...u, ...updates };
           if (currentUser && currentUser.id === userId) {
             setCurrentUser(updated);
+            saveToStorage('dolphin_current_user', updated);
           }
           return updated;
         }
         return u;
-      })
-    );
-    updateUserInFirestore(userId, updates);
+      });
+      saveToStorage('dolphin_users', nextUsers);
+      return nextUsers;
+    });
+
+    updateUserInFirestore(userId, updates).catch((err) => {
+      console.warn('Could not sync user update to firestore:', err);
+    });
+
     const u = existingUser;
     
-    if (updates.role && oldRole && oldRole !== updates.role) {
+    if (updates.password) {
+      logActivity(
+        'reset user credentials / password',
+        u ? `${u.name} (${u.email})` : userId,
+        'auth',
+        undefined,
+        undefined,
+        `Password credentials reset for user ${u?.name || userId} by ${currentUser?.name || 'Administrator'}`,
+        'warning'
+      );
+    } else if (updates.role && oldRole && oldRole !== updates.role) {
       logActivity(
         'changed user role',
         u ? `${u.name} (${u.email})` : userId,
@@ -1323,7 +1344,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         undefined,
         undefined,
         `Updated attributes: ${Object.keys(updates).join(', ')}${updates.role ? ` (Role: ${updates.role})` : ''}`,
-        'warning'
+        'info'
       );
     }
   };
