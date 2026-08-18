@@ -35,7 +35,9 @@ import {
   EyeOff,
   Copy,
   FolderKanban,
-  Briefcase
+  Briefcase,
+  Camera,
+  UserCog
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -53,6 +55,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { User, Role, Company } from '../../types';
 import { AdminAuditLogs } from './AdminAuditLogs';
+import { UserProfileEditModal } from '../users/UserProfileEditModal';
 
 export const AdminView: React.FC = () => {
   const {
@@ -116,6 +119,9 @@ export const AdminView: React.FC = () => {
   const [selectedUserCompanyId, setSelectedUserCompanyId] = useState<string>('');
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [accessSavedMessage, setAccessSavedMessage] = useState<string>('');
+
+  // User Profile & Avatar Edit Modal State (Full Profile / Picture changer)
+  const [userToEditProfile, setUserToEditProfile] = useState<User | null>(null);
 
   const handleOpenSpaceAccessModal = (user: User) => {
     setSpaceAccessUser(user);
@@ -624,14 +630,28 @@ export const AdminView: React.FC = () => {
                           {/* User Avatar & Info */}
                           <td className="py-3.5 px-4 align-top">
                             <div className="flex items-center gap-3">
-                              <img
-                                src={u.avatar}
-                                alt={u.name}
-                                className="w-9 h-9 rounded-full object-cover border border-slate-400/40 shadow-sm"
-                              />
+                              <div
+                                onClick={() => setUserToEditProfile(u)}
+                                className="relative group cursor-pointer shrink-0"
+                                title="Click to change profile picture or edit user"
+                              >
+                                <img
+                                  src={u.avatar}
+                                  alt={u.name}
+                                  className="w-9 h-9 rounded-full object-cover border border-slate-400/40 shadow-sm group-hover:opacity-80 transition-opacity"
+                                />
+                                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Camera className="w-3 h-3" />
+                                </div>
+                              </div>
                               <div>
                                 <div className={`font-bold text-xs flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                                  <span>{u.name}</span>
+                                  <span
+                                    onClick={() => setUserToEditProfile(u)}
+                                    className="cursor-pointer hover:underline hover:text-[#0773BB] dark:hover:text-[#3BC0BB]"
+                                  >
+                                    {u.name}
+                                  </span>
                                   {u.id === currentUser.id && (
                                     <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[9px] font-mono font-bold">
                                       YOU
@@ -747,6 +767,19 @@ export const AdminView: React.FC = () => {
                               </div>
                             ) : (
                               <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setUserToEditProfile(u)}
+                                  className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm border ${
+                                    isLight
+                                      ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border-sky-300'
+                                      : 'bg-[#0D1520] hover:bg-[#1C2C3D] text-[#3BC0BB] border-[#0773BB]/30'
+                                  }`}
+                                  title="Change profile picture or edit user details"
+                                >
+                                  <Camera className="w-3.5 h-3.5 text-[#0773BB] dark:text-[#3BC0BB]" />
+                                  <span className="hidden xl:inline font-bold">Edit User & Avatar</span>
+                                </button>
+
                                 <button
                                   onClick={() => handleOpenPasswordResetModal(u)}
                                   className={`p-1.5 rounded-lg text-xs transition-all flex items-center gap-1 shadow-sm border ${
@@ -1900,6 +1933,16 @@ export const AdminView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* User Profile & Picture Edit Modal for Admins & Members */}
+      {userToEditProfile && (
+        <UserProfileEditModal
+          isOpen={!!userToEditProfile}
+          onClose={() => setUserToEditProfile(null)}
+          user={userToEditProfile}
+          theme={theme}
+        />
       )}
     </div>
   );

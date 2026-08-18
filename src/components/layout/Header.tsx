@@ -19,7 +19,9 @@ import {
   ChevronDown,
   User,
   Shield,
-  KeyRound
+  KeyRound,
+  Camera,
+  UserCog
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { NotificationsDrawer } from '../notifications/NotificationsDrawer';
@@ -30,6 +32,7 @@ import { ExcelImportModal } from '../common/ExcelImportModal';
 import { HeaderSearchInput } from './HeaderSearchInput';
 import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
 import { DolphinTooltip } from '../common/DolphinTooltip';
+import { UserProfileEditModal } from '../users/UserProfileEditModal';
 
 export const Header: React.FC = () => {
   const {
@@ -51,6 +54,7 @@ export const Header: React.FC = () => {
 
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPwaModal, setShowPwaModal] = useState(false);
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -269,13 +273,21 @@ export const Header: React.FC = () => {
             {/* User Account Dropdown Menu */}
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-72 p-3.5 rounded-2xl bg-[#16222F] border border-[#233549] shadow-2xl z-50 text-xs space-y-3 animate-in fade-in zoom-in-95">
-                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0D1520] border border-[#233549]">
-                  <img
-                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                    alt={currentUser?.name}
-                    className="w-10 h-10 rounded-xl object-cover ring-2 ring-[#0773BB]"
-                  />
-                  <div className="overflow-hidden">
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0D1520] border border-[#233549] relative group">
+                  <div className="relative cursor-pointer" onClick={() => {
+                    setShowUserMenu(false);
+                    setShowProfileModal(true);
+                  }}>
+                    <img
+                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
+                      alt={currentUser?.name}
+                      className="w-11 h-11 rounded-xl object-cover ring-2 ring-[#0773BB] group-hover:opacity-85 transition-opacity"
+                    />
+                    <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-[#0773BB] text-white shadow-xs" title="Change Profile Picture">
+                      <Camera className="w-2.5 h-2.5" />
+                    </div>
+                  </div>
+                  <div className="overflow-hidden flex-1">
                     <p className="font-extrabold text-white text-sm truncate">{currentUser?.name}</p>
                     <p className="text-[11px] text-[#3BC0BB] font-mono truncate">{currentUser?.email}</p>
                     <div className="flex items-center gap-2 mt-1">
@@ -288,6 +300,23 @@ export const Header: React.FC = () => {
                 </div>
 
                 <div className="space-y-1 pt-1 border-t border-[#233549]">
+                  {/* EDIT PROFILE & PICTURE BUTTON */}
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setShowProfileModal(true);
+                    }}
+                    className="w-full text-left px-3 py-2.5 rounded-xl bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#3BC0BB] hover:text-white border border-[#0773BB]/20 flex items-center justify-between transition-colors font-bold cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-[#3BC0BB]" />
+                      <span>Edit Profile & Picture</span>
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-[#0773BB]/30 text-white font-mono">
+                      Photo
+                    </span>
+                  </button>
+
                   <button
                     onClick={() => {
                       setShowUserMenu(false);
@@ -322,6 +351,16 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* User Profile & Avatar Edit Modal */}
+      {showProfileModal && (
+        <UserProfileEditModal
+          isOpen={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          user={currentUser}
+          theme={theme}
+        />
+      )}
 
       {/* Notification Drawer Component */}
       {showNotifDrawer && (

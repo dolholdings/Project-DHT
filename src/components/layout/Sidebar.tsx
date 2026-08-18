@@ -37,7 +37,7 @@ import { useApp } from '../../context/AppContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 import { PermissionGuard } from '../common/PermissionGuard';
-import { normalizeRole } from '../../lib/permissions';
+import { normalizeRole, canCreateUser, canViewUsersDirectory } from '../../lib/permissions';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -90,13 +90,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const effectiveRole = userProfile?.role || currentUser?.role;
   const isAdmin = normalizeRole(effectiveRole) === 'admin';
+  const canViewUsers = canViewUsersDirectory(userProfile || currentUser);
+  const canInvite = canCreateUser(userProfile || currentUser);
 
-  // Guard: If a non-admin user lands on 'admin' or 'settings' tab, redirect them to dashboard
+  // Guard: If a non-admin or unauthorized user lands on restricted tabs, redirect them to dashboard
   useEffect(() => {
-    if (!isAdmin && (activeTab === 'admin' || activeTab === 'settings')) {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'settings' || activeTab === 'workspace')) {
       setActiveTab('dashboard');
     }
-  }, [isAdmin, activeTab, setActiveTab]);
+    if (!canViewUsers && activeTab === 'users') {
+      setActiveTab('dashboard');
+    }
+  }, [isAdmin, canViewUsers, activeTab, setActiveTab]);
 
   const accessibleProjects = React.useMemo(() => {
     if (!currentUser) return [];
@@ -441,14 +446,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               )}
             </button>
 
-            <button
-              onClick={() => handleTabClick('users')}
-              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex flex-col items-center"
-              title="Invite Users & Whitelist Domains"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span className="text-[9px] font-sans mt-0.5">Invite</span>
-            </button>
+            {canInvite && (
+              <button
+                onClick={() => handleTabClick('users')}
+                className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all flex flex-col items-center"
+                title="Invite Users & Whitelist Domains"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span className="text-[9px] font-sans mt-0.5">Invite</span>
+              </button>
+            )}
 
             <div className="flex flex-col items-center gap-1.5 pt-1">
               <img
@@ -528,19 +535,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>Assigned Comments</span>
                 </button>
 
-                <button
-                  onClick={() => handleTabClick('users')}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
-                    activeTab === 'users'
-                      ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
-                      : theme === 'light'
-                      ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
-                      : 'text-slate-300 hover:text-white hover:bg-[#16222F]'
-                  }`}
-                >
-                  <ShieldCheck className={`w-4 h-4 ${activeTab === 'users' ? 'text-white' : theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`} />
-                  <span>Skills & Access Rules</span>
-                </button>
+                {canViewUsers && (
+                  <button
+                    onClick={() => handleTabClick('users')}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all ${
+                      activeTab === 'users'
+                        ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
+                        : theme === 'light'
+                        ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                        : 'text-slate-300 hover:text-white hover:bg-[#16222F]'
+                    }`}
+                  >
+                    <ShieldCheck className={`w-4 h-4 ${activeTab === 'users' ? 'text-white' : theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`} />
+                    <span>Skills & Access Rules</span>
+                  </button>
+                )}
 
                 {/* Admin Portal Tab: Hidden for non-admin users based on Firestore profile */}
                 {isAdmin && (

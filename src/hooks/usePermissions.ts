@@ -4,6 +4,7 @@ import { Task, Project } from '../types';
 import {
   PermissionAction,
   canCreateUser,
+  canViewUsersDirectory,
   canDeleteUser,
   canCreateSpace,
   canDeleteSpace,
@@ -38,6 +39,7 @@ export function usePermissions() {
       isTeamMember,
       isViewer,
       canCreateUser: canCreateUser(currentUser),
+      canViewUsersDirectory: canViewUsersDirectory(currentUser),
       canDeleteUser: canDeleteUser(currentUser),
       canCreateSpace: canCreateSpace(currentUser),
       canDeleteSpace: canDeleteSpace(currentUser),

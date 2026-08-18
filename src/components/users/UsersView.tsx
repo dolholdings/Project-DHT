@@ -36,13 +36,15 @@ import {
   UserCog,
   CheckCheck,
   Zap,
-  Info
+  Info,
+  Camera
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company, User } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
-import { canCreateUser, canDeleteUser } from '../../lib/permissions';
+import { canCreateUser, canDeleteUser, canViewUsersDirectory } from '../../lib/permissions';
 import { PermissionGuard } from '../common/PermissionGuard';
+import { UserProfileEditModal } from './UserProfileEditModal';
 
 export const UsersView: React.FC = () => {
   const {
@@ -63,7 +65,8 @@ export const UsersView: React.FC = () => {
     updateProject,
     dispatchEmailNotification,
     logActivity,
-    currentUser
+    currentUser,
+    setActiveTab
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'skills' | 'domains' | 'companies'>('users');
@@ -461,6 +464,7 @@ export const UsersView: React.FC = () => {
   };
 
   const permissionsMatrix = [
+    { feature: 'View User Directory & Member Profiles', Admin: true, PM: true, Member: false, Viewer: false },
     { feature: 'Create & Archive Projects', Admin: true, PM: true, Member: false, Viewer: false },
     { feature: 'Edit Task Deliverables', Admin: true, PM: true, Member: true, Viewer: false },
     { feature: 'Log Work Hours & Timesheets', Admin: true, PM: true, Member: true, Viewer: false },
@@ -471,6 +475,51 @@ export const UsersView: React.FC = () => {
   ];
 
   const isLight = theme === 'light';
+
+  // Role Access Guard: Team Members & Viewers cannot view user profiles / organization directory
+  if (!canViewUsersDirectory(currentUser)) {
+    return (
+      <div className={`p-4 sm:p-8 max-w-4xl mx-auto my-12 animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+        <div className={`p-8 rounded-2xl border text-center shadow-xl ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+        }`}>
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 mx-auto flex items-center justify-center mb-5 shadow-inner">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <h2 className="text-2xl font-bold tracking-tight mb-2">
+            Access Restricted: User Profiles Directory
+          </h2>
+
+          <p className={`text-sm max-w-lg mx-auto mb-6 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+            Your account is currently assigned the <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span> access role. Viewing organization member profiles, credentials, assigned spaces, and administrative governance records is restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span> and <span className="font-semibold text-sky-500">Project Managers</span>.
+          </p>
+
+          <div className={`p-4 rounded-xl border max-w-md mx-auto mb-8 text-left text-xs space-y-2 ${
+            isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-300'
+          }`}>
+            <div className="font-bold flex items-center gap-1.5 text-[#3BC0BB]">
+              <ShieldCheck className="w-4 h-4" />
+              <span>Your Permitted Workspace Actions</span>
+            </div>
+            <ul className="list-disc list-inside space-y-1 text-[11px] opacity-90">
+              <li>Manage assigned tasks & update deliverable statuses</li>
+              <li>Log working hours, timesheets & completion notes</li>
+              <li>Collaborate in space channels & comment threads</li>
+              <li>Upload and preview project documents</li>
+            </ul>
+          </div>
+
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className="px-6 py-2.5 rounded-xl bg-[#00AEA9] hover:bg-[#009691] text-white font-bold text-sm transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            Return to Workspace Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
@@ -949,14 +998,21 @@ export const UsersView: React.FC = () => {
                           {/* User Profile */}
                           <td className="p-3.5 pl-4">
                             <div className="flex items-center gap-3">
-                              <div className="relative shrink-0">
+                              <div
+                                onClick={() => handleOpenEditUserModal(u)}
+                                className="relative shrink-0 group cursor-pointer"
+                                title="Click to edit profile picture or details"
+                              >
                                 <img
                                   src={u.avatar}
                                   alt={u.name}
-                                  className={`w-9 h-9 rounded-full object-cover ring-2 ${
+                                  className={`w-9 h-9 rounded-full object-cover ring-2 group-hover:opacity-80 transition-opacity ${
                                     isOnline ? 'ring-emerald-500/80' : 'ring-slate-400/50'
                                   }`}
                                 />
+                                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Camera className="w-3 h-3" />
+                                </div>
                                 <span
                                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-[#16222F] ${
                                     isOnline ? 'bg-emerald-500' : 'bg-slate-400'
@@ -966,7 +1022,10 @@ export const UsersView: React.FC = () => {
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <span className={`font-bold text-sm truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                                  <span
+                                    onClick={() => handleOpenEditUserModal(u)}
+                                    className={`font-bold text-sm truncate cursor-pointer hover:underline hover:text-[#0773BB] dark:hover:text-[#3BC0BB] ${isLight ? 'text-slate-900' : 'text-white'}`}
+                                  >
                                     {u.name}
                                   </span>
                                   {isCurrentUser && (
@@ -1199,20 +1258,19 @@ export const UsersView: React.FC = () => {
                                 </button>
                               )}
 
-                              {/* 3. Edit Profile Modal Trigger */}
-                              {(currentUser?.role === 'Admin' || currentUser?.id === u.id) && (
-                                <button
-                                  onClick={() => handleOpenEditUserModal(u)}
-                                  className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
-                                    isLight
-                                      ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border border-sky-200'
-                                      : 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#38BDF8] border border-[#0773BB]/30'
-                                  }`}
-                                  title="Edit User Profile Details"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              {/* 3. Edit Profile & Picture Modal Trigger */}
+                              <button
+                                onClick={() => handleOpenEditUserModal(u)}
+                                className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 font-bold ${
+                                  isLight
+                                    ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border border-sky-200'
+                                    : 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#38BDF8] border border-[#0773BB]/30'
+                                }`}
+                                title="Edit User Profile & Change Avatar"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-[#0773BB] dark:text-[#38BDF8]" />
+                                <span className="hidden xl:inline">Edit & Photo</span>
+                              </button>
 
                               {/* 4. Delete User (Protected) */}
                               <PermissionGuard action="delete_user">
@@ -2848,212 +2906,14 @@ export const UsersView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: Edit User Details */}
+      {/* MODAL: Comprehensive User Profile & Avatar Edit */}
       {userToEdit && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl border ${
-            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
-          }`}>
-            {/* Header */}
-            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-[#0773BB]/10 text-[#0773BB] border border-[#0773BB]/30">
-                  <UserCog className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-base font-bold flex items-center gap-2">
-                    <span>Edit Team Member Profile</span>
-                  </h2>
-                  <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                    Modify user details, company association, department, and billing rates
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setUserToEdit(null);
-                  setEditUserSuccess('');
-                }}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Success Alert */}
-            {editUserSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{editUserSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveEditUser} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {/* Full Name */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editUserName}
-                    onChange={(e) => setEditUserName(e.target.value)}
-                    required
-                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  />
-                </div>
-
-                {/* Email Address */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={editUserEmail}
-                    disabled
-                    className={`w-full text-xs font-mono font-semibold rounded-xl p-2.5 border opacity-70 cursor-not-allowed ${
-                      isLight ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-400'
-                    }`}
-                  />
-                </div>
-
-                {/* Company Entity */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Company / Entity
-                  </label>
-                  <select
-                    value={editUserCompanyId}
-                    onChange={(e) => setEditUserCompanyId(e.target.value)}
-                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  >
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Department */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    value={editUserDepartment}
-                    onChange={(e) => setEditUserDepartment(e.target.value)}
-                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  />
-                </div>
-
-                {/* Role */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Access Role
-                  </label>
-                  <select
-                    value={editUserRole}
-                    onChange={(e) => setEditUserRole(e.target.value as Role)}
-                    className={`w-full text-xs font-bold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  >
-                    <option value="Admin">Admin (Super Admin)</option>
-                    <option value="Project Manager">Project Manager (PM)</option>
-                    <option value="Team Member">Team Member (Standard)</option>
-                    <option value="Viewer">Viewer (Read-Only)</option>
-                  </select>
-                </div>
-
-                {/* Status */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Active Status
-                  </label>
-                  <select
-                    value={editUserStatus}
-                    onChange={(e) => setEditUserStatus(e.target.value as any)}
-                    className={`w-full text-xs font-bold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Offline">Offline</option>
-                    <option value="In Meeting">In Meeting</option>
-                    <option value="On Leave">On Leave</option>
-                  </select>
-                </div>
-
-                {/* Hourly Billing Rate ($) */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Hourly Rate ($/hr)
-                  </label>
-                  <input
-                    type="number"
-                    value={editUserHourlyRate}
-                    onChange={(e) => setEditUserHourlyRate(Number(e.target.value))}
-                    min={0}
-                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  />
-                </div>
-
-                {/* Max Weekly Hours */}
-                <div>
-                  <label className={`block text-xs font-bold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Max Weekly Hours
-                  </label>
-                  <input
-                    type="number"
-                    value={editUserMaxHours}
-                    onChange={(e) => setEditUserMaxHours(Number(e.target.value))}
-                    min={1}
-                    max={168}
-                    className={`w-full text-xs font-semibold rounded-xl p-2.5 border focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className={`flex items-center justify-end gap-2 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUserToEdit(null);
-                    setEditUserSuccess('');
-                  }}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] hover:bg-[#16222F] text-slate-300'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white text-xs font-bold shadow-lg shadow-[#0773BB]/30 transition-all"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Save Profile Changes</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <UserProfileEditModal
+          isOpen={!!userToEdit}
+          onClose={() => setUserToEdit(null)}
+          user={userToEdit}
+          theme={theme}
+        />
       )}
     </div>
   );

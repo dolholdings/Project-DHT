@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, Project, ProjectFile } from '../../types';
+import { canViewUsersDirectory, normalizeRole } from '../../lib/permissions';
 
 type CategoryFilter = 'all' | 'tasks' | 'projects' | 'files' | 'actions';
 
@@ -58,6 +59,7 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
     companies,
     setActiveCompany,
     theme,
+    currentUser,
   } = useApp();
 
   const isLight = theme === 'light';
@@ -184,7 +186,10 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         badgeColor: 'bg-[#0773BB]/20 text-[#0773BB]',
         onSelect: () => setActiveTab('architecture'),
       },
-      {
+    ];
+
+    if (normalizeRole(currentUser?.role) === 'admin') {
+      navCommands.push({
         id: 'nav-settings',
         type: 'navigation',
         title: 'Go to System Settings & Project Exporter',
@@ -194,8 +199,11 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         badge: 'Export',
         badgeColor: 'bg-emerald-400/20 text-emerald-400',
         onSelect: () => setActiveTab('settings'),
-      },
-      {
+      });
+    }
+
+    if (canViewUsersDirectory(currentUser)) {
+      navCommands.push({
         id: 'nav-users',
         type: 'navigation',
         title: 'Go to User Directory & Domain Auth',
@@ -205,8 +213,8 @@ export const CommandPalette: React.FC<{ onClose: () => void }> = ({ onClose }) =
         badge: 'View',
         badgeColor: 'bg-indigo-400/20 text-indigo-400',
         onSelect: () => setActiveTab('users'),
-      },
-    ];
+      });
+    }
 
     items.push(...navCommands);
 

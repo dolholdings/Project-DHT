@@ -3,6 +3,7 @@ import { User, Project, Task, SpaceRole } from '../types';
 export type PermissionAction =
   | 'create_user'
   | 'delete_user'
+  | 'view_users'
   | 'create_space'
   | 'delete_space'
   | 'delete_task'
@@ -127,6 +128,17 @@ export function canCreateUser(user: User | null): boolean {
 }
 
 /**
+ * Checks if the user has permission to view the organization user profiles directory.
+ * Team Members and Viewers are strictly NOT allowed to view user profiles / user directory.
+ * Only Admins and Project Managers can view user profiles.
+ */
+export function canViewUsersDirectory(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  return role === 'admin' || role === 'project manager';
+}
+
+/**
  * Checks if the user has permission to remove or delete users.
  * Team Members, Viewers, and Project Managers are NOT allowed to delete users. Only Admins can.
  */
@@ -187,6 +199,8 @@ export function hasPermission(
   switch (action) {
     case 'create_user':
       return canCreateUser(user);
+    case 'view_users':
+      return canViewUsersDirectory(user);
     case 'delete_user':
       return canDeleteUser(user);
     case 'create_space':
@@ -214,6 +228,8 @@ export function getPermissionDeniedReason(user: User | null, action: PermissionA
   switch (action) {
     case 'create_user':
       return `Permission Denied: Users with role "${role}" cannot create or invite users. Only Admins and Project Managers have this permission.`;
+    case 'view_users':
+      return `Permission Denied: Users with role "${role}" are not authorized to view the organization user profiles directory. Only Workspace Administrators and Project Managers can view user profiles.`;
     case 'delete_user':
       return `Permission Denied: Users with role "${role}" cannot delete users. Only Workspace Administrators can delete accounts.`;
     case 'create_space':
