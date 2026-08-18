@@ -71,6 +71,7 @@ import { UrgentDependenciesWidget } from './UrgentDependenciesWidget';
 import { ProjectsHealthWidget } from './ProjectsHealthWidget';
 import { WorkloadSummaryWidget } from './WorkloadSummaryWidget';
 import { DomainWhitelistWidget } from './DomainWhitelistWidget';
+import { KPIOverviewRow } from './KPIOverviewRow';
 
 export interface ProjectHealthInfo {
   status: 'On-Track' | 'At-Risk' | 'Blocked';
@@ -283,12 +284,12 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
   },
   {
     id: 'projects_health',
-    name: 'Active Projects Portfolio Health',
-    description: 'Strategic project list with progress indicators and budget allocation.',
+    name: 'Project Health Overview (Recharts)',
+    description: 'Executive project health overview with a Recharts pie chart visualizing task distribution by status (Todo, In Progress, Completed, Review).',
     category: 'Overview',
     pinned: true,
     order: 13,
-    colSpan: 2,
+    colSpan: 3,
   },
   {
     id: 'workload_summary',
@@ -870,6 +871,22 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
+      {/* KEY PERFORMANCE INDICATORS ROW */}
+      <KPIOverviewRow
+        theme={theme}
+        tasks={companyTasks}
+        projects={companyProjects}
+        users={users}
+        timeEntries={timeEntries}
+        activityLogs={activityLogs}
+        dependencies={dependencies}
+        onNavigateToTasks={(filter) => {
+          setActiveTab('tasks');
+        }}
+        onNavigateToTimeline={() => setActiveTab('timeline')}
+        onNavigateToProjects={() => setActiveTab('projects')}
+      />
+
       {/* DYNAMIC GRID CONTAINER FOR ALL PINNED & RESIZABLE WIDGETS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {widgets
@@ -989,6 +1006,7 @@ export const DashboardView: React.FC = () => {
                       theme={theme}
                       projects={companyProjects}
                       tasks={companyTasks}
+                      dependencies={dependencies}
                       onNavigateToProjects={() => setActiveTab('projects')}
                       onSelectProject={(id) => setSelectedProjectId(id)}
                     />
