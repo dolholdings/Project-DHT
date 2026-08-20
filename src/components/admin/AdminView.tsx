@@ -56,6 +56,8 @@ import { useApp } from '../../context/AppContext';
 import { User, Role, Company } from '../../types';
 import { AdminAuditLogs } from './AdminAuditLogs';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
+import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
+import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
 
 export const AdminView: React.FC = () => {
   const {
@@ -112,6 +114,7 @@ export const AdminView: React.FC = () => {
   const [newPasswordInput, setNewPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(true);
   const [passwordResetSuccess, setPasswordResetSuccess] = useState('');
+  const [passwordResetError, setPasswordResetError] = useState('');
   const [passwordCopied, setPasswordCopied] = useState(false);
 
   // Space & Project Access Permissions Modal State
@@ -133,18 +136,27 @@ export const AdminView: React.FC = () => {
 
   const handleOpenPasswordResetModal = (user: User) => {
     setPasswordResetUser(user);
-    const randomGen = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000) + '!';
-    setNewPasswordInput(user.password || randomGen);
+    const randomGen = user.password || generateSecureCompliantPassword();
+    setNewPasswordInput(randomGen);
     setShowPassword(true);
     setPasswordResetSuccess('');
+    setPasswordResetError('');
     setPasswordCopied(false);
   };
 
   const handleExecutePasswordReset = (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordResetError('');
+    setPasswordResetSuccess('');
     if (!passwordResetUser || !newPasswordInput.trim()) return;
 
     const trimmedPassword = newPasswordInput.trim();
+    const pwdValidation = validatePasswordPolicy(trimmedPassword);
+    if (!pwdValidation.isValid) {
+      setPasswordResetError(`Password policy violation: ${pwdValidation.errors[0]}`);
+      return;
+    }
+
     updateUser(passwordResetUser.id, { password: trimmedPassword });
 
     logActivity(
@@ -160,6 +172,7 @@ export const AdminView: React.FC = () => {
     setPasswordResetSuccess(`Password for ${passwordResetUser.name} has been updated successfully!`);
     setTimeout(() => {
       setPasswordResetSuccess('');
+      setPasswordResetError('');
       setPasswordResetUser(null);
     }, 1800);
   };
@@ -308,7 +321,13 @@ export const AdminView: React.FC = () => {
       addAuthorizedDomain(domain);
     }
 
-    const assignedPassword = newUserPassword.trim() || 'Dolphin@123';
+    const assignedPassword = newUserPassword.trim() || generateSecureCompliantPassword();
+    const pwdValidation = validatePasswordPolicy(assignedPassword);
+    if (!pwdValidation.isValid) {
+      setInviteError(`Password security requirement failure: ${pwdValidation.errors[0]}`);
+      return;
+    }
+
     const result = inviteUser(newUserName, newUserEmail, newUserRole, newUserDept, newUserCompany, assignedPassword);
     if (!result.success) {
       setInviteError(result.error || 'Failed to add user.');
@@ -1486,12 +1505,12 @@ export const AdminView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const rand = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000);
+                      const rand = generateSecureCompliantPassword();
                       setNewUserPassword(rand);
                     }}
                     className="text-[11px] text-[#3BC0BB] hover:underline font-bold"
                   >
-                    Auto-Generate Password
+                    Auto-Generate Secure Password
                   </button>
                 </div>
                 <input
@@ -1835,66 +1854,22 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Password Input */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    New Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const randomPass = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000) + '!';
-                      setNewPasswordInput(randomPass);
-                    }}
-                    className="text-[10px] font-bold text-amber-500 hover:underline flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Generate Strong Password</span>
-                  </button>
-                </div>
+              {/* Password Complexity Input */}
+              <PasswordComplexityValidatorUI
+                password={newPasswordInput}
+                onChange={(val) => setNewPasswordInput(val)}
+                label="New Password Security Policy"
+                placeholder="Enter new secure password (min 8 chars, mixed case, numbers & symbols)"
+                isLight={isLight}
+              />
 
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPasswordInput}
-                    onChange={(e) => setNewPasswordInput(e.target.value)}
-                    required
-                    placeholder="Enter new secure password"
-                    className={`w-full px-3.5 py-2.5 pr-20 border rounded-xl text-xs font-mono transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/50 ${
-                      isLight
-                        ? 'bg-slate-50 border-slate-300 text-slate-900 focus:bg-white'
-                        : 'bg-[#0D1520] border-[#223548] text-white focus:border-amber-500'
-                    }`}
-                  />
-
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="p-1.5 text-slate-400 hover:text-slate-200 transition-colors"
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newPasswordInput);
-                        setPasswordCopied(true);
-                        setTimeout(() => setPasswordCopied(false), 2000);
-                      }}
-                      className="p-1.5 text-amber-500 hover:text-amber-400 transition-colors"
-                      title="Copy to clipboard"
-                    >
-                      {passwordCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+              {/* Error Message */}
+              {passwordResetError && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{passwordResetError}</span>
                 </div>
-                {passwordCopied && (
-                  <p className="text-[10px] text-emerald-500 font-bold">Password copied to clipboard!</p>
-                )}
-              </div>
+              )}
 
               {/* Status & Feedback Message */}
               {passwordResetSuccess && (

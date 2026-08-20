@@ -175,6 +175,10 @@ export const ProjectsView: React.FC = () => {
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canCreateSpace(currentUser)) {
+      showToast('Permission denied: Team Members and Viewers cannot create spaces/projects.');
+      return;
+    }
     if (!newTitle.trim()) return;
 
     // Auto-generate uppercase project code if left blank

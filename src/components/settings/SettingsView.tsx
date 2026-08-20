@@ -44,11 +44,14 @@ import {
   Sliders,
   Edit2,
   X,
-  Compass
+  Compass,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog, DolphinTheme, CustomFieldDefinition, CustomFieldType } from '../../types';
 import { startOnboardingTour, resetUserTour, hasUserCompletedTour, markUserTourCompleted } from '../../services/onboardingTour';
+import { DolphinLogo } from '../common/DolphinLogo';
+import { LogoSettings } from './LogoSettings';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -82,7 +85,7 @@ export const SettingsView: React.FC = () => {
   } = useApp();
 
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'appearance' | 'custom_fields' | 'firebase' | 'export' | 'platform' | 'godaddy' | 'sql'>('audit');
+  const [activeSubTab, setActiveSubTab] = useState<'audit' | 'appearance' | 'branding' | 'custom_fields' | 'firebase' | 'export' | 'platform' | 'godaddy' | 'sql'>('audit');
 
   // Custom Field Manager Modal State
   const [isCfModalOpen, setIsCfModalOpen] = useState(false);
@@ -567,6 +570,21 @@ SET FOREIGN_KEY_CHECKS = 1;
         >
           <Palette className="w-4 h-4 text-[#3BC0BB]" />
           <span>Theme & Appearance</span>
+        </button>
+
+        <button
+          onClick={() => setActiveSubTab('branding')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeSubTab === 'branding'
+              ? 'bg-[#0773BB] text-white shadow-md ring-2 ring-[#3BC0BB]/40'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <ImageIcon className="w-4 h-4 text-[#C81E27]" />
+          <span>Branding & Logo Assets</span>
+          <span className="px-1.5 py-0.5 rounded-full bg-[#C81E27]/20 text-rose-300 font-mono text-[9px] font-bold border border-[#C81E27]/40">
+            8 SIZES
+          </span>
         </button>
 
         <button
@@ -1667,6 +1685,190 @@ SET FOREIGN_KEY_CHECKS = 1;
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BRANDING & LOGO ASSETS GUIDE TAB */}
+      {activeSubTab === 'branding' && (
+        <div className={`border rounded-2xl p-6 space-y-8 animate-in fade-in ${
+          theme === 'light' ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#16222F] border-[#233549] text-slate-100'
+        }`}>
+          {/* Header */}
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b ${
+            theme === 'light' ? 'border-slate-200' : 'border-[#233549]'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-[#C81E27]/15 text-[#C81E27] border border-[#C81E27]/30">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className={`text-lg font-black tracking-tight flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                  <span>Dolphin Corporate Branding & Logo Assets</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 font-mono">
+                    OFFICIAL ASSETS
+                  </span>
+                </h2>
+                <p className={`text-xs mt-0.5 ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Standardized vector & raster assets fitted across the workspace, navigation bars, headers, login gates, and printable engineering reports.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href="/dolphin-logo.svg"
+                download="dolphin-logo-master.svg"
+                className="px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#06619e] text-white font-mono text-xs font-bold flex items-center gap-2 transition-all shadow-md cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download Master SVG</span>
+              </a>
+            </div>
+          </div>
+
+          {/* Interactive Logo Management & Upload Studio */}
+          <LogoSettings theme={theme} />
+
+          {/* Interactive Live Previews */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* 1. Master Brand Logo (Emblem + DOLPHIN Name Below) */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-[#3BC0BB] uppercase tracking-wider">1. Master Logo (Name Below)</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#C81E27]/20 text-rose-300 border border-[#C81E27]/30">
+                  Official Layout
+                </span>
+              </div>
+              <div className="h-44 rounded-xl bg-white flex items-center justify-center p-3 shadow-inner ring-1 ring-slate-200">
+                <DolphinLogo variant="square" size="xl" />
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Official composition with <strong className="text-white">Emblem on Top</strong> and bold red <strong className="text-[#C81E27]">DOLPHIN</strong> wordmark placed strictly <strong className="text-white">Down Below</strong>.
+              </p>
+            </div>
+
+            {/* 2. Horizontal Header Logo */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-[#3BC0BB] uppercase tracking-wider">2. Horizontal Header Logo</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                  280x70 / 240x64
+                </span>
+              </div>
+              <div className="h-44 rounded-xl bg-white flex items-center justify-center p-4 shadow-inner ring-1 ring-slate-200">
+                <DolphinLogo variant="horizontal" size="xl" />
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Used in <strong className="text-white">Top App Header</strong>, <strong className="text-white">Workspace Breadcrumb Bar</strong>, and <strong className="text-white">Email Verification</strong>.
+              </p>
+            </div>
+
+            {/* 3. Pure Vector Shield Emblem */}
+            <div className={`p-5 rounded-2xl border space-y-4 ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold font-mono text-[#3BC0BB] uppercase tracking-wider">3. Pure Vector Emblem</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Emblem Only
+                </span>
+              </div>
+              <div className="h-44 rounded-xl bg-white flex items-center justify-center p-4 shadow-inner ring-1 ring-slate-200">
+                <div className="w-24 h-24">
+                  <DolphinLogo variant="emblem" size="custom" className="w-full h-full" />
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Used in <strong className="text-white">Navigation Dock Icon</strong>, <strong className="text-white">PSR Reports</strong>, and <strong className="text-white">Compact Badges</strong>.
+              </p>
+            </div>
+          </div>
+
+          {/* Sizing & Integration Matrix Table */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <h3 className={`text-sm font-bold flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                <span>Standard Logo Dimensions & Usage Guidelines</span>
+              </h3>
+              <span className="text-xs font-mono text-slate-400">All 8 Sizes Registered</span>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-[#233549]">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-[#0D1520] text-slate-400 uppercase text-[10px] tracking-wider border-b border-[#233549]">
+                  <tr>
+                    <th className="px-4 py-3">Asset Dimension</th>
+                    <th className="px-4 py-3">Aspect Ratio</th>
+                    <th className="px-4 py-3">Format</th>
+                    <th className="px-4 py-3">Active Location in Application</th>
+                    <th className="px-4 py-3">CSS / Component Spec</th>
+                  </tr>
+                </thead>
+                <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-200 bg-white text-slate-800' : 'divide-[#233549] bg-[#16222F] text-slate-200'}`}>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">512 x 512 px</td>
+                    <td className="px-4 py-3">1:1 Square</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">PWA Splash Screen, High-DPI Desktop Launchers</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">/manifest.json (icons 512x512)</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">300 x 80 px (300 DPI)</td>
+                    <td className="px-4 py-3">3.75:1 Horizontal</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">High-Res Printable Client PSR Reports & Engineering PDF Exports</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">&lt;DolphinLogo variant="horizontal" /&gt;</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">280 x 70 px</td>
+                    <td className="px-4 py-3">4:1 Horizontal</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Desktop Top Header Navigation Bar & Domain Gate Header</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">Header.tsx / EmailVerificationScreen.tsx</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">240 x 64 px</td>
+                    <td className="px-4 py-3">3.75:1 Horizontal</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Compact Tablet / Mobile Header Navigation Banner</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">ClickUpHeaderBanners.tsx</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">192 x 192 px</td>
+                    <td className="px-4 py-3">1:1 Square</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Android Mobile PWA Home Icon, Web App Manifest</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">/manifest.json (icons 192x192)</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">180 x 180 px</td>
+                    <td className="px-4 py-3">1:1 Square</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Apple Touch Icon (iOS Safari Home Screen & Bookmarks)</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">&lt;link rel="apple-touch-icon" /&gt;</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">128 x 128 px</td>
+                    <td className="px-4 py-3">1:1 Square</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Sign-in & Authentication Modal Header, Session Timeout Dialog</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">LoginModal.tsx / SessionTimeoutModal.tsx</td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-3 font-bold text-[#C81E27]">96 x 96 px</td>
+                    <td className="px-4 py-3">1:1 Square</td>
+                    <td className="px-4 py-3">PNG / SVG</td>
+                    <td className="px-4 py-3 font-sans">Left Navigation Dock Primary Icon, User Profile Mini Avatar</td>
+                    <td className="px-4 py-3 text-[#3BC0BB]">Sidebar.tsx (#tour-brand-logo)</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

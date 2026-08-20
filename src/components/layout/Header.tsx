@@ -32,7 +32,10 @@ import { ExcelImportModal } from '../common/ExcelImportModal';
 import { HeaderSearchInput } from './HeaderSearchInput';
 import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
 import { DolphinTooltip } from '../common/DolphinTooltip';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
+import { useLogo } from '../../context/LogoContext';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
+import { DolphinLogo } from '../common/DolphinLogo';
 
 export const Header: React.FC = () => {
   const {
@@ -51,6 +54,8 @@ export const Header: React.FC = () => {
     logout,
     logActivity
   } = useApp();
+
+  const { showLogos } = useLogo();
 
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -89,17 +94,22 @@ export const Header: React.FC = () => {
       <header className="h-16 bg-[#16222F]/90 backdrop-blur-md border-b border-[#233549] px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-md">
         {/* Left: ClickUp Style Workspace Title & Email Access Control Indicator */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549]">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#6366F1] to-[#7B68EE] flex items-center justify-center text-white font-extrabold text-sm shadow-sm">
-              DP
-            </div>
+           <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-[#0D1520] border border-[#233549] hover:border-[#3BC0BB]/40 transition-colors">
+            {showLogos && (
+              <LogoPlaceholder
+                area="header"
+                className="h-7 shrink-0"
+                imgClassName="h-7 w-auto"
+              />
+            )}
             <div className="text-left">
               <div className="text-xs font-bold text-white tracking-wide flex items-center gap-1.5">
-                <span>Dolphin Project Management</span>
+                <span className="font-extrabold text-[#3BC0BB]">Dolphin</span>
+                <span className="text-slate-200">Project Management</span>
               </div>
               <div className="text-[10px] text-[#3BC0BB] font-mono flex items-center gap-1">
                 <Lock className="w-3 h-3 text-[#3BC0BB]" />
-                <span>Email Domain Controlled</span>
+                <span>Domain Controlled</span>
               </div>
             </div>
           </div>

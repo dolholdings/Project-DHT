@@ -19,6 +19,8 @@ import { sendEmailVerification } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useApp } from '../../context/AppContext';
 import { getCompanyByEmail, COMPANY_DOMAIN_MAPPINGS } from '../../config/auth';
+import { DolphinLogo } from '../common/DolphinLogo';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ onVerified }) => {
   const { currentUser, setCurrentUser, firebaseUser, signOutFirebase, logout, logActivity } = useApp();
@@ -141,16 +143,18 @@ export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ 
       >
         
         {/* Brand Header */}
-        <div className="text-center space-y-3">
-          <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#16222F] flex items-center justify-center text-white shadow-xl shadow-[#0773BB]/30">
-              <ShieldCheck className="w-8 h-8 text-white" />
-            </div>
-          </div>
+        <div className="text-center space-y-2">
+          <LogoPlaceholder
+            area="emailVerification"
+            className="flex justify-center mb-2"
+            imgClassName="w-16 h-18 p-1.5 rounded-2xl bg-white shadow-xl ring-4 ring-[#0773BB]/20 object-contain"
+          />
           <div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">DOLPHIN GROUP WORKSPACE</h1>
+            <h1 className="text-2xl font-extrabold text-white tracking-tight">
+              Group Workspace Access Control
+            </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Required Email Verification Gate & Access Control
+              Required Email Verification Gate & Governance Compliance
             </p>
           </div>
         </div>
@@ -159,10 +163,12 @@ export const EmailVerificationScreen: React.FC<{ onVerified: () => void }> = ({ 
         {isDomainAllowed ? (
           <div className="p-4 rounded-2xl bg-[#0773BB]/15 border border-[#0773BB]/40 flex items-center justify-between text-xs shadow-md">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{companyInfo?.logo || '🏢'}</span>
+              <div className="w-9 h-9 rounded-xl bg-[#0773BB]/20 text-[#3BC0BB] shrink-0 flex items-center justify-center border border-[#0773BB]/30">
+                <Building2 className="w-5 h-5" />
+              </div>
               <div>
                 <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Recognized Organization</span>
-                <span className="text-base font-extrabold text-white">Company: {companyInfo?.companyName}</span>
+                <span className="text-base font-extrabold text-white">{companyInfo?.companyName}</span>
               </div>
             </div>
             <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono text-xs font-bold flex items-center gap-1.5">

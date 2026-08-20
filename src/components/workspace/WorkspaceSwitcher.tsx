@@ -15,6 +15,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { canCreateSpace } from '../../lib/permissions';
 
 interface WorkspaceSwitcherProps {
   onOpenCreateSpaceModal?: () => void;
@@ -287,7 +288,7 @@ export const WorkspaceSwitcher: React.FC<WorkspaceSwitcherProps> = ({
               {accessibleProjects.length} Spaces Available
             </span>
 
-            {onOpenCreateSpaceModal && (
+            {onOpenCreateSpaceModal && canCreateSpace(currentUser) && (
               <button
                 type="button"
                 onClick={() => {

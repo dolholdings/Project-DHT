@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <clipPath id="emblemClip">
+      <rect x="0" y="0" width="400" height="400" rx="40" ry="40" />
+    </clipPath>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D92027" />
+      <stop offset="100%" stop-color="#B31218" />
+    </linearGradient>
+    <linearGradient id="seaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4DBBB3" />
+      <stop offset="100%" stop-color="#1E9B93" />
+    </linearGradient>
+    <linearGradient id="globeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2F7FD4" />
+      <stop offset="100%" stop-color="#1B4D8A" />
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#emblemClip)">
+    <rect x="0" y="0" width="400" height="400" fill="url(#redGrad)" />
+    <path d="M 400 80 L 400 400 L 0 400 L 0 355 Q 180 290 350 120 Z" fill="url(#seaGrad)" />
+    <path d="M 320 160 Q 345 130 375 145 Q 395 125 400 160 L 400 240 Q 370 210 340 230 Z" fill="#B2EBE6" opacity="0.85" />
+    <path d="M 0 375 Q 120 340 240 375 T 400 350 L 400 400 L 0 400 Z" fill="#0C756F" opacity="0.4" />
+    <path d="M 15 388 C 110 365 220 380 395 355" fill="none" stroke="#004D40" stroke-width="3" opacity="0.6" />
+    <path d="M 70 375 C 170 355 280 365 395 342" fill="none" stroke="#004D40" stroke-width="2.5" opacity="0.5" />
+  </g>
+
+  <rect x="2" y="2" width="396" height="396" rx="38" ry="38" fill="none" stroke="#4DBBB3" stroke-width="4" opacity="0.9" />
+
+  <g id="globe">
+    <ellipse cx="200" cy="245" rx="125" ry="78" fill="url(#globeGrad)" stroke="#163C6D" stroke-width="3" />
+    <ellipse cx="200" cy="245" rx="125" ry="42" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <ellipse cx="200" cy="245" rx="125" ry="18" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <line x1="75" y1="245" x2="325" y2="245" stroke="#A3CBF9" stroke-width="2" opacity="0.9" />
+    <ellipse cx="200" cy="245" rx="80" ry="78" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <ellipse cx="200" cy="245" rx="40" ry="78" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <line x1="200" y1="167" x2="200" y2="323" stroke="#A3CBF9" stroke-width="2" opacity="0.9" />
+
+    <path d="M 112 210 Q 126 200 139 214 Q 134 227 121 231 Q 108 227 112 210 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 141 198 Q 150 195 154 202 Q 146 207 141 198 Z" fill="#DF9B5C" />
+    <path d="M 134 238 Q 147 242 144 262 Q 138 280 129 282 Q 125 266 130 248 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 178 203 Q 193 196 200 209 Q 193 218 182 215 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 179 221 Q 204 221 206 245 Q 200 276 191 280 Q 182 267 179 240 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 206 200 Q 248 191 270 213 Q 256 235 234 231 Q 221 222 206 215 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 265 251 Q 285 249 283 265 Q 270 271 264 262 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <circle cx="254" cy="242" r="3" fill="#DF9B5C" />
+    <circle cx="263" cy="239" r="3.2" fill="#DF9B5C" />
+  </g>
+
+  <g id="dolphin">
+    <path d="M 38 346 C 40 276, 78 162, 156 118 C 213 87, 292 96, 323 140 C 340 162, 327 184, 305 186 C 257 190, 222 166, 178 188 C 130 212, 78 271, 54 350 Z" fill="#111827" stroke="#000000" stroke-width="2.5" />
+    <path d="M 318 135 C 344 146, 349 160, 323 169 C 314 166, 310 157, 314 144 Z" fill="#111827" />
+    <path d="M 226 102 C 235 67, 261 72, 267 96 C 252 97, 239 100, 226 102 Z" fill="#111827" />
+    <path d="M 213 170 C 235 183, 257 203, 239 209 C 222 206, 209 187, 213 170 Z" fill="#111827" />
+    <path d="M 42 333 C 22 328, 12 347, 24 356 C 40 352, 45 345, 50 341 Z" fill="#111827" />
+    <path d="M 49 348 C 42 362, 53 371, 68 364 C 62 353, 56 348, 49 348 Z" fill="#111827" />
+
+    <path d="M 90 320 C 102 272, 140 219, 192 190 C 231 171, 275 180, 314 164 C 297 178, 262 185, 218 187 C 166 197, 118 254, 94 330 Z" fill="#FFFFFF" />
+    <path d="M 53 337 C 66 311, 79 324, 70 344 Z" fill="#FFFFFF" opacity="0.95" />
+
+    <ellipse cx="299" cy="137" rx="4" ry="7" fill="#FFFFFF" transform="rotate(-15 299 137)" />
+    <circle cx="300" cy="137" r="2.8" fill="#111827" />
+    <circle cx="301" cy="135" r="1.1" fill="#FFFFFF" />
+    <path d="M 301 151 Q 311 156 318 151" fill="none" stroke="#4DBBB3" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+</svg>

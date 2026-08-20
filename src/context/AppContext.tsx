@@ -84,6 +84,7 @@ import {
   clearAllFirestoreData,
 } from '../services/dataService';
 import { sendTransactionalEmail } from '../services/emailNotificationService';
+import { validatePasswordPolicy, generateSecureCompliantPassword } from '../config/auth';
 
 interface TimerState {
   active: boolean;
@@ -1203,7 +1204,14 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       return { success: false, error: val.error };
     }
 
-    const assignedPassword = password || 'Dolphin@123';
+    const assignedPassword = (password && password.trim()) || generateSecureCompliantPassword();
+    const pwdValidation = validatePasswordPolicy(assignedPassword);
+    if (!pwdValidation.isValid) {
+      return {
+        success: false,
+        error: `Password security requirement violation: ${pwdValidation.errors.join(' ')}`
+      };
+    }
 
     const newUser: User = {
       id: `usr_${Date.now()}`,
@@ -1293,6 +1301,17 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   const updateUser = (userId: string, updates: Partial<User>) => {
     const existingUser = users.find((x) => x.id === userId);
     const oldRole = existingUser?.role;
+
+    if (updates.password !== undefined && updates.password !== '') {
+      const pwdValidation = validatePasswordPolicy(updates.password);
+      if (!pwdValidation.isValid) {
+        console.warn('Password update rejected due to complexity failure:', pwdValidation.errors);
+        return {
+          success: false,
+          error: `Password security policy violation: ${pwdValidation.errors.join(' ')}`
+        };
+      }
+    }
 
     setUsers((prev) => {
       const nextUsers = prev.map((u) => {

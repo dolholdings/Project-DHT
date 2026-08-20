@@ -33,6 +33,8 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { DolphinLogo } from '../common/DolphinLogo';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
 import { HeaderSearchInput } from './HeaderSearchInput';
 import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
 import { startOnboardingTour, markUserTourCompleted } from '../../services/onboardingTour';
@@ -46,7 +48,7 @@ export const ClickUpHeaderBanners: React.FC<{
   onOpenLoginModal?: () => void;
   isMobile?: boolean;
 }> = ({ activeViewTab, setActiveViewTab, onOpenCreateTaskModal, onToggleMobileSidebar, onOpenEmailGateway, onOpenLoginModal, isMobile }) => {
-  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout, clearAllData, setActiveTab } = useApp();
+  const { searchQuery, setSearchQuery, selectedProjectId, setSelectedProjectId, selectedListFilter, setSelectedListFilter, projects, theme, toggleTheme, setCommandPaletteOpen, currentUser, requestBrowserNotificationPermission, logout, clearAllData, setActiveTab, activeCompany } = useApp();
   
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
@@ -100,14 +102,14 @@ export const ClickUpHeaderBanners: React.FC<{
         </div>
       )}
 
-      {/* 3. ClickUp Breadcrumbs & Workspace Title Bar */}
+      {/* 3. ClickUp Breadcrumbs & Workspace Title Bar with Dolphin Corporate Logo */}
       <div className={`px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 border-b border-[#233549]/40 ${theme === 'light' ? 'bg-white text-slate-800' : 'bg-[#121B26] text-white'}`}>
-        {/* Left Breadcrumbs */}
+        {/* Left Breadcrumbs & Dolphin Brand Badge */}
         <div className="flex items-center gap-2 text-xs font-medium">
           {onToggleMobileSidebar && (
             <button
               onClick={onToggleMobileSidebar}
-              className={`p-1.5 rounded-lg border transition-all mr-1 ${
+              className={`p-1.5 rounded-lg border transition-all mr-0.5 ${
                 theme === 'light'
                   ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
                   : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549] text-slate-300 hover:text-white'
@@ -117,13 +119,37 @@ export const ClickUpHeaderBanners: React.FC<{
               <Menu className="w-4 h-4 text-[#3BC0BB]" />
             </button>
           )}
-          <div className={`w-5 h-5 rounded-md text-white flex items-center justify-center font-bold text-[10px] ${
-            theme === 'light' ? 'bg-[#0D9488]' : 'bg-[#0773BB]'
-          }`}>
-            {projects.find((p) => p.id === selectedProjectId)?.code.slice(0, 1) || 'W'}
-          </div>
-          <span className="text-slate-400 font-semibold">Workspace</span>
+
+          {/* Workspace Brand Badge */}
+          <button
+            onClick={() => {
+              setSelectedProjectId(null);
+              setSelectedListFilter(null);
+              setActiveTab('dashboard');
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all hover:scale-102 cursor-pointer ${
+              theme === 'light'
+                ? 'bg-white hover:bg-slate-50 border-slate-200 shadow-xs'
+                : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549]'
+            }`}
+            title="Dolphin Global Holdings / Dolphin Heat Transfer"
+          >
+            <LogoPlaceholder
+              area="header"
+              className="h-5 shrink-0"
+              imgClassName="h-5 w-auto"
+            />
+            {activeCompany?.name && !activeCompany.name.toLowerCase().includes('global') && (
+              <span className={`text-[10px] font-bold uppercase tracking-wider hidden lg:inline px-1.5 py-0.5 rounded ${theme === 'light' ? 'bg-slate-100 text-slate-700 border border-slate-200' : 'bg-[#233549] text-slate-300 border border-slate-700'}`}>
+                {activeCompany.name.replace(/^Dolphin\s+/i, '')}
+              </span>
+            )}
+          </button>
+
+          <span className="text-slate-400 font-semibold hidden sm:inline">/</span>
+          <span className="text-slate-400 font-semibold hidden sm:inline">Workspace</span>
           <span className="text-slate-500">/</span>
+
           <button
             onClick={() => {
               setSelectedProjectId(null);

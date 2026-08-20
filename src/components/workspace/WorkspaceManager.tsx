@@ -61,7 +61,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus, SpaceRole, ProjectTemplate, TemplateVersionRecord, TemplateCleanupRules, Task, TaskDependency, TemplateTask, TemplateDependency } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
-import { canCreateSpace, canDeleteSpace } from '../../lib/permissions';
+import { canCreateSpace, canDeleteSpace, canViewUsersDirectory } from '../../lib/permissions';
 import { PermissionGuard } from '../common/PermissionGuard';
 import { DependencyPreviewModal } from './DependencyPreviewModal';
 import { CompareTemplatesModal } from './CompareTemplatesModal';
@@ -71,6 +71,7 @@ import { ValidationEngineModal } from './ValidationEngineModal';
 import { TemplateMetricsDashboardModal } from './TemplateMetricsDashboardModal';
 import { UnifiedProjectSearchModal } from './UnifiedProjectSearchModal';
 import { ExcelImportModal } from '../common/ExcelImportModal';
+import { DolphinLogo } from '../common/DolphinLogo';
 
 export const WorkspaceManager: React.FC = () => {
   const {
@@ -798,9 +799,9 @@ export const WorkspaceManager: React.FC = () => {
             theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
           }`}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#233549]/40 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0773BB] via-[#3BC0BB] to-[#16222F] flex items-center justify-center text-white text-xl shadow-lg">
-                  {activeCompany.logo || '🏢'}
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-[#0773BB]/20 text-[#3BC0BB] flex items-center justify-center border border-[#0773BB]/30 shrink-0">
+                  <Building2 className="w-6 h-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -826,13 +827,13 @@ export const WorkspaceManager: React.FC = () => {
                   <button
                     key={c.id}
                     onClick={() => setActiveCompany(c)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
                       activeCompany.id === c.id
                         ? 'bg-[#0773BB] text-white border-[#0773BB] shadow-md'
                         : 'bg-[#0D1520] text-slate-400 hover:text-white border-[#233549] hover:border-[#3BC0BB]'
                     }`}
                   >
-                    <span>{c.logo || '🏢'}</span>
+                    <Building2 className="w-3.5 h-3.5" />
                     <span>{c.name}</span>
                   </button>
                 ))}
@@ -1213,17 +1214,19 @@ export const WorkspaceManager: React.FC = () => {
                   <p className="text-[10px] text-slate-400">Manage email whitelists & enterprise auth</p>
                 </button>
 
-                <button
-                  onClick={() => setShowCreateSpaceModal(true)}
-                  className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
-                >
-                  <div className="flex items-center justify-between">
-                    <Plus className="w-5 h-5 text-[#0773BB]" />
-                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-                  </div>
-                  <div className="font-bold text-white text-xs">Create New Space</div>
-                  <p className="text-[10px] text-slate-400">Launch a new project or department</p>
-                </button>
+                <PermissionGuard action="create_space">
+                  <button
+                    onClick={() => setShowCreateSpaceModal(true)}
+                    className="p-3.5 rounded-xl bg-[#0D1520] hover:bg-[#16222F] border border-[#233549] hover:border-[#3BC0BB] text-left transition-all group space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <Plus className="w-5 h-5 text-[#0773BB]" />
+                      <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+                    </div>
+                    <div className="font-bold text-white text-xs">Create New Space</div>
+                    <p className="text-[10px] text-slate-400">Launch a new project or department</p>
+                  </button>
+                </PermissionGuard>
 
                 <button
                   onClick={() => setShowCreateCompanyModal(true)}
@@ -1449,18 +1452,20 @@ export const WorkspaceManager: React.FC = () => {
                 <span>Spaces & Projects Table ({filteredProjects.length})</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setTableSubTab('users')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                  tableSubTab === 'users'
-                    ? 'bg-[#0773BB] text-white shadow-md'
-                    : 'bg-[#16222F] text-slate-400 hover:text-white border border-[#233549]'
-                }`}
-              >
-                <Users className="w-4 h-4 text-[#3BC0BB]" />
-                <span>Workspace Users & Team Roster ({users.length})</span>
-              </button>
+              {canViewUsersDirectory(currentUser) && (
+                <button
+                  type="button"
+                  onClick={() => setTableSubTab('users')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                    tableSubTab === 'users'
+                      ? 'bg-[#0773BB] text-white shadow-md'
+                      : 'bg-[#16222F] text-slate-400 hover:text-white border border-[#233549]'
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-[#3BC0BB]" />
+                  <span>Workspace Users & Team Roster ({users.length})</span>
+                </button>
+              )}
             </div>
 
             <div className="text-[11px] font-mono text-slate-400 flex items-center gap-1.5 bg-[#16222F]/60 px-3 py-1.5 rounded-lg border border-[#233549]">
@@ -1603,8 +1608,8 @@ export const WorkspaceManager: React.FC = () => {
                         <td className="p-3.5 text-slate-300">{u.department}</td>
 
                         <td className="p-3.5">
-                          <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
-                            <span>{comp?.logo || '🏢'}</span>
+                          <div className="flex items-center gap-2 text-slate-300 font-semibold text-xs">
+                            <Building2 className="w-3.5 h-3.5 text-[#3BC0BB]" />
                             <span>{comp?.name || 'Dolphin Group'}</span>
                           </div>
                         </td>

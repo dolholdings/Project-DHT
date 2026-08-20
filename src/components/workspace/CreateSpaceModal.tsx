@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FolderKanban, X, Plus, Sparkles, Building2, User, DollarSign, Calendar, Layers } from 'lucide-react';
+import { FolderKanban, X, Plus, Sparkles, Building2, User, DollarSign, Calendar, Layers, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project } from '../../types';
 import { canCreateSpace } from '../../lib/permissions';
@@ -114,13 +114,34 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
           </div>
         </div>
 
-        {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold">
-            {errorMsg}
+        {!canCreateSpace(currentUser) ? (
+          <div className="py-4 space-y-4 text-center animate-in fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-500 mx-auto flex items-center justify-center shadow-inner">
+              <ShieldAlert className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-amber-400">RBAC Permission Restricted</h3>
+              <p className={`text-xs mt-1.5 max-w-sm mx-auto ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
+                Your current role is <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span>. Under Workspace RBAC policy, Team Members and Viewers cannot create new project spaces. Only <span className="font-semibold text-emerald-400">Administrators</span> and <span className="font-semibold text-sky-400">Project Managers</span> can provision spaces.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition-all shadow"
+            >
+              Close Window
+            </button>
           </div>
-        )}
+        ) : (
+          <>
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold">
+                {errorMsg}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-medium">
+            <form onSubmit={handleSubmit} className="space-y-4 text-xs font-medium">
           {/* Space Name */}
           <div>
             <label className="block text-slate-400 font-semibold mb-1">Space Name *</label>
@@ -234,6 +255,8 @@ export const CreateSpaceModal: React.FC<CreateSpaceModalProps> = ({ isOpen, onCl
             </PermissionGuard>
           </div>
         </form>
+      </>
+    )}
       </div>
     </div>
   );

@@ -43,8 +43,11 @@ import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company, User } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
 import { canCreateUser, canDeleteUser, canViewUsersDirectory } from '../../lib/permissions';
+import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
+import { DolphinLogo } from '../common/DolphinLogo';
 import { PermissionGuard } from '../common/PermissionGuard';
 import { UserProfileEditModal } from './UserProfileEditModal';
+import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
 
 export const UsersView: React.FC = () => {
   const {
@@ -118,6 +121,7 @@ export const UsersView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(true);
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [passwordResetSuccess, setPasswordResetSuccess] = useState('');
+  const [passwordResetError, setPasswordResetError] = useState('');
 
   // Edit User Profile Modal State
   const [userToEdit, setUserToEdit] = useState<User | null>(null);
@@ -197,18 +201,27 @@ export const UsersView: React.FC = () => {
   const handleOpenPasswordResetModal = (u: User) => {
     setPasswordResetUser(u);
     // Pre-populate with existing password or generate a clean secure default
-    const initialPass = u.password || 'Dolphin@' + (2026 + Math.floor(Math.random() * 100)) + '!';
+    const initialPass = u.password || generateSecureCompliantPassword();
     setNewPasswordInput(initialPass);
     setShowPassword(true);
     setPasswordCopied(false);
     setPasswordResetSuccess('');
+    setPasswordResetError('');
   };
 
   const handleExecutePasswordReset = (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordResetError('');
+    setPasswordResetSuccess('');
     if (!passwordResetUser || !newPasswordInput.trim()) return;
 
     const trimmedPassword = newPasswordInput.trim();
+    const pwdValidation = validatePasswordPolicy(trimmedPassword);
+    if (!pwdValidation.isValid) {
+      setPasswordResetError(`Password policy violation: ${pwdValidation.errors[0]}`);
+      return;
+    }
+
     updateUser(passwordResetUser.id, { password: trimmedPassword });
 
     setPasswordResetSuccess(`Password for ${passwordResetUser.name} (${passwordResetUser.email}) updated successfully to "${trimmedPassword}"!`);
@@ -216,6 +229,7 @@ export const UsersView: React.FC = () => {
     setTimeout(() => {
       setPasswordResetUser(null);
       setPasswordResetSuccess('');
+      setPasswordResetError('');
     }, 1800);
   };
 
@@ -311,7 +325,13 @@ export const UsersView: React.FC = () => {
       addAuthorizedDomain(domain);
     }
 
-    const finalPassword = assignedPassword.trim() || 'Dolphin@123';
+    const finalPassword = assignedPassword.trim() || generateSecureCompliantPassword();
+    const pwdValidation = validatePasswordPolicy(finalPassword);
+    if (!pwdValidation.isValid) {
+      setInviteError(`Password security requirement failure: ${pwdValidation.errors[0]}`);
+      return;
+    }
+
     const res = inviteUser(name, email, role, department, targetCompanyId, finalPassword, selectedSpaceIds);
 
     if (!res.success) {
@@ -488,11 +508,11 @@ export const UsersView: React.FC = () => {
           </div>
 
           <h2 className="text-2xl font-bold tracking-tight mb-2">
-            Access Restricted: User Profiles Directory
+            Access Restricted: Users & Teams Master View
           </h2>
 
           <p className={`text-sm max-w-lg mx-auto mb-6 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-            Your account is currently assigned the <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span> access role. Viewing organization member profiles, credentials, assigned spaces, and administrative governance records is restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span> and <span className="font-semibold text-sky-500">Project Managers</span>.
+            Your account is currently assigned the <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span> access role. Accessing the Users master view, member profiles, user invitations, and administrative governance records is strictly restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span>.
           </p>
 
           <div className={`p-4 rounded-xl border max-w-md mx-auto mb-8 text-left text-xs space-y-2 ${
@@ -674,7 +694,7 @@ export const UsersView: React.FC = () => {
                   : 'bg-[#0D1520] border border-[#0773BB]/50 text-white'
               }`}
             >
-              <span>{c.logo || '🏢'}</span>
+              <Building2 className="w-4 h-4 text-[#0773BB]" />
               <span className={`font-sans font-extrabold ${isLight ? 'text-slate-900' : 'text-white'}`}>{c.name}</span>
               <span className="text-[#0773BB] font-mono">({c.domain})</span>
             </span>
@@ -1068,7 +1088,7 @@ export const UsersView: React.FC = () => {
                           {/* Company Entity */}
                           <td className="p-3.5">
                             <div className="flex items-center gap-2">
-                              <span className="text-base">{comp?.logo || '🏢'}</span>
+                              <Building2 className="w-4 h-4 text-[#0773BB] shrink-0" />
                               <div>
                                 <div className={`font-bold text-xs ${isLight ? 'text-slate-900' : 'text-slate-200'}`}>
                                   {comp?.name || 'Dolphin Group'}
@@ -1697,12 +1717,12 @@ export const UsersView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const randPass = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000);
+                      const randPass = generateSecureCompliantPassword();
                       setAssignedPassword(randPass);
                     }}
                     className="text-[11px] text-[#0773BB] hover:underline font-bold flex items-center gap-1"
                   >
-                    <Key className="w-3 h-3" /> Auto-Generate
+                    <Key className="w-3 h-3" /> Auto-Generate Secure Password
                   </button>
                 </div>
                 <input
@@ -2210,12 +2230,12 @@ export const UsersView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const randPass = 'Dolphin@' + Math.floor(1000 + Math.random() * 9000);
+                      const randPass = generateSecureCompliantPassword();
                       setAssignedPassword(randPass);
                     }}
                     className="text-[11px] text-[#3BC0BB] hover:underline font-bold flex items-center gap-1"
                   >
-                    <Key className="w-3 h-3" /> Auto-Generate
+                    <Key className="w-3 h-3" /> Auto-Generate Secure Password
                   </button>
                 </div>
                 <input
@@ -2810,64 +2830,20 @@ export const UsersView: React.FC = () => {
 
             {/* Reset Form */}
             <form onSubmit={handleExecutePasswordReset} className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    New Security Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const genPass = 'Dolphin@' + (2026 + Math.floor(Math.random() * 900)) + '!';
-                      setNewPasswordInput(genPass);
-                    }}
-                    className="text-[11px] font-bold text-[#0773BB] hover:underline flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>Generate Strong Password</span>
-                  </button>
-                </div>
+              <PasswordComplexityValidatorUI
+                password={newPasswordInput}
+                onChange={(val) => setNewPasswordInput(val)}
+                label="New Security Password"
+                placeholder="Enter new password (e.g. Dolphin@2026!)"
+                isLight={isLight}
+              />
 
-                <div className="relative">
-                  <Lock className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={newPasswordInput}
-                    onChange={(e) => setNewPasswordInput(e.target.value)}
-                    required
-                    placeholder="Enter new password (e.g. Dolphin@2026!)"
-                    className={`w-full pl-9 pr-20 py-2.5 rounded-xl text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#0773BB] transition-all ${
-                      isLight
-                        ? 'bg-slate-50 border border-slate-300 text-slate-900 placeholder:text-slate-400'
-                        : 'bg-[#0D1520] border border-[#233549] text-white placeholder:text-slate-500'
-                    }`}
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="p-1 text-slate-400 hover:text-white"
-                      title={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newPasswordInput);
-                        setPasswordCopied(true);
-                        setTimeout(() => setPasswordCopied(false), 2000);
-                      }}
-                      className={`p-1 transition-all ${
-                        passwordCopied ? 'text-emerald-500 font-bold' : 'text-slate-400 hover:text-white'
-                      }`}
-                      title={passwordCopied ? 'Copied!' : 'Copy to clipboard'}
-                    >
-                      {passwordCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
+              {passwordResetError && (
+                <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{passwordResetError}</span>
                 </div>
-              </div>
+              )}
 
               {/* Informational notice */}
               <div className={`p-3 rounded-xl border flex items-start gap-2 text-xs ${

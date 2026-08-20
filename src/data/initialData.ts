@@ -97,6 +97,36 @@ export const INITIAL_USERS: User[] = [
     isEmailVerified: true,
     password: 'Dht@pm2026!',
     lastActive: new Date().toISOString()
+  },
+  {
+    id: 'usr_member_drcs',
+    name: 'Operations Team Member',
+    email: 'member@dolcool.ae',
+    role: 'Team Member',
+    companyId: 'comp_drcs',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150',
+    department: 'HVAC & Radiator Operations',
+    hourlyRate: 85,
+    maxWeeklyHours: 40,
+    status: 'Active',
+    isEmailVerified: true,
+    password: 'Member@dolcool2026!',
+    lastActive: new Date().toISOString()
+  },
+  {
+    id: 'usr_viewer_corp',
+    name: 'Corporate Stakeholder',
+    email: 'viewer@dolphingroup.ae',
+    role: 'Viewer',
+    companyId: 'comp_corp',
+    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=150',
+    department: 'Executive Board',
+    hourlyRate: 0,
+    maxWeeklyHours: 40,
+    status: 'Active',
+    isEmailVerified: true,
+    password: 'Viewer@corp2026!',
+    lastActive: new Date().toISOString()
   }
 ];
 

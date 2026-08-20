@@ -72,6 +72,8 @@ import { ProjectsHealthWidget } from './ProjectsHealthWidget';
 import { WorkloadSummaryWidget } from './WorkloadSummaryWidget';
 import { DomainWhitelistWidget } from './DomainWhitelistWidget';
 import { KPIOverviewRow } from './KPIOverviewRow';
+import { DolphinLogo } from '../common/DolphinLogo';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export interface ProjectHealthInfo {
   status: 'On-Track' | 'At-Risk' | 'Blocked';
@@ -731,13 +733,25 @@ export const DashboardView: React.FC = () => {
           : 'bg-gradient-to-r from-[#16222F] via-[#1A2838] to-[#0D1520] border-[#233549]'
       }`}>
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-[#0773BB]/10 to-transparent pointer-events-none"></div>
-        <div className="space-y-1 relative z-10">
-          <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-[#0D9488]' : 'text-[#3BC0BB]'}`}>
-            Dolphin Project Management
-          </h1>
-          <p className={`text-sm max-w-xl ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
-            Real-time project execution, customizable workspace widgets, team workload analytics, and compliance governance.
-          </p>
+        <div className="flex items-center gap-4 relative z-10">
+          <LogoPlaceholder
+            area="dashboard"
+            className="w-12 h-12 p-1.5 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-md border border-slate-200/80 ring-2 ring-[#0773BB]/10"
+            imgClassName="w-full h-full object-contain"
+          />
+          <div className="space-y-1">
+            <div className="flex items-center gap-2.5">
+              <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                Project Management
+              </h1>
+              <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase font-mono bg-[#0773BB]/15 text-[#3BC0BB] border border-[#0773BB]/30">
+                {activeCompany?.code || 'DOLPHIN'}
+              </span>
+            </div>
+            <p className={`text-sm max-w-xl ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}>
+              Real-time project execution, customizable workspace widgets, team workload analytics, and compliance governance.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 relative z-10">

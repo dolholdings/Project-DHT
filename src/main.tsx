@@ -1,3 +1,5 @@
+import { isAbortError } from './lib/errorUtils';
+
 // Ensure window.fetch has both getter and setter across all browser contexts
 if (typeof window !== 'undefined') {
   try {
@@ -23,15 +25,14 @@ if (typeof window !== 'undefined') {
 
   // Gracefully handle harmless abort errors / cancelled fetch requests
   window.addEventListener('unhandledrejection', (event) => {
-    const reason = event.reason;
-    if (
-      reason?.name === 'AbortError' ||
-      reason?.code === 20 ||
-      (typeof reason?.message === 'string' &&
-        (reason.message.toLowerCase().includes('aborted') ||
-         reason.message.toLowerCase().includes('abort') ||
-         reason.message.includes('The user aborted a request')))
-    ) {
+    if (isAbortError(event.reason)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  });
+
+  window.addEventListener('error', (event) => {
+    if (isAbortError(event.error) || isAbortError(event.message)) {
       event.preventDefault();
       event.stopPropagation();
     }

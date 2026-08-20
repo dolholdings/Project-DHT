@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Priority, User } from '../../types';
 import * as XLSX from 'xlsx';
+import { isAbortError } from '../../lib/errorUtils';
 
 interface SmartImportAssistantModalProps {
   isOpen: boolean;
@@ -508,7 +509,8 @@ export const SmartImportAssistantModal: React.FC<SmartImportAssistantModalProps>
         throw new Error(data.error || 'Failed to detect mappings.');
       }
     } catch (err: any) {
-      console.warn('Fallback local AI mapping triggered:', err.message);
+      if (isAbortError(err)) return;
+      console.warn('Fallback local AI mapping triggered:', err?.message || err);
 
       // Local heuristic fallback mapping
       const localMappings: ColumnMapping[] = fileData.headers.map((h) => {

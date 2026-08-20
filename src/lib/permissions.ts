@@ -118,24 +118,22 @@ export function getAccessibleTasks(user: User | null, tasks: Task[], projects: P
 
 /**
  * Checks if the user has permission to create or invite new users.
- * Team Members and Viewers are strictly NOT allowed to create or invite users.
- * Only Admins and Project Managers can create/invite users.
+ * Strictly restricted to Workspace Administrators.
  */
 export function canCreateUser(user: User | null): boolean {
   if (!user) return false;
   const role = normalizeRole(user.role);
-  return role === 'admin' || role === 'project manager';
+  return role === 'admin';
 }
 
 /**
- * Checks if the user has permission to view the organization user profiles directory.
- * Team Members and Viewers are strictly NOT allowed to view user profiles / user directory.
- * Only Admins and Project Managers can view user profiles.
+ * Checks if the user has permission to view the organization user profiles directory (Users master view).
+ * Strictly restricted to Workspace Administrators (Team Members, Viewers, and Project Managers are blocked).
  */
 export function canViewUsersDirectory(user: User | null): boolean {
   if (!user) return false;
   const role = normalizeRole(user.role);
-  return role === 'admin' || role === 'project manager';
+  return role === 'admin';
 }
 
 /**
@@ -227,13 +225,13 @@ export function getPermissionDeniedReason(user: User | null, action: PermissionA
   const role = user?.role || 'Guest';
   switch (action) {
     case 'create_user':
-      return `Permission Denied: Users with role "${role}" cannot create or invite users. Only Admins and Project Managers have this permission.`;
+      return `Permission Denied: Users with role "${role}" cannot create or invite users. Only Workspace Administrators have this permission.`;
     case 'view_users':
-      return `Permission Denied: Users with role "${role}" are not authorized to view the organization user profiles directory. Only Workspace Administrators and Project Managers can view user profiles.`;
+      return `Permission Denied: Access to the Users master view is restricted to Workspace Administrators only. Users with role "${role}" cannot access user administration records.`;
     case 'delete_user':
       return `Permission Denied: Users with role "${role}" cannot delete users. Only Workspace Administrators can delete accounts.`;
     case 'create_space':
-      return `Permission Denied: Users with role "${role}" cannot create spaces. Only Admins and Project Managers can create spaces.`;
+      return `Permission Denied: Team Members and Viewers cannot create spaces. Only Administrators and Project Managers can create spaces.`;
     case 'delete_space':
       return `Permission Denied: Users with role "${role}" cannot delete spaces. Only Workspace Administrators can delete spaces.`;
     case 'delete_task':

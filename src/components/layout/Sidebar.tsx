@@ -34,10 +34,12 @@ import {
   ListTodo
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useLogo } from '../../context/LogoContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 import { PermissionGuard } from '../common/PermissionGuard';
 import { normalizeRole, canCreateUser, canViewUsersDirectory } from '../../lib/permissions';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export interface SidebarProps {
   mobileOpen?: boolean;
@@ -67,6 +69,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout,
     logActivity
   } = useApp();
+
+  const { showLogos, getLogoForArea } = useLogo();
+  const sidebarLogo = getLogoForArea('sidebar');
+  const shouldRenderSidebarLogo = showLogos && Boolean(sidebarLogo?.path && sidebarLogo.path.trim().length > 0);
 
   const isMobile = useIsMobile();
   const [spacesOpen, setSpacesOpen] = useState(true);
@@ -193,17 +199,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex flex-col items-center space-y-4 w-full">
             {/* ClickUp / Dolphin Branding Logo & Mobile Close */}
             <div id="tour-brand-logo" className="relative flex flex-col items-center gap-1">
-              <div
+              <button
                 onClick={() => handleTabClick('dashboard')}
-                className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg hover:scale-105 transition-transform cursor-pointer ${
-                  theme === 'light'
-                    ? 'bg-gradient-to-tr from-[#2DD4BF] to-[#0D9488] shadow-[#0D9488]/40'
-                    : 'bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] shadow-[#0773BB]/40'
-                }`}
-                title="Dolphin Home"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white hover:bg-slate-50 active:scale-95 transition-all cursor-pointer shadow-md focus:outline-none border border-white/40 overflow-hidden p-1"
+                title="Dolphin Global Holdings / Dolphin Heat Transfer"
               >
-                <Zap className="w-5 h-5 fill-current" />
-              </div>
+                {shouldRenderSidebarLogo ? (
+                  <LogoPlaceholder
+                    area="sidebar"
+                    className="w-full h-full flex items-center justify-center"
+                    imgClassName="w-full h-full object-contain"
+                    fallback={<Building2 className="w-5 h-5 text-[#0D9488]" />}
+                  />
+                ) : (
+                  <Building2 className="w-5 h-5 text-[#0D9488]" />
+                )}
+              </button>
               {isMobile && (
                 <button
                   onClick={onMobileClose}
@@ -484,9 +495,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <aside id="tour-workspace-switcher" className={`w-56 sm:w-60 flex flex-col justify-between overflow-y-auto ${theme === 'light' ? 'bg-slate-50 text-slate-800 border-r border-slate-200' : 'bg-[#0D1520] text-slate-200'}`}>
             <div className="p-3 space-y-4">
               {/* Top Dropdown Header */}
-              <div className={`flex items-center justify-between px-2 py-1.5 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F]/60 border-[#233549]/60 text-white'}`}>
+              <div className={`flex items-center justify-between px-2.5 py-2 rounded-xl border ${theme === 'light' ? 'bg-white border-slate-200 text-slate-900 shadow-xs' : 'bg-[#16222F]/80 border-[#233549]/80 text-white'}`}>
                 <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <div className="w-6 h-6 rounded-lg bg-[#0773BB]/15 text-[#0773BB] shrink-0 flex items-center justify-center border border-[#0773BB]/30">
+                    <FolderKanban className="w-3.5 h-3.5" />
+                  </div>
                   <span className={`text-xs font-bold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Dolphin Spaces</span>
                 </div>
                 <button

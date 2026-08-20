@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { getCompanyByEmail } from '../../config/auth';
+import { DolphinLogo } from '../common/DolphinLogo';
 
 interface SessionTimeoutModalProps {
   secondsRemaining: number;
@@ -95,8 +96,8 @@ export const SessionTimeoutModal: React.FC<SessionTimeoutModalProps> = ({
         {/* User Account Info */}
         <div className="p-3.5 rounded-2xl bg-[#0D1520]/80 border border-[#233549] flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#0773BB]/20 border border-[#0773BB]/40 flex items-center justify-center text-lg font-bold text-[#3BC0BB]">
-              {companyInfo?.logo || '🏢'}
+            <div className="w-8 h-8 rounded-lg bg-[#0773BB]/20 text-[#3BC0BB] flex items-center justify-center border border-[#0773BB]/30 shrink-0">
+              <UserCheck className="w-4 h-4" />
             </div>
             <div>
               <div className="font-bold text-white text-xs">{currentUser.name}</div>
@@ -105,7 +106,7 @@ export const SessionTimeoutModal: React.FC<SessionTimeoutModalProps> = ({
           </div>
           <div className="text-right">
             <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] font-bold">
-              {companyInfo?.code || 'CORP'}
+              {companyInfo?.code || 'DOLPHIN'}
             </span>
           </div>
         </div>

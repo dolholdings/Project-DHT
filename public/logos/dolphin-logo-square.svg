@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 480" width="100%" height="100%">
+  <defs>
+    <clipPath id="squareBadgeClipSquare">
+      <rect x="10" y="10" width="380" height="380" rx="38" ry="38" />
+    </clipPath>
+    <linearGradient id="sqRedGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D92027" />
+      <stop offset="100%" stop-color="#B31218" />
+    </linearGradient>
+    <linearGradient id="sqSeaGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4DBBB3" />
+      <stop offset="100%" stop-color="#1E9B93" />
+    </linearGradient>
+    <linearGradient id="sqGlobeGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2F7FD4" />
+      <stop offset="100%" stop-color="#1B4D8A" />
+    </linearGradient>
+  </defs>
+
+  <!-- EMBLEM BADGE (TOP) -->
+  <g clip-path="url(#squareBadgeClipSquare)">
+    <rect x="10" y="10" width="380" height="380" fill="url(#sqRedGrad2)" />
+    <path d="M 390 85 L 390 390 L 10 390 L 10 345 Q 180 280 345 115 Z" fill="url(#sqSeaGrad2)" />
+    <path d="M 310 155 Q 335 125 365 140 Q 385 120 390 155 L 390 235 Q 360 205 330 225 Z" fill="#B2EBE6" opacity="0.85" />
+    <path d="M 10 365 Q 125 330 245 365 T 390 340 L 390 390 L 10 390 Z" fill="#0C756F" opacity="0.4" />
+    <path d="M 25 378 C 115 355 225 370 385 348" fill="none" stroke="#004D40" stroke-width="3" opacity="0.6" />
+    <path d="M 80 365 C 175 345 285 355 385 335" fill="none" stroke="#004D40" stroke-width="2.5" opacity="0.5" />
+  </g>
+
+  <!-- EMBLEM CYAN BORDER -->
+  <rect x="10" y="10" width="380" height="380" rx="38" ry="38" fill="none" stroke="#4DBBB3" stroke-width="4" opacity="0.9" />
+
+  <!-- GLOBE -->
+  <g id="sqGlobe2">
+    <ellipse cx="200" cy="245" rx="120" ry="74" fill="url(#sqGlobeGrad2)" stroke="#163C6D" stroke-width="3" />
+    <ellipse cx="200" cy="245" rx="120" ry="40" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <ellipse cx="200" cy="245" rx="120" ry="17" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <line x1="80" y1="245" x2="320" y2="245" stroke="#A3CBF9" stroke-width="2" opacity="0.9" />
+    <ellipse cx="200" cy="245" rx="76" ry="74" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <ellipse cx="200" cy="245" rx="38" ry="74" fill="none" stroke="#A3CBF9" stroke-width="1.6" opacity="0.85" />
+    <line x1="200" y1="171" x2="200" y2="319" stroke="#A3CBF9" stroke-width="2" opacity="0.9" />
+
+    <!-- Continents -->
+    <path d="M 115 210 Q 128 200 141 214 Q 136 227 123 231 Q 110 227 115 210 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 143 198 Q 152 195 156 202 Q 148 207 143 198 Z" fill="#DF9B5C" />
+    <path d="M 136 238 Q 149 242 146 262 Q 140 280 131 282 Q 127 266 132 248 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 179 203 Q 194 196 201 209 Q 194 218 183 215 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 180 221 Q 204 221 206 245 Q 200 276 191 280 Q 183 267 180 240 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 206 200 Q 246 191 268 213 Q 254 235 233 231 Q 220 222 206 215 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <path d="M 263 251 Q 282 249 280 265 Q 268 271 262 262 Z" fill="#DF9B5C" stroke="#C48850" stroke-width="0.8" />
+    <circle cx="253" cy="242" r="3" fill="#DF9B5C" />
+    <circle cx="261" cy="239" r="3.2" fill="#DF9B5C" />
+  </g>
+
+  <!-- DOLPHIN LEAPING OVER GLOBE -->
+  <g id="sqDolphin2">
+    <path d="M 45 344 C 47 276, 84 165, 158 122 C 213 92, 289 101, 319 143 C 335 164, 323 185, 301 187 C 255 191, 221 168, 178 189 C 132 212, 83 270, 60 348 Z" fill="#111827" stroke="#000000" stroke-width="2.5" />
+    <path d="M 314 138 C 339 148, 344 162, 319 171 C 310 168, 306 159, 310 147 Z" fill="#111827" />
+    <path d="M 225 106 C 234 72, 259 77, 265 100 C 250 101, 238 104, 225 106 Z" fill="#111827" />
+    <path d="M 213 172 C 234 185, 255 204, 238 210 C 221 207, 209 189, 213 172 Z" fill="#111827" />
+    <path d="M 49 331 C 29 326, 20 345, 31 354 C 47 350, 52 343, 57 339 Z" fill="#111827" />
+    <path d="M 55 346 C 49 359, 59 368, 74 361 C 68 351, 62 346, 55 346 Z" fill="#111827" />
+
+    <!-- White Belly -->
+    <path d="M 95 318 C 106 272, 143 221, 193 193 C 230 175, 273 183, 310 168 C 294 181, 260 188, 218 190 C 168 199, 122 254, 99 328 Z" fill="#FFFFFF" />
+    <path d="M 59 335 C 72 310, 84 323, 76 342 Z" fill="#FFFFFF" opacity="0.95" />
+
+    <!-- Eye and Smile -->
+    <ellipse cx="295" cy="140" rx="4" ry="7" fill="#FFFFFF" transform="rotate(-15 295 140)" />
+    <circle cx="296" cy="140" r="2.8" fill="#111827" />
+    <circle cx="297" cy="138" r="1.1" fill="#FFFFFF" />
+    <path d="M 297 154 Q 307 159 314 154" fill="none" stroke="#4DBBB3" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+
+  <!-- DOLPHIN WORDMARK (DOWN BELOW) -->
+  <text 
+    x="200" 
+    y="445" 
+    font-family="'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+    font-size="46" 
+    font-weight="900" 
+    letter-spacing="4" 
+    fill="#D72328" 
+    text-anchor="middle"
+  >
+    DOLPHIN
+  </text>
+</svg>

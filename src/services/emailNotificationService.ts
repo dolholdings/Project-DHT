@@ -1,4 +1,5 @@
 import { Task, Project, User } from '../types';
+import { isAbortError } from '../lib/errorUtils';
 
 export interface EmailNotificationPayload {
   toEmail: string;
@@ -79,7 +80,10 @@ export async function sendTransactionalEmail(payload: EmailNotificationPayload):
 
     return await res.json();
   } catch (err: any) {
-    console.warn('[EmailNotificationService] Send error, fallback active:', err.message);
+    if (isAbortError(err)) {
+      return { success: false, error: 'Request cancelled' };
+    }
+    console.warn('[EmailNotificationService] Send error, fallback active:', err?.message || err);
     return {
       success: true,
       messageId: `msg_fallback_${Date.now()}`,
@@ -115,9 +119,12 @@ export async function testEmailGatewayConnection(
     const data = await res.json();
     return data;
   } catch (err: any) {
+    if (isAbortError(err)) {
+      return { success: false, message: 'Request cancelled' };
+    }
     return {
       success: false,
-      message: err.message || 'Failed to reach backend email service',
+      message: err?.message || 'Failed to reach backend email service',
     };
   }
 }

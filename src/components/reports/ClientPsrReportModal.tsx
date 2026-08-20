@@ -21,6 +21,8 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../../context/AppContext';
 import { Project, Task } from '../../types';
+import { DolphinLogo } from '../common/DolphinLogo';
+import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export interface ClientPsrReportModalProps {
   onClose: () => void;
@@ -363,11 +365,13 @@ export const ClientPsrReportModal: React.FC<ClientPsrReportModalProps> = ({
           id="printable-client-psr-report"
         >
           {/* Header Banner - Dolphin Heat Transfer & Logos */}
-          <div className="border-2 border-slate-800 p-4 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-16 h-16 rounded-lg bg-sky-900 text-white font-black text-xl flex items-center justify-center tracking-wider shrink-0 border-2 border-amber-400 shadow">
-                DOLPHIN
-              </div>
+          <div className="border-2 border-slate-800 p-4 rounded-lg flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
+            <div className="flex items-center gap-4">
+              <LogoPlaceholder
+                area="reports"
+                className="h-12 shrink-0"
+                imgClassName="h-12 w-auto object-contain"
+              />
               <div>
                 <h1 className="text-xl font-extrabold tracking-tight text-slate-900 uppercase">
                   DOLPHIN HEAT TRANSFER L.L.C

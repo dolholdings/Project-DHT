@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { Menu } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
+import { LogoProvider } from './context/LogoContext';
+import { UserProvider } from './context/UserContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { ClickUpHeaderBanners } from './components/layout/ClickUpHeaderBanners';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -214,7 +216,11 @@ export default function App() {
   return (
     <ErrorBoundary fallbackTitle="Application Interface Error">
       <AppProvider>
-        <MainLayout />
+        <UserProvider>
+          <LogoProvider>
+            <MainLayout />
+          </LogoProvider>
+        </UserProvider>
       </AppProvider>
     </ErrorBoundary>
   );
