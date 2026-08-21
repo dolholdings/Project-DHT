@@ -28,7 +28,7 @@ export interface LogoSettings {
 export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   header: {
     path: '/logos/dolphin-logo-horizontal.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Group Header Logo',
     aspectRatio: 'horizontal',
     label: 'Top Header & Breadcrumb Bar',
@@ -36,7 +36,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   sidebar: {
     path: '/logos/dolphin-logo-emblem.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Sidebar Emblem',
     aspectRatio: 'emblem',
     label: 'Sidebar Navigation Dock',
@@ -44,7 +44,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   login: {
     path: '/logos/dolphin-logo-square.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Corporate Login Logo',
     aspectRatio: 'square',
     label: 'Login & Authentication Dialog',
@@ -52,7 +52,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   emailVerification: {
     path: '/logos/dolphin-logo-square.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Email Verification Logo',
     aspectRatio: 'square',
     label: 'Email Verification Gate',
@@ -60,7 +60,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   dashboard: {
     path: '/logos/dolphin-logo-square.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Dashboard Welcome Logo',
     aspectRatio: 'square',
     label: 'Dashboard Hero Banner',
@@ -68,7 +68,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   reports: {
     path: '/logos/dolphin-logo-horizontal.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Official Engineering Report Logo',
     aspectRatio: 'horizontal',
     label: 'Printable PSR Reports & Exports',
@@ -76,7 +76,7 @@ export const DEFAULT_LOGO_CONFIGS: Record<LogoArea, LogoAreaConfig> = {
   },
   general: {
     path: '/logos/dolphin-logo-square.svg',
-    enabled: false,
+    enabled: true,
     alt: 'Dolphin Master Logo',
     aspectRatio: 'square',
     label: 'General & Modal Fallbacks',
@@ -108,7 +108,7 @@ export interface LogoContextValue {
 }
 
 const defaultInitialSettings: LogoSettings = {
-  globalEnabled: false,
+  globalEnabled: true,
   showPlaceholderBorders: false,
   areas: DEFAULT_LOGO_CONFIGS,
   companyOverrides: {}
