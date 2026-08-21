@@ -79,10 +79,41 @@ export const AdminView: React.FC = () => {
     firebaseProjectId,
     theme,
     currentUser,
-    logActivity
+    logActivity,
+    setActiveTab: setGlobalTab
   } = useApp();
 
   const isLight = theme === 'light';
+
+  // Strict role-based guard: only Admin role can access Admin Portal and User Master governance
+  if (currentUser?.role !== 'Admin') {
+    return (
+      <div className={`p-4 sm:p-8 max-w-4xl mx-auto my-12 animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
+        <div className={`p-8 rounded-2xl border text-center shadow-xl ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+        }`}>
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 mx-auto flex items-center justify-center mb-5 shadow-inner">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+
+          <h2 className="text-2xl font-bold tracking-tight mb-2">
+            Access Restricted: Tenant Administrator Portal
+          </h2>
+
+          <p className={`text-sm max-w-lg mx-auto mb-6 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+            Your account is currently assigned the <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span> access role. Access to the Tenant Administrator Portal, user governance, password overrides, and master settings is strictly restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span>.
+          </p>
+
+          <button
+            onClick={() => setGlobalTab('dashboard')}
+            className="px-6 py-2.5 rounded-xl bg-[#00AEA9] hover:bg-[#009691] text-white font-bold text-sm transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            Return to Workspace Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'audit_logs' | 'usage' | 'security'>('users');
 

@@ -173,11 +173,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     companies,
     activeCompany,
     validateDomain,
-    authorizedDomains,
-    addAuthorizedDomain,
-    removeAuthorizedDomain,
-    inviteUser,
-    initializeUserInboxForUser,
     logActivity,
     setActiveTab: setActiveViewTab
   } = useApp();
@@ -186,31 +181,16 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
   const [activeTab, setActiveTab] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
-  const [authStep, setAuthStep] = useState<'email' | 'code'>('email');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [generatedCode, setGeneratedCode] = useState('');
-  const [emailSentNotice, setEmailSentNotice] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [newDomain, setNewDomain] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSentEmail, setResetSentEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [showPasswordComplexity, setShowPasswordComplexity] = useState(true);
-
-  // Protected Admin Authentication States
-  const [adminSecretKey, setAdminSecretKey] = useState('');
-  const [showAdminSecretField, setShowAdminSecretField] = useState(false);
-  const [showAdminSecretPwd, setShowAdminSecretPwd] = useState(false);
-
-  // Environment Variable for Protected Admin Authentication
-  const SECURE_ADMIN_KEY = import.meta.env.VITE_ADMIN_SECRET_KEY || 'DolphinAdmin2026!';
 
   // Domain & Company Recognition
   const domainValidation = email ? validateDomain(email) : null;
-
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const getDetectedCompany = (userEmail: string) => {
     if (!userEmail || !userEmail.includes('@')) return null;
@@ -230,76 +210,13 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
   const detectedCompany = getDetectedCompany(email);
 
-  const handleAdminAuthSubmit = (e?: React.FormEvent) => {
+  const handleDirectSignIn = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    const keyInput = adminSecretKey.trim();
-    if (!keyInput) {
-      setErrorMsg('Please enter the Protected Admin Secret Key.');
-      return;
-    }
-
-    if (keyInput === SECURE_ADMIN_KEY) {
-      const adminEmail = email.includes('@') ? email : 'admin@dolrad.ae';
-      const existingAdmin = users.find((u) => u.email.toLowerCase() === adminEmail.toLowerCase() || u.role === 'Admin');
-
-      const adminUser: User = existingAdmin
-        ? { ...existingAdmin, role: 'Admin', isEmailVerified: true }
-        : {
-            id: `usr-admin-${Date.now()}`,
-            name: 'Tenant Administrator',
-            email: adminEmail,
-            role: 'Admin',
-            companyId: companies[0]?.id || 'comp_corp',
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-            department: 'Executive Governance',
-            hourlyRate: 250,
-            maxWeeklyHours: 40,
-            status: 'Active',
-            isEmailVerified: true,
-          };
-
-      setCurrentUser(adminUser);
-      setIsAuthenticated(true);
-      if (setActiveViewTab) setActiveViewTab('admin');
-
-      logActivity(
-        'protected admin authenticated',
-        adminUser.email,
-        'auth',
-        undefined,
-        undefined,
-        `Admin authentication verified via secure environment variable VITE_ADMIN_SECRET_KEY for ${adminUser.email}`,
-        'warning'
-      );
-
-      setSuccessMsg('Protected Admin Key Validated! Directing to AdminView...');
-      setTimeout(() => {
-        onClose();
-      }, 600);
-    } else {
-      setErrorMsg('Invalid Admin Secret Key. Access denied to Admin View.');
-      logActivity(
-        'admin authentication failed',
-        email || 'unknown',
-        'auth',
-        undefined,
-        undefined,
-        'Failed protected admin secret key attempt',
-        'critical'
-      );
-    }
-  };
-
-  const handleDirectSignIn = (e?: React.FormEvent, selectedUserEmail?: string, selectedUserPassword?: string) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    const targetInput = (selectedUserEmail !== undefined ? selectedUserEmail : email).toLowerCase().trim();
-    const enteredPassword = (selectedUserPassword !== undefined ? selectedUserPassword : password).trim();
+    const targetInput = email.toLowerCase().trim();
+    const enteredPassword = password.trim();
 
     if (!targetInput) {
       setErrorMsg('Please enter your Username or registered Email address.');
@@ -308,22 +225,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
     if (!enteredPassword) {
       setErrorMsg('Password is required. Please enter your account password.');
-      return;
-    }
-
-    // Enforce password length and complexity policy to block weak password attempts
-    const pwdValidation = validatePasswordPolicy(enteredPassword);
-    if (!pwdValidation.isValid) {
-      setErrorMsg(`Unauthorized: Password does not meet the minimum corporate security policy (${pwdValidation.errors[0]}).`);
-      logActivity(
-        'failed login attempt - weak password rejected',
-        targetInput,
-        'auth',
-        undefined,
-        undefined,
-        `Rejected weak password sign-in attempt for account "${targetInput}"`,
-        'warning'
-      );
       return;
     }
 
@@ -341,7 +242,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       // fallback to state users
     }
 
-    // Match by email, name, username prefix, or common abbreviations
+    // Match strictly by email, username prefix, or full name in User Master
     const matchedUser = targetUsersList.find(
       (u) =>
         u.email.toLowerCase() === targetInput ||
@@ -352,7 +253,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     );
 
     if (!matchedUser) {
-      setErrorMsg(`Account not found for "${targetInput}". Only users registered by an Administrator can sign in. Please contact your Workspace Administrator.`);
+      setErrorMsg(`Account not found for "${targetInput}". Only users created in the User Master can log in. Please contact your Workspace Administrator.`);
       logActivity(
         'failed login attempt - unknown account',
         targetInput,
@@ -365,7 +266,22 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
-    // Resolve the strict valid password for this registered user
+    // Check account active status
+    if (matchedUser.status === 'On Leave' || (matchedUser as any).status === 'Suspended' || (matchedUser as any).status === 'Inactive') {
+      setErrorMsg('This account is deactivated or suspended. Please contact your Workspace Administrator.');
+      logActivity(
+        'failed login attempt - inactive account',
+        matchedUser.email,
+        'auth',
+        undefined,
+        undefined,
+        `Rejected login attempt for deactivated user account ${matchedUser.email}`,
+        'warning'
+      );
+      return;
+    }
+
+    // Resolve the strict valid password configured for this user in User Master
     let validPassword = matchedUser.password?.trim();
     if (!validPassword) {
       if (matchedUser.email.toLowerCase() === 'admin@dolrad.ae') {
@@ -379,11 +295,11 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       }
     }
 
-    // Check if entered password strictly matches
+    // Check if entered password strictly matches User Master password
     const isPasswordCorrect = validPassword ? (enteredPassword === validPassword) : false;
 
     if (!isPasswordCorrect) {
-      setErrorMsg('Incorrect password! Please enter the valid password configured for this account.');
+      setErrorMsg('Incorrect password! Please enter the exact password configured for this user in the User Master.');
       logActivity(
         'failed login attempt - wrong password',
         matchedUser.email,
@@ -396,13 +312,20 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
-    // Password validated successfully!
-    const verifiedUser = { ...matchedUser, isEmailVerified: true };
+    // Authentication verified! Role is automatically determined strictly from User Master record
+    const verifiedUser: User = {
+      ...matchedUser,
+      isEmailVerified: true
+    };
+
     setCurrentUser(verifiedUser);
     setIsAuthenticated(true);
 
-    if (verifiedUser.role === 'Admin' && setActiveViewTab) {
-      setActiveViewTab('admin');
+    // If user is explicitly an Admin in the User Master, they have admin privileges
+    if (verifiedUser.role === 'Admin') {
+      if (setActiveViewTab) setActiveViewTab('admin');
+    } else {
+      if (setActiveViewTab) setActiveViewTab('dashboard');
     }
 
     logActivity(
@@ -411,22 +334,14 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       'auth',
       undefined,
       undefined,
-      `User ${matchedUser.name} (${matchedUser.role}) signed in successfully`,
+      `User ${matchedUser.name} authenticated successfully with auto-determined role: ${matchedUser.role}`,
       'info'
     );
-    setSuccessMsg(`Welcome back, ${matchedUser.name} (${matchedUser.role})!`);
+
+    setSuccessMsg(`Welcome back, ${matchedUser.name}! Role assigned: ${matchedUser.role}`);
     setTimeout(() => {
       onClose();
     }, 450);
-  };
-
-  const handleAddDomain = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newDomain) return;
-    addAuthorizedDomain(newDomain);
-    setNewDomain('');
-    setSuccessMsg(`Domain @${newDomain.toLowerCase().trim().replace(/^@/, '')} added to authorized whitelist.`);
-    setTimeout(() => setSuccessMsg(''), 2500);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -692,92 +607,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                   </button>
                 </div>
               </form>
-
-              {/* Quick Role Preset Credentials Tester */}
-              <div className={`p-3 rounded-xl border mt-3 space-y-2 text-[11px] ${
-                isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-300'
-              }`}>
-                <div className="flex items-center justify-between font-bold text-slate-400 uppercase tracking-wider text-[10px]">
-                  <span className="flex items-center gap-1.5 text-[#3BC0BB]">
-                    <Shield className="w-3 h-3" />
-                    Quick Role Sign-In Presets
-                  </span>
-                  <span>Click to autofill</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@dolrad.ae');
-                      setPassword('Admin@dolrad2026!');
-                      setErrorMsg('');
-                    }}
-                    className={`p-2 rounded-lg border text-left transition-all hover:border-[#0773BB] ${
-                      isLight ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-[#16222F]/80 border-[#233549] hover:bg-[#16222F]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold text-xs text-rose-400">
-                      <span>Admin</span>
-                      <span className="text-[9px] px-1 rounded bg-rose-500/20 text-rose-300">Full</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-400 truncate">admin@dolrad.ae</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('proj.mgr@dolheat.ae');
-                      setPassword('Dht@pm2026!');
-                      setErrorMsg('');
-                    }}
-                    className={`p-2 rounded-lg border text-left transition-all hover:border-[#0773BB] ${
-                      isLight ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-[#16222F]/80 border-[#233549] hover:bg-[#16222F]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold text-xs text-amber-400">
-                      <span>Project Manager</span>
-                      <span className="text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">Spaces</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-400 truncate">proj.mgr@dolheat.ae</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('member@dolcool.ae');
-                      setPassword('Member@dolcool2026!');
-                      setErrorMsg('');
-                    }}
-                    className={`p-2 rounded-lg border text-left transition-all hover:border-[#0773BB] ${
-                      isLight ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-[#16222F]/80 border-[#233549] hover:bg-[#16222F]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold text-xs text-teal-400">
-                      <span>Team Member</span>
-                      <span className="text-[9px] px-1 rounded bg-teal-500/20 text-teal-300">Restricted</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-400 truncate">member@dolcool.ae</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('viewer@dolphingroup.ae');
-                      setPassword('Viewer@corp2026!');
-                      setErrorMsg('');
-                    }}
-                    className={`p-2 rounded-lg border text-left transition-all hover:border-[#0773BB] ${
-                      isLight ? 'bg-white border-slate-200 hover:bg-slate-50' : 'bg-[#16222F]/80 border-[#233549] hover:bg-[#16222F]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between font-bold text-xs text-sky-400">
-                      <span>Viewer</span>
-                      <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-300">Read-only</span>
-                    </div>
-                    <div className="font-mono text-[10px] text-slate-400 truncate">viewer@dolphingroup.ae</div>
-                  </button>
-                </div>
-              </div>
             </motion.div>
           )}
 
