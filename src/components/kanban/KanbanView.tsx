@@ -1,10 +1,25 @@
 import React, { useState, useMemo } from 'react';
-import { Columns, Plus, GripVertical, Move, Printer, ArrowUpDown, Pencil, Check, X } from 'lucide-react';
+import {
+  Columns,
+  Plus,
+  GripVertical,
+  Move,
+  Printer,
+  ArrowUpDown,
+  Pencil,
+  Check,
+  X,
+  Calendar,
+  ListTodo,
+  AlignLeft,
+  CheckSquare,
+  Sparkles
+} from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { TaskStatus, Task, Priority } from '../../types';
-import { TaskQuickPreviewPopover } from '../tasks/TaskQuickPreviewPopover';
+import { PriorityPicker } from '../tasks/PriorityPicker';
+import { ClickUpTaskDetailModal } from '../tasks/ClickUpTaskDetailModal';
 import { DolphinTooltip } from '../common/DolphinTooltip';
-import { PriorityBadge } from '../common/PriorityBadge';
 import { getAccessibleTasks, getAccessibleProjects } from '../../lib/permissions';
 import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
@@ -36,6 +51,7 @@ const PRIORITY_RANK: Record<Priority, number> = {
 export const KanbanView: React.FC = () => {
   const {
     tasks,
+    subtasks,
     addTask,
     updateTask,
     reorderTasks,
@@ -52,11 +68,18 @@ export const KanbanView: React.FC = () => {
     currentUser
   } = useApp();
 
-  const [sortByPriority, setSortByPriority] = useState(true);
+  const isLight = theme === 'light';
+
+  // Task detail drawer/modal state
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Quick inline add task per column
+  const [activeQuickAddStatus, setActiveQuickAddStatus] = useState<TaskStatus | null>(null);
+  const [quickAddTitle, setQuickAddTitle] = useState<string>('');
+
+  const [sortByPriority, setSortByPriority] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
-  const [editingDescTaskId, setEditingDescTaskId] = useState<string | null>(null);
-  const [editingDescValue, setEditingDescValue] = useState<string>('');
 
   // HTML5 Drag-and-Drop state
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -69,22 +92,35 @@ export const KanbanView: React.FC = () => {
 
   const statuses: TaskStatus[] = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
 
-  const handleCreateDefaultTask = (status: TaskStatus = 'To Do') => {
-    addTask({
+  const handleCreateDefaultTask = (status: TaskStatus = 'To Do', customTitle?: string) => {
+    const newTask = addTask({
       projectId: selectedProjectId || projects[0]?.id || 'proj_1',
       companyId: activeCompany?.id || 'comp_1',
-      title: 'New Deliverable Task',
-      description: 'Defined via Kanban board quick-action',
+      title: customTitle || 'New Deliverable Task',
+      description: 'Defined via ClickUp Board view',
       status,
       priority: 'High',
       assigneeIds: [currentUser?.id || 'usr_pk'],
       reporterId: currentUser?.id || 'usr_1',
       startDate: new Date().toISOString().split('T')[0],
       dueDate: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
-      estimatedHours: 16,
-      tags: ['Kanban', 'Deliverable'],
+      estimatedHours: 8,
+      tags: ['Board', 'Task'],
       listName: selectedListFilter || undefined
     });
+    
+    // Automatically select the newly created task to open its details
+    if (newTask && newTask.id) {
+      setSelectedTaskId(newTask.id);
+    }
+  };
+
+  const handleQuickAddSubmit = (status: TaskStatus) => {
+    if (quickAddTitle.trim()) {
+      handleCreateDefaultTask(status, quickAddTitle.trim());
+      setQuickAddTitle('');
+      setActiveQuickAddStatus(null);
+    }
   };
 
   const accessibleProjects = useMemo(() => {
@@ -264,13 +300,13 @@ export const KanbanView: React.FC = () => {
   };
 
   return (
-    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in kanban-print-wrapper ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
+    <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1750px] mx-auto animate-in fade-in kanban-print-wrapper ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>
       {/* Executive Print Report Header for A4 Landscape PDF Export */}
       <div className="hidden print:block mb-6 p-5 border-b-2 border-slate-900 bg-white text-slate-900 rounded-none print-executive-header">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs font-mono font-bold tracking-wider text-slate-600 uppercase">
-              {activeCompany?.name || 'DOLPHIN INDUSTRIAL PROJECTS'} — KANBAN WORKFLOW REPORT
+              {activeCompany?.name || 'DOLPHIN INDUSTRIAL PROJECTS'} — CLICKUP BOARD WORKFLOW REPORT
             </div>
             <h1 className="text-2xl font-bold text-slate-900 mt-1">
               Agile Task Stage Matrix & Work-In-Progress Board
@@ -289,15 +325,15 @@ export const KanbanView: React.FC = () => {
         </div>
       </div>
 
-      {/* Header */}
+      {/* Top Header Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className={`text-2xl font-bold tracking-tight flex items-center gap-2 ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
             <Columns className="w-6 h-6 text-[#3BC0BB]" />
-            <span>Agile Kanban Board</span>
+            <span>ClickUp Board View</span>
           </h1>
           <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-            Seamless HTML5 drag-and-drop workflow columns for effortless task stage transitions and reordering.
+            Click on any task card to open the full task inspector drawer. Drag cards across columns to update workflow status.
           </p>
         </div>
 
@@ -313,37 +349,47 @@ export const KanbanView: React.FC = () => {
           <button
             type="button"
             onClick={() => setSortByPriority(!sortByPriority)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer ${
               sortByPriority
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                : 'bg-slate-700/60 text-slate-300 border-slate-600/60 hover:bg-slate-700'
+                : theme === 'light'
+                ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                : 'bg-[#16222F] text-slate-300 border-[#233549] hover:bg-[#1f2f40]'
             }`}
-            title="Toggle ordering tasks inside Kanban columns by Priority (Urgent > High > Medium > Low)"
+            title="Toggle ordering tasks inside Kanban columns by Priority"
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-amber-400" />
-            <span>Priority Order: {sortByPriority ? 'ON' : 'OFF'}</span>
+            <span>Sort Priority: {sortByPriority ? 'ON' : 'OFF'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 border border-slate-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+            onClick={() => {
+              try {
+                window.print();
+              } catch (_) {}
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer ${
+              theme === 'light'
+                ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                : 'bg-[#16222F] border-[#233549] text-white hover:bg-[#1f2f40]'
+            }`}
             title="Export formatted A4 Landscape Executive Report PDF"
           >
-            <Printer className="w-3.5 h-3.5 text-cyan-300" />
-            <span>Print Executive PDF (A4)</span>
+            <Printer className="w-3.5 h-3.5 text-[#3BC0BB]" />
+            <span>Print PDF</span>
           </button>
 
           <DolphinTooltip
-            title="Interactive Reordering"
-            badge="HTML5 Drag & Drop"
-            content="Drag any task card up or down to reorder priority within a column, or drop into another column to transition workflow status."
+            title="Click to Open Task"
+            badge="Full Detail Modal"
+            content="Click on any task card in the board to view and edit its complete details, assignees, subtasks, custom fields, dependencies, and time tracking."
             position="bottom"
             variant="glass"
           >
             <span className="px-3 py-1 rounded-full bg-[#0773BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-mono flex items-center gap-1.5 cursor-help">
-              <Move className="w-3.5 h-3.5 text-[#3BC0BB]" />
-              <span>HTML5 Drag & Drop Enabled</span>
+              <Sparkles className="w-3.5 h-3.5 text-[#3BC0BB]" />
+              <span>Click Card to Open</span>
             </span>
           </DolphinTooltip>
         </div>
@@ -388,21 +434,21 @@ export const KanbanView: React.FC = () => {
                 onDragOver={(e) => handleDragOverColumn(e, status)}
                 onDragLeave={(e) => handleDragLeaveColumn(e, status)}
                 onDrop={(e) => handleDrop(e, status)}
-                className={`p-4 rounded-2xl border flex flex-col h-[680px] space-y-3 shadow-md transition-all duration-150 kanban-column ${getStatusHeaderAccent(
+                className={`p-3.5 rounded-2xl border flex flex-col min-h-[640px] max-h-[calc(100vh-220px)] space-y-3 shadow-sm transition-all duration-150 kanban-column ${getStatusHeaderAccent(
                   status
                 )} ${
                   isColumnHovered
                     ? theme === 'light'
-                      ? 'bg-[#0773BB]/15 border-[#0773BB] ring-2 ring-[#0773BB]/40 shadow-lg'
-                      : 'bg-[#0773BB]/25 border-[#3BC0BB] ring-2 ring-[#3BC0BB]/50 shadow-xl'
+                      ? 'bg-[#0773BB]/10 border-[#0773BB] ring-2 ring-[#0773BB]/30 shadow-md'
+                      : 'bg-[#0773BB]/20 border-[#3BC0BB] ring-2 ring-[#3BC0BB]/40 shadow-lg'
                     : theme === 'light'
-                    ? 'bg-slate-100/90 border-slate-200'
-                    : 'bg-[#16222F]/80 backdrop-blur-md border-[#233549]'
+                    ? 'bg-[#F8FAFC] border-slate-200'
+                    : 'bg-[#121B26] border-[#233549]'
                 }`}
               >
-                {/* Column Header */}
-                <div className={`flex items-center justify-between border-b pb-3 kanban-column-header ${
-                  theme === 'light' ? 'border-slate-300' : 'border-[#233549]'
+                {/* ClickUp Column Header */}
+                <div className={`flex items-center justify-between pb-2 border-b kanban-column-header ${
+                  theme === 'light' ? 'border-slate-200' : 'border-[#233549]'
                 }`}>
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full ${getStatusDotColor(status)}`}></span>
@@ -412,51 +458,107 @@ export const KanbanView: React.FC = () => {
                       {status}
                     </h3>
                   </div>
-                  <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border kanban-column-badge ${getStatusBadgeStyle(
-                    status,
-                    theme === 'light'
-                  )}`}>
-                    {colTasks.length}
-                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full border kanban-column-badge ${getStatusBadgeStyle(
+                      status,
+                      theme === 'light'
+                    )}`}>
+                      {colTasks.length}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveQuickAddStatus(activeQuickAddStatus === status ? null : status);
+                        setQuickAddTitle('');
+                      }}
+                      className={`p-1 rounded-lg border transition-colors ${
+                        theme === 'light'
+                          ? 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                          : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white hover:bg-[#1f2f40]'
+                      }`}
+                      title={`Quick add task to ${status}`}
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
+                {/* Inline Quick Add Task Input */}
+                {activeQuickAddStatus === status && (
+                  <div className={`p-2.5 rounded-xl border space-y-2 animate-in fade-in ${
+                    isLight ? 'bg-white border-[#0D9488]/40 shadow-xs' : 'bg-[#16222F] border-[#3BC0BB]/40 shadow-md'
+                  }`}>
+                    <input
+                      type="text"
+                      placeholder="What needs to be done?..."
+                      value={quickAddTitle}
+                      onChange={(e) => setQuickAddTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleQuickAddSubmit(status);
+                        if (e.key === 'Escape') setActiveQuickAddStatus(null);
+                      }}
+                      autoFocus
+                      className={`w-full text-xs rounded-lg px-2.5 py-1.5 border focus:outline-none ${
+                        isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
+                      }`}
+                    />
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveQuickAddStatus(null)}
+                        className="px-2 py-1 text-[10px] font-semibold text-slate-400 hover:text-slate-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAddSubmit(status)}
+                        disabled={!quickAddTitle.trim()}
+                        className="px-2.5 py-1 rounded-lg bg-[#0D9488] text-white font-bold text-[10px] disabled:opacity-50"
+                      >
+                        Save Task
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Column Droppable Area */}
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1 rounded-xl p-1 kanban-column-droppable">
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 rounded-xl kanban-column-droppable">
                   {colTasks.length === 0 ? (
-                    <div className={`h-full min-h-[180px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 text-center transition-all ${
+                    <div className={`h-full min-h-[140px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-4 text-center transition-all ${
                       isColumnHovered
-                        ? 'border-[#3BC0BB] bg-[#0773BB]/20 text-[#3BC0BB]'
+                        ? 'border-[#3BC0BB] bg-[#0773BB]/10 text-[#3BC0BB]'
                         : theme === 'light'
-                        ? 'border-slate-300 bg-slate-50/60 text-slate-500'
-                        : 'border-[#233549] bg-[#0D1520]/40 text-slate-400'
+                        ? 'border-slate-200 bg-white/60 text-slate-400'
+                        : 'border-[#233549]/60 bg-[#0D1520]/30 text-slate-500'
                     }`}>
                       <p className="text-xs font-bold mb-1">No {status} Tasks</p>
-                      <p className="text-[10px] text-slate-500 mb-3">Drop task cards here or create a deliverable.</p>
+                      <p className="text-[10px] text-slate-500 mb-2.5">Drag cards here or create new task.</p>
                       <button
                         type="button"
                         onClick={() => handleCreateDefaultTask(status)}
-                        className="px-3 py-1.5 rounded-lg bg-[#0773BB]/20 hover:bg-[#0773BB] text-[#3BC0BB] hover:text-white border border-[#3BC0BB]/30 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-[#0773BB]/15 hover:bg-[#0773BB]/30 text-[#3BC0BB] border border-[#3BC0BB]/30 text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add to {status}</span>
+                        <Plus className="w-3 h-3" />
+                        <span>+ Add Task</span>
                       </button>
                     </div>
                   ) : (
                     colTasks.map((task, index) => {
-                      const assignee = users.find((u) => task.assigneeIds.includes(u.id));
-
-                      const priorityCardBorder =
-                        task.priority === 'Urgent'
-                          ? 'border-l-4 border-l-rose-500 shadow-rose-500/10'
-                          : task.priority === 'High'
-                          ? 'border-l-4 border-l-amber-500 shadow-amber-500/10'
-                          : task.priority === 'Medium'
-                          ? 'border-l-4 border-l-sky-500'
-                          : 'border-l-4 border-l-slate-600';
+                      const taskAssignees = users.filter((u) => task.assigneeIds.includes(u.id));
+                      const taskSubtasks = subtasks.filter((s) => s.taskId === task.id);
+                      const completedSubtasks = taskSubtasks.filter((s) => s.completed).length;
 
                       const isDragging = draggedTaskId === task.id;
                       const isDropTargetCard =
                         dragOverCardInfo?.status === status && dragOverCardInfo?.index === index;
+
+                      const isOverdue =
+                        task.dueDate &&
+                        new Date(task.dueDate).getTime() < new Date().setHours(0, 0, 0, 0) &&
+                        task.status !== 'Done';
 
                       return (
                         <div
@@ -466,12 +568,13 @@ export const KanbanView: React.FC = () => {
                           onDragEnd={handleDragEnd}
                           onDragOver={(e) => handleDragOverCard(e, status, index)}
                           onDrop={(e) => handleDrop(e, status)}
-                          className={`relative p-4 rounded-xl border transition-all space-y-3 group shadow-md kanban-task-card cursor-grab active:cursor-grabbing ${priorityCardBorder} ${
+                          onClick={() => setSelectedTaskId(task.id)}
+                          className={`relative p-3.5 rounded-xl border transition-all space-y-2.5 group shadow-xs kanban-task-card cursor-pointer ${
                             isDragging
                               ? 'opacity-40 border-dashed border-[#3BC0BB] bg-slate-800/40 scale-95'
-                              : theme === 'light'
-                              ? 'bg-white border-slate-200 hover:border-[#0773BB]'
-                              : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]'
+                              : isLight
+                              ? 'bg-white border-slate-200 hover:border-[#0D9488] hover:shadow-md hover:-translate-y-0.5'
+                              : 'bg-[#16222F] border-[#233549] hover:border-[#3BC0BB] hover:shadow-md hover:-translate-y-0.5'
                           }`}
                         >
                           {/* HTML5 Drop Insertion Line Indicator */}
@@ -483,185 +586,120 @@ export const KanbanView: React.FC = () => {
                             />
                           )}
 
-                          <div className="flex items-center justify-between gap-1">
-                            <div className="flex items-center gap-1.5">
-                              <DolphinTooltip
-                                title="Reorder Task"
-                                badge="HTML5 Drag"
-                                content="Drag card to reorder task priority within column or drop into a different column to update status."
-                                position="top"
-                                variant="glass"
-                              >
-                                <div className="text-slate-400 group-hover:text-white p-0.5 rounded hover:bg-[#233549] transition-colors drag-handle no-print">
-                                  <GripVertical className="w-4 h-4" />
-                                </div>
-                              </DolphinTooltip>
+                          {/* Card Top: List Name Badge & Drag Handle */}
+                          <div className="flex items-center justify-between gap-1.5 text-[10px]">
+                            {task.listName ? (
+                              <span className="px-2 py-0.5 rounded-md bg-[#7B68EE]/10 text-[#7B68EE] border border-[#7B68EE]/20 font-bold font-mono truncate max-w-[140px]">
+                                {task.listName}
+                              </span>
+                            ) : (
+                              <span className="font-mono text-slate-400">
+                                #{task.id.slice(-5).toUpperCase()}
+                              </span>
+                            )}
 
-                              <div onDragStart={(e) => e.stopPropagation()} draggable={false}>
-                                <PriorityBadge
-                                  priority={task.priority}
-                                  onChange={(newPriority) =>
-                                    updateTask(task.id, {
-                                      priority: newPriority,
-                                    })
-                                  }
-                                  interactive
-                                  size="sm"
-                                />
-                              </div>
-                            </div>
-
-                            <select
-                              value={normalizeTaskStatus(task.status)}
+                            <div
+                              className="text-slate-400 group-hover:text-slate-200 p-0.5 rounded hover:bg-[#233549] transition-colors drag-handle cursor-grab active:cursor-grabbing no-print"
                               onDragStart={(e) => e.stopPropagation()}
-                              onChange={(e) =>
-                                updateTask(task.id, {
-                                  status: e.target.value as TaskStatus,
-                                })
-                              }
-                              className={`text-[10px] font-extrabold rounded-md border px-2 py-0.5 cursor-pointer transition-all no-print ${getStatusBadgeStyle(
-                                task.status,
-                                theme === 'light'
-                              )}`}
+                              title="Drag to reorder or move column"
                             >
-                              {statuses.map((s) => (
-                                <option
-                                  key={s}
-                                  value={s}
-                                  className={theme === 'light' ? 'bg-white text-slate-900 font-medium' : 'bg-[#0D1520] text-slate-200 font-medium'}
-                                >
-                                  Move to {s}
-                                </option>
-                              ))}
-                            </select>
+                              <GripVertical className="w-3.5 h-3.5" />
+                            </div>
                           </div>
 
-                          <TaskQuickPreviewPopover task={task}>
-                            <h4 className={`text-xs font-bold transition-colors cursor-pointer kanban-task-title ${
+                          {/* Task Title */}
+                          <h4
+                            className={`text-xs font-bold leading-snug tracking-tight transition-colors kanban-task-title ${
                               isDragging
                                 ? 'text-white'
-                                : theme === 'light'
+                                : isLight
                                 ? 'text-slate-900 group-hover:text-[#0D9488]'
-                                : 'text-white group-hover:text-[#3BC0BB]'
-                            }`}>
-                              {getDisplayTaskTitle(task)}
-                            </h4>
+                                : 'text-slate-100 group-hover:text-[#3BC0BB]'
+                            }`}
+                          >
+                            {getDisplayTaskTitle(task)}
+                          </h4>
 
-                            {/* Editable Task Description */}
-                            {editingDescTaskId === task.id ? (
-                              <div
-                                className="flex items-center gap-1 mt-1.5"
-                                onClick={(e) => e.stopPropagation()}
-                                onDragStart={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="text"
-                                  value={editingDescValue}
-                                  onChange={(e) => setEditingDescValue(e.target.value)}
-                                  placeholder="Enter task description..."
-                                  autoFocus
-                                  className="px-2 py-0.5 text-[11px] rounded bg-[#0D1520] border border-[#3BC0BB] text-slate-100 focus:outline-none w-full font-sans"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      updateTask(task.id, { description: editingDescValue.trim() });
-                                      setEditingDescTaskId(null);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingDescTaskId(null);
-                                    }
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    updateTask(task.id, { description: editingDescValue.trim() });
-                                    setEditingDescTaskId(null);
-                                  }}
-                                  className="p-1 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 shrink-0"
-                                  title="Save description"
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingDescTaskId(null)}
-                                  className="p-1 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-between gap-1 group/kdesc mt-1">
-                                <p className={`text-[11px] line-clamp-2 ${
-                                  isDragging
-                                    ? 'text-slate-100'
-                                    : theme === 'light'
-                                    ? 'text-slate-600'
-                                    : 'text-slate-400'
-                                }`}>
-                                  {getTaskSubtext(task) || <span className="italic text-slate-500 text-[10px]">+ Add description...</span>}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingDescTaskId(task.id);
-                                    setEditingDescValue(getTaskSubtext(task) || (task.description && !/^imported from csv/i.test(task.description) ? task.description : ''));
-                                  }}
-                                  className="p-0.5 text-slate-500 hover:text-[#3BC0BB] opacity-0 group-hover/kdesc:opacity-100 transition-opacity shrink-0"
-                                  title="Edit task description"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </button>
-                              </div>
-                            )}
-                          </TaskQuickPreviewPopover>
+                          {/* Description Snippet indicator if available */}
+                          {task.description && (
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                              <AlignLeft className="w-3 h-3 text-slate-400 shrink-0" />
+                              <p className="truncate text-[10px] text-slate-500">
+                                {task.description}
+                              </p>
+                            </div>
+                          )}
 
-                          <div className={`flex items-center justify-between pt-2 border-t text-[10px] font-mono kanban-task-footer ${
-                            isDragging
-                              ? 'border-white/20 text-slate-200'
-                              : theme === 'light'
-                              ? 'border-slate-200 text-slate-500'
-                              : 'border-[#233549] text-slate-400'
-                          }`}>
-                            <div className="flex items-center gap-1.5" onDragStart={(e) => e.stopPropagation()}>
-                              {assignee && (
-                                <img
-                                  src={assignee.avatar}
-                                  alt={assignee.name}
-                                  className="w-5 h-5 rounded-full object-cover ring-1 ring-[#0773BB] shrink-0"
-                                />
-                              )}
-                              <span className="hidden print:inline-block font-sans text-[10px] font-semibold text-slate-800">
-                                {assignee ? assignee.name : 'Unassigned'}
+                          {/* Subtasks Count Pill (if any) */}
+                          {taskSubtasks.length > 0 && (
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#7B68EE]/10 text-[#7B68EE] border border-[#7B68EE]/20 text-[10px] font-bold font-mono">
+                                <ListTodo className="w-3 h-3" />
+                                <span>
+                                  {completedSubtasks}/{taskSubtasks.length} subtasks
+                                </span>
                               </span>
-                              <select
-                                value={task.assigneeIds[0] || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (val) {
-                                    updateTask(task.id, { assigneeIds: [val] });
-                                  }
-                                }}
-                                className="bg-[#16222F] text-[10px] text-slate-300 rounded border border-[#233549] px-1 py-0.5 focus:outline-none focus:border-[#3BC0BB] no-print"
-                              >
-                                <option value="">Unassigned</option>
-                                {users.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.name}
-                                  </option>
-                                ))}
-                              </select>
+                            </div>
+                          )}
+
+                          {/* Card Footer: Assignees, Due Date, Priority Flag */}
+                          <div
+                            className={`flex items-center justify-between pt-2 border-t text-[10px] kanban-task-footer ${
+                              isDragging
+                                ? 'border-white/20 text-slate-200'
+                                : isLight
+                                ? 'border-slate-100 text-slate-500'
+                                : 'border-[#233549] text-slate-400'
+                            }`}
+                          >
+                            {/* Assignee Avatar Stack */}
+                            <div className="flex items-center -space-x-1.5 overflow-hidden">
+                              {taskAssignees.length > 0 ? (
+                                taskAssignees.slice(0, 3).map((u) => (
+                                  <div
+                                    key={u.id}
+                                    className="w-5 h-5 rounded-full ring-1 ring-[#0D9488] bg-[#0773BB] text-white flex items-center justify-center text-[9px] font-bold overflow-hidden shrink-0"
+                                    title={u.name}
+                                  >
+                                    {u.avatar ? (
+                                      <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      u.name.slice(0, 2).toUpperCase()
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">Unassigned</span>
+                              )}
+                              {taskAssignees.length > 3 && (
+                                <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[8px] font-bold flex items-center justify-center">
+                                  +{taskAssignees.length - 3}
+                                </span>
+                              )}
                             </div>
 
-                            <div className="no-print" onDragStart={(e) => e.stopPropagation()}>
-                              <input
-                                type="date"
-                                value={task.dueDate || ''}
-                                onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
-                                className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#16222F] text-rose-300 font-bold font-mono text-[10px] rounded px-1 py-0.5 cursor-pointer focus:outline-none transition-colors"
-                                title="Click to edit due date"
-                              />
+                            {/* Due Date & Priority Flag */}
+                            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              {task.dueDate && (
+                                <span
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] font-bold border ${
+                                    isOverdue
+                                      ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
+                                      : isLight
+                                      ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                      : 'bg-[#0D1520] text-slate-300 border-[#233549]'
+                                  }`}
+                                  title={`Due date: ${task.dueDate}`}
+                                >
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  <span>{task.dueDate.split('-').slice(1).join('/')}</span>
+                                </span>
+                              )}
+
+                              {/* Priority Picker Interactive Flag */}
+                              <div onDragStart={(e) => e.stopPropagation()} draggable={false}>
+                                <PriorityPicker task={task} compact={true} />
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -669,11 +707,34 @@ export const KanbanView: React.FC = () => {
                     })
                   )}
                 </div>
+
+                {/* Bottom Quick Add Action */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveQuickAddStatus(status);
+                    setQuickAddTitle('');
+                  }}
+                  className={`w-full py-1.5 rounded-xl border border-dashed text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                    isLight
+                      ? 'border-slate-300 text-slate-600 hover:bg-slate-100 hover:border-slate-400'
+                      : 'border-[#233549] text-slate-400 hover:bg-[#16222F] hover:text-slate-200 hover:border-[#3BC0BB]/40'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Task</span>
+                </button>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* ClickUp Task Detail Modal / Inspector Drawer */}
+      <ClickUpTaskDetailModal
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+      />
 
       {/* CSV Import Modal */}
       {showCsvImportModal && (
@@ -685,3 +746,4 @@ export const KanbanView: React.FC = () => {
     </div>
   );
 };
+

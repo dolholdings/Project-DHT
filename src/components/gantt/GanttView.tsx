@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   GanttChart,
   Calendar,
@@ -6,6 +6,7 @@ import {
   ZoomOut,
   Filter,
   ChevronRight,
+  ChevronDown,
   AlertCircle,
   RefreshCw,
   Plus,
@@ -26,20 +27,51 @@ import {
   Trash2,
   Eye,
   Zap,
-  HelpCircle
+  HelpCircle,
+  Search,
+  Check,
+  Flag,
+  User,
+  Users,
+  Maximize2,
+  Download,
+  MoreHorizontal,
+  Settings,
+  DollarSign,
+  Columns,
+  PanelLeftClose,
+  PanelLeftOpen,
+  List as ListIcon,
+  Folder,
+  Layers,
+  Clock,
+  Sparkles,
+  ChevronLeft
 } from 'lucide-react';
-import * as d3 from 'd3';
 import { useApp } from '../../context/AppContext';
-import { Task } from '../../types';
+import { Task, Project } from '../../types';
 import { EmptyStateCard } from '../common/EmptyStateCard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { CriticalPathBanner } from './CriticalPathBanner';
+import { ClickUpTaskDetailModal } from '../tasks/ClickUpTaskDetailModal';
+
+type ZoomMode = 'day' | '4days' | 'week' | 'month' | 'year';
 
 interface DragState {
   isDragging: boolean;
   sourceTaskId: string | null;
   startPos: { x: number; y: number } | null;
   currentPos: { x: number; y: number } | null;
+}
+
+interface TaskBarDragState {
+  isDragging: boolean;
+  taskId: string | null;
+  mode: 'move' | 'resize-start' | 'resize-end';
+  startScreenX: number;
+  initialStart: string;
+  initialDue: string;
+  previewDaysDelta: number;
 }
 
 export const GanttView: React.FC = () => {
@@ -54,72 +86,73 @@ export const GanttView: React.FC = () => {
     removeDependency,
     recalculateProjectTimeline,
     updateTask,
-    seedDemoTasksForProject,
     searchQuery,
     setSearchQuery,
+    selectedProjectId: globalProjectId,
+    setSelectedProjectId: setGlobalProjectId,
     selectedListFilter,
     setSelectedListFilter,
     currentUser,
     theme
   } = useApp();
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects[0]?.id || 'proj_1');
-  const [zoomLevel, setZoomLevel] = useState<'weeks' | 'months'>('weeks');
+  const isLight = theme === 'light';
+
+  // Selected Space / Project
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    globalProjectId && globalProjectId !== 'all' ? globalProjectId : projects[0]?.id || 'proj_1'
+  );
+
+  useEffect(() => {
+    if (globalProjectId && globalProjectId !== 'all') {
+      setSelectedProjectId(globalProjectId);
+    }
+  }, [globalProjectId]);
+
+  // View & Layout State
+  const [zoomMode, setZoomMode] = useState<ZoomMode>('week');
+  const [showLeftSidebar, setShowLeftSidebar] = useState(true);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(300);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [isSpaceExpanded, setIsSpaceExpanded] = useState<Record<string, boolean>>({ default: true });
+  const [isListExpanded, setIsListExpanded] = useState<Record<string, boolean>>({ default: true });
+
+  // Filters & Toggles
+  const [ganttSearch, setGanttSearch] = useState('');
+  const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<string>('all');
+  const [selectedPriorityFilter, setSelectedPriorityFilter] = useState<string>('all');
+  const [showClosedTasks, setShowClosedTasks] = useState(true);
+  const [highlightCriticalPath, setHighlightCriticalPath] = useState(true);
+  const [showOnlyMilestones, setShowOnlyMilestones] = useState(false);
+  const [showBudgetOverlay, setShowBudgetOverlay] = useState(false);
+
+  // Modals & Inspector Drawers
+  const [detailModalTaskId, setDetailModalTaskId] = useState<string | null>(null);
   const [showAddDepModal, setShowAddDepModal] = useState(false);
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
+  const [showBlockerInspector, setShowBlockerInspector] = useState(false);
   const [predTaskId, setPredTaskId] = useState('');
   const [succTaskId, setSuccTaskId] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const handleCreateGanttTask = () => {
-    addTask({
-      projectId: selectedProjectId || projects[0]?.id || 'proj_1',
-      companyId: activeCompany?.id || 'comp_1',
-      title: 'New Gantt Milestone Task',
-      description: 'Scheduled deliverable on project Gantt timeline',
-      status: 'To Do',
-      priority: 'High',
-      assigneeIds: [currentUser?.id || 'usr_pk'],
-      reporterId: currentUser?.id || 'usr_1',
-      startDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      estimatedHours: 24,
-      tags: ['Gantt', 'Milestone', 'Deliverable']
-    });
-  };
+  // Inline Quick Add Task state
+  const [inlineTaskTitle, setInlineTaskTitle] = useState('');
+  const [isAddingInlineTask, setIsAddingInlineTask] = useState(false);
 
-  // Critical Path & Milestone Marker View Mode States
-  const [highlightCriticalPath, setHighlightCriticalPath] = useState(true);
-  const [showOnlyMilestones, setShowOnlyMilestones] = useState(false);
-
-  // Task Dependency Visualization Tool States
+  // Task Dependency Visualization & Connector Tool States
   const [isDrawModeActive, setIsDrawModeActive] = useState<boolean>(false);
   const [selectedSourceTaskId, setSelectedSourceTaskId] = useState<string | null>(null);
   const [lineRoutingStyle, setLineRoutingStyle] = useState<'curved' | 'orthogonal' | 'straight'>('curved');
-  const [showBlockerInspector, setShowBlockerInspector] = useState<boolean>(false);
-  const [filterActiveBlockersOnly, setFilterActiveBlockersOnly] = useState<boolean>(false);
-
-  // Interactive D3 Graph State
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const [hoveredDropTaskId, setHoveredDropTaskId] = useState<string | null>(null);
+
   const [dragState, setDragState] = useState<DragState>({
     isDragging: false,
     sourceTaskId: null,
     startPos: null,
     currentPos: null
   });
-  const [hoveredDropTaskId, setHoveredDropTaskId] = useState<string | null>(null);
-
-  // Task Bar Timeline Dragging State (Direct Date Shifting & Auto-Cascading)
-  interface TaskBarDragState {
-    isDragging: boolean;
-    taskId: string | null;
-    mode: 'move' | 'resize-start' | 'resize-end';
-    startScreenX: number;
-    initialStart: string;
-    initialDue: string;
-    previewDaysDelta: number;
-  }
 
   const [barDragState, setBarDragState] = useState<TaskBarDragState>({
     isDragging: false,
@@ -132,6 +165,177 @@ export const GanttView: React.FC = () => {
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const treeListScrollRef = useRef<HTMLDivElement>(null);
+
+  // Sync active project
+  const activeProject = useMemo(() => {
+    return projects.find((p) => p.id === selectedProjectId) || projects[0];
+  }, [projects, selectedProjectId]);
+
+  // Filter tasks for active space
+  const projectTasks = useMemo(() => {
+    let filtered = tasks.filter((t) => t.projectId === activeProject?.id);
+
+    if (ganttSearch.trim()) {
+      const q = ganttSearch.toLowerCase();
+      filtered = filtered.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.description?.toLowerCase().includes(q) ||
+          t.tags?.some((tag) => tag.toLowerCase().includes(q))
+      );
+    }
+
+    if (selectedAssigneeFilter !== 'all') {
+      filtered = filtered.filter((t) => t.assigneeIds?.includes(selectedAssigneeFilter));
+    }
+
+    if (selectedPriorityFilter !== 'all') {
+      filtered = filtered.filter((t) => t.priority === selectedPriorityFilter);
+    }
+
+    if (!showClosedTasks) {
+      filtered = filtered.filter((t) => t.status !== 'Done');
+    }
+
+    return filtered;
+  }, [tasks, activeProject, ganttSearch, selectedAssigneeFilter, selectedPriorityFilter, showClosedTasks]);
+
+  // Critical path & Milestone checks
+  const isTaskCritical = (t: Task): boolean => {
+    if (t.isCriticalPath) return true;
+    if (t.tags?.some((tag) => tag.toLowerCase().includes('critical'))) return true;
+    if (t.priority === 'Urgent') return true;
+    return false;
+  };
+
+  const isTaskMilestone = (t: Task): boolean => {
+    if (t.isMilestone) return true;
+    if (t.tags?.some((tag) => tag.toLowerCase().includes('milestone'))) return true;
+    if (isTaskCritical(t)) return true;
+    return false;
+  };
+
+  const displayedTasks = useMemo(() => {
+    if (showOnlyMilestones) {
+      return projectTasks.filter(isTaskMilestone);
+    }
+    return projectTasks;
+  }, [projectTasks, showOnlyMilestones]);
+
+  const criticalCount = projectTasks.filter(isTaskCritical).length;
+  const milestoneCount = projectTasks.filter(isTaskMilestone).length;
+
+  // Time calculations based on reference screenshot (Aug 2026 anchor or project dates)
+  // Base date anchor: August 20, 2026 (matches reference image displaying W34 Aug 23 - 29 / Th 20 .. Th 27 .. Th 3)
+  const timelineConfig = useMemo(() => {
+    const today = new Date();
+    // Default anchor to 10 days before today
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 7);
+    startDate.setHours(0, 0, 0, 0);
+
+    let totalDays = 35; // default 5 weeks
+    let cellWidth = 44; // pixels per day
+
+    if (zoomMode === 'day') {
+      totalDays = 21;
+      cellWidth = 72;
+    } else if (zoomMode === '4days') {
+      totalDays = 28;
+      cellWidth = 56;
+    } else if (zoomMode === 'week') {
+      totalDays = 35;
+      cellWidth = 44;
+    } else if (zoomMode === 'month') {
+      totalDays = 90;
+      cellWidth = 24;
+    } else if (zoomMode === 'year') {
+      totalDays = 180;
+      cellWidth = 14;
+    }
+
+    const daysArray: Date[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+      daysArray.push(d);
+    }
+
+    // Group days into weeks for header tier 1
+    const weekGroups: { weekNum: number; label: string; startIndex: number; count: number }[] = [];
+    let currentWeekNum = -1;
+    let currentGroup: { weekNum: number; label: string; startIndex: number; count: number } | null = null;
+
+    daysArray.forEach((d, idx) => {
+      // Calculate ISO week number
+      const dCopy = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = dCopy.getUTCDay() || 7;
+      dCopy.setUTCDate(dCopy.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(dCopy.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil(((dCopy.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+
+      if (weekNo !== currentWeekNum) {
+        if (currentGroup) {
+          weekGroups.push(currentGroup);
+        }
+        const weekEnd = new Date(d);
+        weekEnd.setDate(d.getDate() + 6);
+        const startMonthStr = d.toLocaleDateString('en-US', { month: 'short' });
+        const endMonthStr = weekEnd.toLocaleDateString('en-US', { month: 'short' });
+        const dateRangeStr =
+          startMonthStr === endMonthStr
+            ? `${startMonthStr} ${d.getDate()} - ${weekEnd.getDate()}`
+            : `${startMonthStr} ${d.getDate()} - ${endMonthStr} ${weekEnd.getDate()}`;
+
+        currentWeekNum = weekNo;
+        currentGroup = {
+          weekNum: weekNo,
+          label: `W${weekNo}  ${dateRangeStr}`,
+          startIndex: idx,
+          count: 1
+        };
+      } else if (currentGroup) {
+        currentGroup.count += 1;
+      }
+    });
+
+    if (currentGroup) {
+      weekGroups.push(currentGroup);
+    }
+
+    const todayStr = today.toISOString().split('T')[0];
+    const todayIndex = daysArray.findIndex((d) => d.toISOString().split('T')[0] === todayStr);
+
+    return {
+      startDate,
+      totalDays,
+      cellWidth,
+      daysArray,
+      weekGroups,
+      todayIndex: todayIndex !== -1 ? todayIndex : 7,
+      totalWidth: totalDays * cellWidth
+    };
+  }, [zoomMode]);
+
+  // Helper to calculate pixel left and width on the timeline for any task
+  const getTaskBarPixels = (startDateStr: string, dueDateStr: string) => {
+    const start = new Date(startDateStr);
+    const end = new Date(dueDateStr);
+    const base = timelineConfig.startDate;
+
+    const diffStartMs = start.getTime() - base.getTime();
+    const daysFromStart = diffStartMs / (1000 * 3600 * 24);
+
+    const diffDurationMs = end.getTime() - start.getTime();
+    const durationDays = Math.max(1, diffDurationMs / (1000 * 3600 * 24));
+
+    const left = daysFromStart * timelineConfig.cellWidth;
+    const width = Math.max(timelineConfig.cellWidth * 0.8, durationDays * timelineConfig.cellWidth);
+
+    return { left, width };
+  };
 
   const addDaysHelper = (dateStr: string, days: number): string => {
     const d = new Date(dateStr);
@@ -147,12 +351,12 @@ export const GanttView: React.FC = () => {
 
     if (res.adjustedCount > 0) {
       setToastMsg(
-        `Moved "${taskTitle}" timeline (${newStart} ➔ ${newDue}). Automatically shifted ${res.adjustedCount} child task start date(s) to respect Finish-to-Start dependency constraints!`
+        `Moved "${taskTitle}" schedule (${newStart} ➔ ${newDue}). Automatically adjusted ${res.adjustedCount} child task(s) to respect dependencies.`
       );
     } else {
-      setToastMsg(`Updated "${taskTitle}" timeline (${newStart} ➔ ${newDue}). Dependent child schedules are aligned.`);
+      setToastMsg(`Updated "${taskTitle}" timeline (${newStart} ➔ ${newDue}).`);
     }
-    setTimeout(() => setToastMsg(null), 5000);
+    setTimeout(() => setToastMsg(null), 4500);
   };
 
   const handleStartBarDrag = (e: React.MouseEvent, task: Task, mode: 'move' | 'resize-start' | 'resize-end') => {
@@ -168,281 +372,49 @@ export const GanttView: React.FC = () => {
     });
   };
 
-  // Listen for Escape key to exit draw mode or clear source selection
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (selectedSourceTaskId) {
-          setSelectedSourceTaskId(null);
-        } else if (isDrawModeActive) {
-          setIsDrawModeActive(false);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedSourceTaskId, isDrawModeActive]);
-
-  const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
-  const projectTasks = tasks.filter((t) => t.projectId === activeProject?.id);
-
-  // Helper functions for Critical Path & Milestone visual marker system
-  const isTaskCritical = (t: Task): boolean => {
-    if (t.isCriticalPath) return true;
-    if (t.tags?.some((tag) => tag.toLowerCase().includes('critical'))) return true;
-    if (t.priority === 'Urgent') return true;
-    return false;
-  };
-
-  const isTaskMilestone = (t: Task): boolean => {
-    if (t.isMilestone) return true;
-    if (t.tags?.some((tag) => tag.toLowerCase().includes('milestone'))) return true;
-    if (isTaskCritical(t)) return true; // Critical Path tasks automatically qualify as Milestones per requirement
-    return false;
-  };
-
-  const handleToggleCriticalPath = (task: Task, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    const nextCritical = !isTaskCritical(task);
-    const existingTags = task.tags || [];
-    let newTags = existingTags.filter(
-      (tag) => !['critical path', 'milestone'].includes(tag.toLowerCase())
-    );
-    if (nextCritical) {
-      newTags.push('Critical Path', 'Milestone');
-    }
-
-    updateTask(task.id, {
-      isCriticalPath: nextCritical,
-      isMilestone: nextCritical ? true : task.isMilestone,
-      tags: newTags
-    });
-
-    setToastMsg(
-      nextCritical
-        ? `"${task.title}" flagged as Critical Path Milestone! Timeline highlighted with diamond marker.`
-        : `"${task.title}" removed from Critical Path.`
-    );
-    setTimeout(() => setToastMsg(null), 4000);
-  };
-
-  const criticalCount = projectTasks.filter(isTaskCritical).length;
-  const milestoneCount = projectTasks.filter(isTaskMilestone).length;
-  const displayedTasks = showOnlyMilestones ? projectTasks.filter(isTaskMilestone) : projectTasks;
-
-  const selectedTask = projectTasks.find((t) => t.id === selectedTaskId);
-
-  // Calculate dependency counts for selected task
-  const incomingDeps = selectedTaskId
-    ? dependencies
-        .filter((d) => d.taskId === selectedTaskId)
-        .map((d) => projectTasks.find((t) => t.id === d.dependsOnTaskId))
-        .filter(Boolean)
-    : [];
-
-  const outgoingDeps = selectedTaskId
-    ? dependencies
-        .filter((d) => d.dependsOnTaskId === selectedTaskId)
-        .map((d) => projectTasks.find((t) => t.id === d.taskId))
-        .filter(Boolean)
-    : [];
-
-  const handleAddDependency = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!predTaskId || !succTaskId || predTaskId === succTaskId) return;
-
-    const success = addDependency(succTaskId, predTaskId);
-    if (success) {
-      const res = recalculateProjectTimeline(selectedProjectId);
-      setShowAddDepModal(false);
-      setPredTaskId('');
-      setSuccTaskId('');
-      setToastMsg(
-        `Linked Finish-to-Start dependency! ${
-          res.adjustedCount > 0 ? `Auto-adjusted ${res.adjustedCount} task schedules.` : 'Timelines are aligned.'
-        }`
-      );
-      setTimeout(() => setToastMsg(null), 5000);
-    } else {
-      setToastMsg('Could not add dependency (circular or duplicate link).');
-      setTimeout(() => setToastMsg(null), 4000);
-    }
-  };
-
-  const handleRecalculate = () => {
-    const res = recalculateProjectTimeline(selectedProjectId);
-    if (res.adjustedCount > 0) {
-      setToastMsg(`Timeline Auto-Scheduled! Shifted ${res.adjustedCount} dependent tasks to respect Finish-to-Start rules.`);
-    } else {
-      setToastMsg('All task start and due dates are fully aligned with Finish-to-Start rules.');
-    }
-    setTimeout(() => setToastMsg(null), 5000);
-  };
-
-  const handleRemoveLink = (taskId: string, dependsOnTaskId: string) => {
-    const matchedDep = dependencies.find((d) => d.taskId === taskId && d.dependsOnTaskId === dependsOnTaskId);
-    if (matchedDep) {
-      removeDependency(matchedDep.id);
-      setToastMsg('Dependency link removed.');
-    } else {
-      setToastMsg('Dependency link not found.');
-    }
-    setTimeout(() => setToastMsg(null), 3000);
-  };
-
-  const handleTaskClickForDependency = (targetTask: Task) => {
-    if (!isDrawModeActive) {
-      setSelectedTaskId(selectedTaskId === targetTask.id ? null : targetTask.id);
-      return;
-    }
-
-    if (!selectedSourceTaskId) {
-      setSelectedSourceTaskId(targetTask.id);
-      setToastMsg(`Selected "${targetTask.title}" as Prerequisite (Blocker). Now click the Dependent task to complete the link.`);
-    } else if (selectedSourceTaskId === targetTask.id) {
-      setSelectedSourceTaskId(null);
-      setToastMsg('Prerequisite selection cleared.');
-      setTimeout(() => setToastMsg(null), 3000);
-    } else {
-      const sourceTask = projectTasks.find((t) => t.id === selectedSourceTaskId);
-      const success = addDependency(targetTask.id, selectedSourceTaskId);
-      if (success) {
-        const res = recalculateProjectTimeline(selectedProjectId);
-        setToastMsg(
-          `Dependency Linked! "${targetTask.title}" now depends on "${sourceTask?.title || 'Prerequisite'}". ${
-            res.adjustedCount > 0 ? `Auto-adjusted ${res.adjustedCount} dependent schedules.` : ''
-          }`
-        );
-        setTimeout(() => setToastMsg(null), 5000);
-      } else {
-        setToastMsg('Could not add dependency (link already exists or creates a circular dependency loop).');
-        setTimeout(() => setToastMsg(null), 4000);
-      }
-      setSelectedSourceTaskId(null);
-    }
-  };
-
-  // SVG Connector Path Generator supporting Bezier Curved, Orthogonal Step, and Straight lines
-  const generateConnectorPath = (x1: number, y1: number, x2: number, y2: number) => {
-    if (lineRoutingStyle === 'orthogonal') {
-      const midX = (x1 + x2) / 2;
-      return `M ${x1}% ${y1} H ${midX}% V ${y2} H ${x2}%`;
-    } else if (lineRoutingStyle === 'straight') {
-      return `M ${x1}% ${y1} L ${x2}% ${y2}`;
-    } else {
-      // Curved Bezier
-      const curveOffset = Math.max(2, Math.min(8, Math.abs(x2 - x1) / 2));
-      return `M ${x1}% ${y1} C ${x1 + curveOffset}% ${y1}, ${x2 - curveOffset}% ${y2}, ${x2}% ${y2}`;
-    }
-  };
-
-  // Timeline dates range calculation
-  const months = ['Jul 2026', 'Aug 2026', 'Sep 2026', 'Oct 2026', 'Nov 2026', 'Dec 2026'];
-  const weeks = [
-    'W27 (Jul 01)',
-    'W28 (Jul 08)',
-    'W29 (Jul 15)',
-    'W30 (Jul 22)',
-    'W31 (Jul 29)',
-    'W32 (Aug 05)',
-    'W33 (Aug 12)',
-    'W34 (Aug 19)',
-    'W35 (Aug 26)',
-    'W36 (Sep 02)',
-    'W37 (Sep 09)',
-    'W38 (Sep 16)'
-  ];
-
-  const columns = zoomLevel === 'weeks' ? weeks : months;
-
-  // Helper to map date to numeric left and width percentages
-  const getTaskOffsetValues = (startDateStr: string, dueDateStr: string) => {
-    const start = new Date(startDateStr);
-    const end = new Date(dueDateStr);
-    const baseDate = new Date('2026-07-01');
-
-    const daysFromStart = Math.max(0, Math.floor((start.getTime() - baseDate.getTime()) / (1000 * 3600 * 24)));
-    const durationDays = Math.max(5, Math.floor((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
-
-    if (zoomLevel === 'weeks') {
-      const leftPercent = Math.min(85, (daysFromStart / 84) * 100);
-      const widthPercent = Math.min(100 - leftPercent, (durationDays / 84) * 100);
-      return { leftVal: Math.max(2, leftPercent), widthVal: Math.max(8, widthPercent) };
-    } else {
-      const leftPercent = Math.min(85, (daysFromStart / 180) * 100);
-      const widthPercent = Math.min(100 - leftPercent, (durationDays / 180) * 100);
-      return { leftVal: Math.max(2, leftPercent), widthVal: Math.max(10, widthPercent) };
-    }
-  };
-
-  const getTaskOffset = (startDateStr: string, dueDateStr: string) => {
-    const { leftVal, widthVal } = getTaskOffsetValues(startDateStr, dueDateStr);
-    return { left: `${leftVal}%`, width: `${widthVal}%` };
-  };
-
-  // Handle Drag-and-Drop link creation mouse events
-  const handleStartDragLink = (e: React.MouseEvent, sourceTask: any) => {
-    e.stopPropagation();
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setDragState({
-      isDragging: true,
-      sourceTaskId: sourceTask.id,
-      startPos: { x, y },
-      currentPos: { x, y }
-    });
-  };
-
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isResizingSidebar) {
+      const newWidth = Math.max(180, Math.min(500, e.clientX - 60));
+      setLeftSidebarWidth(newWidth);
+    }
+
     if (dragState.isDragging && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
-      setDragState((prev) => ({
-        ...prev,
-        currentPos: { x, y }
-      }));
+      setDragState((prev) => ({ ...prev, currentPos: { x, y } }));
     }
 
-    if (barDragState.isDragging && containerRef.current) {
-      const canvasWidth = containerRef.current.clientWidth * 0.75;
-      const totalDays = zoomLevel === 'weeks' ? 84 : 180;
-      const pixelsPerDay = Math.max(1, canvasWidth / totalDays);
+    if (barDragState.isDragging) {
       const deltaX = e.clientX - barDragState.startScreenX;
-      const daysDelta = Math.round(deltaX / pixelsPerDay);
-
-      setBarDragState((prev) => ({
-        ...prev,
-        previewDaysDelta: daysDelta
-      }));
+      const daysDelta = Math.round(deltaX / timelineConfig.cellWidth);
+      setBarDragState((prev) => ({ ...prev, previewDaysDelta: daysDelta }));
     }
   };
 
   const handleMouseUp = () => {
+    if (isResizingSidebar) {
+      setIsResizingSidebar(false);
+    }
+
     if (dragState.isDragging) {
       if (dragState.sourceTaskId && hoveredDropTaskId && dragState.sourceTaskId !== hoveredDropTaskId) {
-        // Create Finish-to-Start link (hoveredDropTaskId depends on sourceTaskId)
         const success = addDependency(hoveredDropTaskId, dragState.sourceTaskId);
         if (success) {
           const res = recalculateProjectTimeline(selectedProjectId);
           const sourceName = projectTasks.find((t) => t.id === dragState.sourceTaskId)?.title;
           const targetName = projectTasks.find((t) => t.id === hoveredDropTaskId)?.title;
           setToastMsg(
-            `Dependency Link Created: "${targetName}" now depends on parent "${sourceName}". ${
-              res.adjustedCount > 0 ? `Automatically shifted ${res.adjustedCount} child task start dates!` : ''
+            `Dependency Linked: "${targetName}" now depends on "${sourceName}". ${
+              res.adjustedCount > 0 ? `Auto-adjusted ${res.adjustedCount} dependent schedules!` : ''
             }`
           );
           setTimeout(() => setToastMsg(null), 5000);
         } else {
           setToastMsg('Link already exists or creates a circular dependency loop.');
-          setTimeout(() => setToastMsg(null), 3000);
+          setTimeout(() => setToastMsg(null), 3500);
         }
       }
-
       setDragState({
         isDragging: false,
         sourceTaskId: null,
@@ -488,1135 +460,846 @@ export const GanttView: React.FC = () => {
     }
   };
 
+  const handleScrollToToday = () => {
+    if (timelineScrollRef.current) {
+      const todayPx = timelineConfig.todayIndex * timelineConfig.cellWidth;
+      timelineScrollRef.current.scrollTo({
+        left: Math.max(0, todayPx - timelineScrollRef.current.clientWidth / 2 + 100),
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleCreateInlineTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inlineTaskTitle.trim()) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const dueStr = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+    addTask({
+      projectId: selectedProjectId,
+      companyId: activeCompany?.id || 'comp_1',
+      title: inlineTaskTitle.trim(),
+      description: 'Scheduled deliverable from ClickUp Gantt View',
+      status: 'To Do',
+      priority: 'Medium',
+      assigneeIds: [currentUser?.id || 'usr_pk'],
+      reporterId: currentUser?.id || 'usr_1',
+      startDate: todayStr,
+      dueDate: dueStr,
+      estimatedHours: 8,
+      tags: ['Gantt', 'Deliverable']
+    });
+
+    setInlineTaskTitle('');
+    setIsAddingInlineTask(false);
+    setToastMsg(`Created task "${inlineTaskTitle.trim()}" in Gantt schedule!`);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
+  // Helper for status badge colors matching ClickUp
+  const getStatusDotColor = (status: string) => {
+    switch (status) {
+      case 'Done':
+      case 'Complete':
+        return 'bg-emerald-500 text-emerald-400';
+      case 'In Progress':
+        return 'bg-[#0773BB] text-[#3BC0BB]';
+      case 'In Review':
+      case 'Review':
+        return 'bg-amber-400 text-amber-300';
+      case 'Blocked':
+        return 'bg-rose-500 text-rose-400';
+      default:
+        return 'bg-slate-400 text-slate-300';
+    }
+  };
+
+  const getPriorityFlag = (priority: string) => {
+    switch (priority) {
+      case 'Urgent':
+        return <Flag className="w-3 h-3 text-rose-500 fill-rose-500" />;
+      case 'High':
+        return <Flag className="w-3 h-3 text-amber-500 fill-amber-500" />;
+      case 'Normal':
+        return <Flag className="w-3 h-3 text-blue-500 fill-blue-500" />;
+      case 'Low':
+        return <Flag className="w-3 h-3 text-slate-400" />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div
-      className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in select-none print-report-container gantt-print-wrapper ${
-        theme === 'light' ? 'text-slate-800' : 'text-slate-100'
+      className={`w-full min-h-screen flex flex-col font-sans select-none animate-in fade-in ${
+        isLight ? 'bg-[#F8FAFC] text-slate-800' : 'bg-[#0D1520] text-slate-100'
       }`}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
     >
-      {/* Specific CSS Print Media Queries for A4 Landscape Executive Report */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4 landscape;
-            margin: 8mm 10mm;
-          }
-          body, html, #root, main {
-            background: #ffffff !important;
-            color: #0f172a !important;
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-          }
-          header, nav, footer, .no-print, button, select, .clickup-banner, .task-alert-toast {
-            display: none !important;
-          }
-          .gantt-print-wrapper {
-            background: #ffffff !important;
-            color: #0f172a !important;
-            border: 1px solid #cbd5e1 !important;
-            box-shadow: none !important;
-            padding: 12px !important;
-            border-radius: 8px !important;
-            width: 100% !important;
-            max-width: none !important;
-          }
-          .gantt-print-banner {
-            background-color: #f1f5f9 !important;
-            border: 1px solid #cbd5e1 !important;
-            color: #0f172a !important;
-          }
-          .gantt-print-row {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-            background-color: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            color: #0f172a !important;
-          }
-          * {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-        }
-      `}</style>
-
-      {/* Executive Print Report Header */}
-      <div className="hidden print:block mb-6 p-5 border-b-2 border-slate-900 bg-white text-slate-900 rounded-none">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-mono font-bold tracking-wider text-slate-600 uppercase">
-              {activeCompany?.name || 'DOLPHIN INDUSTRIAL PROJECTS'} — EXECUTIVE REPORT
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 mt-1">
-              Project Gantt Schedule & Dependency Matrix
-            </h1>
-            <p className="text-xs text-slate-600 mt-1">
-              Project Code: <span className="font-bold text-slate-900">{activeProject?.code}</span> — <span className="font-bold text-slate-900">{activeProject?.title}</span> | Manager: <span className="font-semibold text-slate-800">{users.find((u) => u.id === activeProject?.managerId)?.name || 'Project Manager'}</span>
-            </p>
-          </div>
-          <div className="text-right font-mono text-xs text-slate-600 space-y-1">
-            <div><span className="font-semibold text-slate-700">Generated:</span> {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-            <div><span className="font-semibold text-slate-700">Format:</span> A4 Executive Landscape</div>
-            <div className="px-2.5 py-1 rounded border border-slate-400 bg-slate-100 text-slate-800 font-bold inline-block mt-1 text-[10px] tracking-wider uppercase">
-              OFFICIAL EXECUTIVE RECORD
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1
-            className={`text-2xl font-bold tracking-tight flex items-center gap-2 ${
-              theme === 'light' ? 'text-slate-900' : 'text-white'
+      {/* 1. ClickUp Gantt Action Sub-Toolbar */}
+      <div
+        className={`px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-3 border-b shrink-0 ${
+          isLight ? 'bg-white border-slate-200 shadow-xs' : 'bg-[#121B26] border-[#233549]'
+        }`}
+      >
+        {/* Left Toolbar Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Toggle Left List Sidebar */}
+          <button
+            onClick={() => setShowLeftSidebar(!showLeftSidebar)}
+            className={`p-1.5 rounded-lg border transition-all ${
+              isLight
+                ? 'bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-700'
+                : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549] text-slate-300 hover:text-white'
             }`}
+            title={showLeftSidebar ? 'Collapse Tree Column' : 'Expand Tree Column'}
           >
-            <GanttChart className="w-6 h-6 text-[#0773BB]" />
-            <span>Gantt Chart & D3 Dependency Scheduler</span>
-          </h1>
-          <p className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-400'}`}>
-            Interactive D3.js dependency graph. Click tasks to inspect critical path dependencies or drag connector handles to link tasks.
-          </p>
-        </div>
+            {showLeftSidebar ? <PanelLeftClose className="w-3.5 h-3.5" /> : <PanelLeftOpen className="w-3.5 h-3.5" />}
+          </button>
 
-        <div className="flex flex-wrap items-center gap-3 no-print">
-          {/* Critical Path Highlight Toggle Button */}
+          {/* Today Button */}
           <button
-            type="button"
-            onClick={() => setHighlightCriticalPath((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 border ${
-              highlightCriticalPath
-                ? 'bg-rose-500/25 border-rose-500/60 text-rose-200 shadow-rose-950/40 ring-1 ring-rose-500/30'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
+            onClick={handleScrollToToday}
+            className={`px-3 py-1 rounded-lg border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-800 hover:border-slate-400'
+                : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549] text-slate-200'
             }`}
-            title="Toggle glowing timeline highlights and diamond markers for Critical Path tasks"
+            title="Jump view to today's red marker"
           >
-            <Diamond
-              className={`w-3.5 h-3.5 ${
-                highlightCriticalPath ? 'text-amber-300 fill-amber-300 animate-pulse' : 'text-slate-400'
-              }`}
-            />
-            <span>Critical Path ({criticalCount})</span>
+            <Calendar className="w-3.5 h-3.5 text-rose-500" />
+            <span>Today</span>
           </button>
 
-          {/* Filter Milestones Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setShowOnlyMilestones((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 border ${
-              showOnlyMilestones
-                ? 'bg-amber-500/25 border-amber-500/60 text-amber-200 shadow-amber-950/40 ring-1 ring-amber-500/30'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-            title="Filter timeline view to show only Milestone & Critical Path tasks"
-          >
-            <Flame className={`w-3.5 h-3.5 ${showOnlyMilestones ? 'text-amber-400' : 'text-slate-400'}`} />
-            <span>Milestones Only ({milestoneCount})</span>
-          </button>
-
-          {/* Print Executive PDF Button */}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 border border-slate-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
-            title="Export formatted A4 Landscape Executive Report PDF"
-          >
-            <Printer className="w-3.5 h-3.5 text-cyan-300" />
-            <span>Print Executive PDF (A4)</span>
-          </button>
-
-          {/* Recalculate Button */}
-          <button
-            type="button"
-            onClick={handleRecalculate}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-xs font-bold transition-all shadow-md active:scale-95"
-            title="Auto-recalculate timeline based on Finish-to-Start predecessor dependencies"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
-            <span>Auto-Schedule (FS)</span>
-          </button>
-
-          {/* Interactive Task Dependency Connector Tool Button */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsDrawModeActive((prev) => !prev);
-              if (isDrawModeActive) setSelectedSourceTaskId(null);
-            }}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all shadow-md active:scale-95 border ${
-              isDrawModeActive
-                ? 'bg-emerald-500/30 border-emerald-400 text-emerald-200 shadow-emerald-950/80 ring-2 ring-emerald-500/50'
-                : 'bg-emerald-950/40 hover:bg-emerald-900/50 border-emerald-600/50 text-emerald-300'
-            }`}
-            title="Toggle interactive Task Dependency drawing mode to connect blockers and prerequisites"
-          >
-            <Workflow className={`w-4 h-4 ${isDrawModeActive ? 'text-emerald-300 animate-spin' : 'text-emerald-400'}`} />
-            <span>{isDrawModeActive ? 'Drawing Tool Active' : 'Draw Dependency Lines'}</span>
-          </button>
-
-          {/* Line Routing Style Switcher */}
-          <div className="flex items-center bg-[#0D1520] border border-[#233549] rounded-xl px-2.5 py-1.5 text-xs">
-            <span className="text-slate-400 text-[10px] uppercase font-mono mr-1.5 hidden sm:inline">Line Style:</span>
+          {/* Zoom Selector Dropdown */}
+          <div className="relative">
             <select
-              value={lineRoutingStyle}
-              onChange={(e) => setLineRoutingStyle(e.target.value as any)}
-              className="bg-transparent text-slate-200 font-bold focus:outline-none cursor-pointer text-xs"
+              value={zoomMode}
+              onChange={(e) => setZoomMode(e.target.value as ZoomMode)}
+              className={`appearance-none pl-3 pr-7 py-1 rounded-lg border text-xs font-semibold focus:outline-none cursor-pointer ${
+                isLight
+                  ? 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                  : 'bg-[#16222F] border-[#233549] text-slate-200 hover:bg-[#1f2f40]'
+              }`}
             >
-              <option value="curved">Bezier Curved</option>
-              <option value="orthogonal">Orthogonal Step</option>
-              <option value="straight">Straight Direct</option>
+              <option value="day">Day</option>
+              <option value="4days">4 Days</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
             </select>
+            <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-2 pointer-events-none" />
           </div>
 
-          {/* Blocker Inspector Matrix Toggle */}
+          {/* Auto Fit Button */}
           <button
-            type="button"
-            onClick={() => setShowBlockerInspector((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border ${
-              showBlockerInspector
-                ? 'bg-amber-500/30 border-amber-500/60 text-amber-200 ring-1 ring-amber-500/40'
-                : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white'
+            onClick={handleScrollToToday}
+            className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
+                : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549] text-slate-300'
             }`}
-            title="Inspect all task blockers, prerequisite links, and dependency status matrix"
+            title="Auto fit timeline to project scope"
           >
-            <ShieldAlert className={`w-3.5 h-3.5 ${showBlockerInspector ? 'text-amber-400' : 'text-slate-400'}`} />
-            <span>Blocker Matrix</span>
+            Auto fit
           </button>
 
-          {/* Add Dependency Modal Trigger Button */}
+          {/* Export Button */}
           <button
-            type="button"
-            onClick={() => setShowAddDepModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 text-xs font-bold transition-all shadow-md active:scale-95"
+            onClick={() => {
+              try {
+                window.print();
+              } catch (_) {
+                setToastMsg('Export/Print is restricted inside iframe. Open the app in a new tab to print.');
+                setTimeout(() => setToastMsg(null), 4000);
+              }
+            }}
+            className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition-all flex items-center gap-1 ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 border-slate-300 text-slate-700'
+                : 'bg-[#16222F] hover:bg-[#1f2f40] border-[#233549] text-slate-300'
+            }`}
+            title="Export Gantt Chart / Print Executive PDF"
           >
-            <Workflow className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Link Modal</span>
+            <Download className="w-3 h-3 text-slate-400" />
+            <span>Export</span>
           </button>
 
-          {/* Project Selector */}
+          <div className="h-4 w-px bg-slate-300 dark:bg-[#233549] mx-1 hidden md:block" />
+
+          {/* Space / Project Selector */}
           <select
             value={selectedProjectId}
             onChange={(e) => {
               setSelectedProjectId(e.target.value);
-              setSelectedTaskId(null);
+              setGlobalProjectId(e.target.value);
             }}
-            className={`text-xs font-medium rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] border ${
-              theme === 'light'
+            className={`px-2.5 py-1 rounded-lg border text-xs font-semibold focus:outline-none cursor-pointer max-w-[180px] truncate ${
+              isLight
                 ? 'bg-white border-slate-300 text-slate-800'
                 : 'bg-[#16222F] border-[#233549] text-slate-200'
             }`}
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.code} — {p.title}
+                {p.code} • {p.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Right Toolbar Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Draw / Link Dependency Lines Tool */}
+          <button
+            onClick={() => {
+              setIsDrawModeActive(!isDrawModeActive);
+              if (isDrawModeActive) setSelectedSourceTaskId(null);
+            }}
+            className={`p-1.5 rounded-lg border transition-all ${
+              isDrawModeActive
+                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-sm'
+                : isLight
+                ? 'bg-white border-slate-300 text-slate-600 hover:text-slate-900'
+                : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
+            }`}
+            title={isDrawModeActive ? 'Exit Dependency Connector Tool' : 'Draw Dependency Lines'}
+          >
+            <LinkIcon className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Critical Path Toggle */}
+          <button
+            onClick={() => setHighlightCriticalPath(!highlightCriticalPath)}
+            className={`p-1.5 rounded-lg border transition-all ${
+              highlightCriticalPath
+                ? 'bg-rose-500/20 border-rose-500/60 text-rose-400'
+                : isLight
+                ? 'bg-white border-slate-300 text-slate-600 hover:text-slate-900'
+                : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
+            }`}
+            title={`Critical Path Highlighting (${criticalCount} zero-slack tasks)`}
+          >
+            <Zap className={`w-3.5 h-3.5 ${highlightCriticalPath ? 'fill-current' : ''}`} />
+          </button>
+
+          {/* Show Closed Tasks Toggle */}
+          <button
+            onClick={() => setShowClosedTasks(!showClosedTasks)}
+            className={`p-1.5 rounded-lg border transition-all ${
+              showClosedTasks
+                ? isLight
+                  ? 'bg-slate-200 border-slate-400 text-slate-900'
+                  : 'bg-[#233549] border-slate-600 text-white'
+                : isLight
+                ? 'bg-white border-slate-300 text-slate-400'
+                : 'bg-[#16222F] border-[#233549] text-slate-500'
+            }`}
+            title={showClosedTasks ? 'Hide Completed Tasks' : 'Show Completed Tasks'}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Assignee Filter Dropdown */}
+          <select
+            value={selectedAssigneeFilter}
+            onChange={(e) => setSelectedAssigneeFilter(e.target.value)}
+            className={`px-2 py-1 rounded-lg border text-xs font-medium focus:outline-none cursor-pointer ${
+              isLight
+                ? 'bg-white border-slate-300 text-slate-700'
+                : 'bg-[#16222F] border-[#233549] text-slate-300'
+            }`}
+            title="Filter by Assignee"
+          >
+            <option value="all">All Assignees</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
               </option>
             ))}
           </select>
 
-          {/* Zoom Toggle */}
-          <div className="flex items-center bg-[#0D1520] p-1 rounded-xl border border-[#233549] text-xs">
-            <button
-              onClick={() => setZoomLevel('weeks')}
-              className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                zoomLevel === 'weeks' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
+          {/* Priority Filter */}
+          <select
+            value={selectedPriorityFilter}
+            onChange={(e) => setSelectedPriorityFilter(e.target.value)}
+            className={`px-2 py-1 rounded-lg border text-xs font-medium focus:outline-none cursor-pointer ${
+              isLight
+                ? 'bg-white border-slate-300 text-slate-700'
+                : 'bg-[#16222F] border-[#233549] text-slate-300'
+            }`}
+            title="Filter by Priority"
+          >
+            <option value="all">All Priorities</option>
+            <option value="Urgent">Urgent</option>
+            <option value="High">High</option>
+            <option value="Normal">Normal</option>
+            <option value="Low">Low</option>
+          </select>
+
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+            <input
+              type="text"
+              placeholder="Search tasks..."
+              value={ganttSearch}
+              onChange={(e) => setGanttSearch(e.target.value)}
+              className={`pl-8 pr-3 py-1 rounded-lg border text-xs focus:outline-none w-32 sm:w-40 transition-all ${
+                isLight
+                  ? 'bg-white border-slate-300 text-slate-800 placeholder-slate-400 focus:border-[#0D9488]'
+                  : 'bg-[#16222F] border-[#233549] text-slate-200 placeholder-slate-500 focus:border-[#3BC0BB]'
               }`}
-            >
-              Weekly
-            </button>
-            <button
-              onClick={() => setZoomLevel('months')}
-              className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                zoomLevel === 'months' ? 'bg-[#0773BB] text-white shadow' : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Monthly
-            </button>
+            />
           </div>
+
+          {/* Recalculate Auto Schedule */}
+          <button
+            onClick={() => {
+              const res = recalculateProjectTimeline(selectedProjectId);
+              setToastMsg(
+                res.adjustedCount > 0
+                  ? `Auto-Scheduled! Adjusted ${res.adjustedCount} dependent task timelines.`
+                  : 'All Finish-to-Start dependency dates are aligned.'
+              );
+              setTimeout(() => setToastMsg(null), 4000);
+            }}
+            className={`p-1.5 rounded-lg border transition-all ${
+              isLight
+                ? 'bg-white border-slate-300 text-slate-600 hover:text-slate-900'
+                : 'bg-[#16222F] border-[#233549] text-slate-400 hover:text-white'
+            }`}
+            title="Auto-Schedule Finish-to-Start dependencies"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+          </button>
+
+          {/* Primary ClickUp + Task Button */}
+          <button
+            onClick={() => setIsAddingInlineTask(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0773BB] hover:bg-[#0096C7] text-white font-bold text-xs shadow-sm transition-all active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Task</span>
+            <ChevronDown className="w-3 h-3 text-white/70" />
+          </button>
         </div>
       </div>
 
-      {/* Critical Path Method (CPM) Real-time Analysis Banner */}
-      <CriticalPathBanner
-        isCriticalPathHighlighted={highlightCriticalPath}
-        onToggleCriticalHighlight={() => setHighlightCriticalPath((prev) => !prev)}
-        onSelectTask={(id) => setSelectedTaskId(id)}
-      />
-
-      {/* Task Dependency Connector Active Draw Mode Banner */}
-      {isDrawModeActive && (
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950 via-[#0D1520] to-emerald-950 border-2 border-emerald-500/70 shadow-2xl shadow-emerald-950/80 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-200 animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shrink-0">
-              <Workflow className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-white text-xs uppercase tracking-wide px-2 py-0.5 rounded bg-emerald-500/30 border border-emerald-500/50 text-emerald-200">
-                  DRAW DEPENDENCIES MODE ACTIVE
-                </span>
-                {selectedSourceTaskId ? (
-                  <span className="text-amber-300 font-bold">
-                    Step 2: Choose Dependent Task to Block
-                  </span>
-                ) : (
-                  <span className="text-emerald-300 font-bold">
-                    Step 1: Choose Prerequisite / Blocker Task
-                  </span>
-                )}
-              </div>
-              <p className="text-slate-300 text-[11px] mt-0.5">
-                {selectedSourceTaskId ? (
-                  <>
-                    Prerequisite selected:{' '}
-                    <strong className="text-amber-300 font-semibold underline">
-                      {projectTasks.find((t) => t.id === selectedSourceTaskId)?.title}
-                    </strong>
-                    . Click any target task (or drag handle) to establish Finish-to-Start dependency link.
-                  </>
-                ) : (
-                  <>
-                    Click any task row or output port handle <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400 mx-0.5"></span> to select it as a <strong>Prerequisite (Blocker)</strong>. Press <kbd className="px-1.5 py-0.5 bg-black/60 rounded text-[10px] font-mono">Esc</kbd> to exit.
-                  </>
-                )}
-              </p>
-            </div>
+      {/* Toast Notification Alert */}
+      {toastMsg && (
+        <div className="px-6 py-2 bg-[#0773BB] text-white text-xs font-medium flex items-center justify-between shadow-md">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#3BC0BB] shrink-0" />
+            <span>{toastMsg}</span>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {selectedSourceTaskId && (
-              <button
-                type="button"
-                onClick={() => setSelectedSourceTaskId(null)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all"
-              >
-                Clear Source
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setIsDrawModeActive(false);
-                setSelectedSourceTaskId(null);
-              }}
-              className="px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 text-xs font-bold transition-all"
-            >
-              Exit Tool
-            </button>
-          </div>
+          <button onClick={() => setToastMsg(null)} className="p-1 hover:bg-black/20 rounded">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
-      {/* Blocker & Prerequisite Inspector Matrix Panel */}
-      {showBlockerInspector && (
-        <div className="p-5 rounded-2xl bg-[#0D1520] border border-[#233549] space-y-4 shadow-xl animate-in fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#233549] pb-3">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-amber-400" />
-              <h3 className="text-sm font-bold text-white">Project Dependency & Blocker Inspector Matrix</h3>
-              <span className="text-xs font-mono text-slate-400">({activeProject?.code})</span>
-            </div>
+      {/* Active Draw Mode Banner */}
+      {isDrawModeActive && (
+        <div className="px-6 py-2 bg-emerald-950/80 border-b border-emerald-500/40 text-emerald-200 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Workflow className="w-4 h-4 text-emerald-400 animate-pulse" />
+            <span className="font-bold">
+              {selectedSourceTaskId
+                ? `Prerequisite Selected: "${projectTasks.find((t) => t.id === selectedSourceTaskId)?.title}". Now click the successor task to connect.`
+                : 'Click any task to select as Prerequisite, or drag from the orange output port dot to connect.'}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setIsDrawModeActive(false);
+              setSelectedSourceTaskId(null);
+            }}
+            className="px-2.5 py-0.5 rounded bg-emerald-900/60 hover:bg-emerald-800 text-white font-bold text-[11px]"
+          >
+            Done
+          </button>
+        </div>
+      )}
 
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={filterActiveBlockersOnly}
-                  onChange={(e) => setFilterActiveBlockersOnly(e.target.checked)}
-                  className="rounded border-[#233549] bg-[#16222F] text-[#3BC0BB] focus:ring-0"
-                />
-                <span>Show Active Blockers Only</span>
-              </label>
-
+      {/* 2. Main Gantt Workspace (Split Tree Table on Left + Timeline Canvas on Right) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* LEFT PANEL: Hierarchical Space & List Tree Table */}
+        {showLeftSidebar && (
+          <div
+            style={{ width: `${leftSidebarWidth}px` }}
+            className={`shrink-0 flex flex-col border-r relative select-none ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#121B26] border-[#233549]'
+            }`}
+          >
+            {/* Left Header Row */}
+            <div
+              className={`h-12 px-4 flex items-center justify-between border-b text-xs font-bold uppercase tracking-wider ${
+                isLight ? 'bg-slate-50 border-slate-200 text-slate-600' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+              }`}
+            >
+              <span>Name</span>
               <button
-                onClick={() => setShowBlockerInspector(false)}
-                className="text-slate-400 hover:text-white text-xs font-bold p-1"
+                onClick={() => setIsAddingInlineTask(true)}
+                className="p-1 hover:bg-slate-200 dark:hover:bg-[#1E2B3A] rounded text-slate-400 hover:text-white"
+                title="Add Column or Task"
               >
-                <X className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[#233549] text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                  <th className="p-2.5">Prerequisite Task (Blocker)</th>
-                  <th className="p-2.5 text-center">Relation Type</th>
-                  <th className="p-2.5">Dependent Task (Blocked)</th>
-                  <th className="p-2.5">Prerequisite Status</th>
-                  <th className="p-2.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#233549]/60">
-                {projectTasks.flatMap((targetTask) => {
+            {/* Tree Hierarchy Items Scroll Area */}
+            <div
+              ref={treeListScrollRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden divide-y divide-transparent text-xs"
+            >
+              {/* Space Group Row */}
+              <div
+                onClick={() =>
+                  setIsSpaceExpanded((prev) => ({ ...prev, [activeProject?.id || 'def']: !prev[activeProject?.id || 'def'] }))
+                }
+                className={`px-3 py-2 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                  isLight ? 'hover:bg-slate-100 bg-slate-50/50' : 'hover:bg-[#16222F] bg-[#121B26]'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                      isSpaceExpanded[activeProject?.id || 'def'] === false ? '-rotate-90' : ''
+                    }`}
+                  />
+                  <div className="w-4 h-4 rounded bg-rose-500 flex items-center justify-center text-[10px] font-black text-white shrink-0">
+                    !
+                  </div>
+                  <span className="font-bold truncate text-slate-800 dark:text-slate-100">
+                    {activeProject?.code || 'ICT'}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">{projectTasks.length}</span>
+              </div>
+
+              {/* List Group Row */}
+              {isSpaceExpanded[activeProject?.id || 'def'] !== false && (
+                <div
+                  onClick={() => setIsListExpanded((prev) => ({ ...prev, def: !prev.def }))}
+                  className={`pl-7 pr-3 py-1.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                    isLight ? 'hover:bg-slate-100' : 'hover:bg-[#16222F]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <ChevronDown
+                      className={`w-3 h-3 text-slate-400 transition-transform ${
+                        isListExpanded.def === false ? '-rotate-90' : ''
+                      }`}
+                    />
+                    <ListIcon className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">
+                      {selectedListFilter || 'List'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-[#1A2838] text-slate-600 dark:text-slate-400 font-mono">
+                    {displayedTasks.length}
+                  </span>
+                </div>
+              )}
+
+              {/* Task Rows in Left Pane */}
+              {isSpaceExpanded[activeProject?.id || 'def'] !== false &&
+                isListExpanded.def !== false &&
+                displayedTasks.map((task) => {
+                  const isSelected = selectedTaskId === task.id;
+                  const isCritical = isTaskCritical(task);
+
+                  return (
+                    <div
+                      key={`tree_${task.id}`}
+                      onClick={() => setDetailModalTaskId(task.id)}
+                      className={`h-10 pl-10 pr-3 flex items-center justify-between gap-2 border-b transition-colors cursor-pointer group ${
+                        isSelected
+                          ? isLight
+                            ? 'bg-[#0773BB]/10 border-[#0773BB]/30'
+                            : 'bg-[#0773BB]/20 border-[#0773BB]/40'
+                          : isLight
+                          ? 'border-slate-100 hover:bg-slate-50'
+                          : 'border-[#233549]/40 hover:bg-[#16222F]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* Status color indicator dot */}
+                        <div
+                          className={`w-2 h-2 rounded-full shrink-0 ${getStatusDotColor(task.status).split(' ')[0]}`}
+                          title={`Status: ${task.status}`}
+                        />
+                        <span
+                          className={`font-medium text-xs truncate ${
+                            task.status === 'Done'
+                              ? 'line-through text-slate-400 dark:text-slate-500'
+                              : isLight
+                              ? 'text-slate-800'
+                              : 'text-slate-200'
+                          }`}
+                        >
+                          {task.title}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 opacity-80 group-hover:opacity-100">
+                        {getPriorityFlag(task.priority)}
+                        {isCritical && (
+                          <span title="Critical Path Task">
+                            <Diamond className="w-3 h-3 text-rose-500 fill-rose-500" />
+                          </span>
+                        )}
+                        {task.assigneeIds?.[0] && (
+                          <img
+                            src={
+                              users.find((u) => u.id === task.assigneeIds[0])?.avatar ||
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'
+                            }
+                            alt="Assignee"
+                            className="w-4 h-4 rounded-full object-cover ring-1 ring-slate-400"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {/* Inline Quick Add Task Input */}
+              {isAddingInlineTask ? (
+                <form onSubmit={handleCreateInlineTask} className="p-2 border-t border-slate-200 dark:border-[#233549]">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Enter task name..."
+                    value={inlineTaskTitle}
+                    onChange={(e) => setInlineTaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsAddingInlineTask(false);
+                    }}
+                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none ${
+                      isLight
+                        ? 'bg-white border-slate-300 text-slate-900 focus:border-[#0D9488]'
+                        : 'bg-[#16222F] border-[#233549] text-white focus:border-[#3BC0BB]'
+                    }`}
+                  />
+                  <div className="flex justify-end gap-1.5 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingInlineTask(false)}
+                      className="px-2 py-1 text-[11px] text-slate-400 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!inlineTaskTitle.trim()}
+                      className="px-2.5 py-1 rounded bg-[#0773BB] text-white text-[11px] font-bold disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setIsAddingInlineTask(true)}
+                  className={`w-full text-left pl-10 pr-3 py-2 flex items-center gap-2 text-xs font-semibold transition-colors ${
+                    isLight ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100' : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5 text-slate-400" />
+                  <span>New Task</span>
+                </button>
+              )}
+            </div>
+
+            {/* Draggable Divider Handle */}
+            <div
+              onMouseDown={() => setIsResizingSidebar(true)}
+              className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-[#0773BB] active:bg-[#0773BB] transition-colors z-20"
+              title="Drag to resize column"
+            />
+          </div>
+        )}
+
+        {/* RIGHT PANEL: Gantt Timeline Canvas */}
+        <div
+          ref={timelineScrollRef}
+          className="flex-1 overflow-x-auto overflow-y-auto relative"
+          style={{ minWidth: 0 }}
+        >
+          <div style={{ width: `${timelineConfig.totalWidth}px` }} className="min-h-full relative flex flex-col">
+            {/* Header Tier 1: Weeks */}
+            <div
+              className={`h-6 flex border-b sticky top-0 z-30 ${
+                isLight ? 'bg-[#F1F5F9] border-slate-200 text-slate-600' : 'bg-[#0D1520] border-[#233549] text-slate-400'
+              }`}
+            >
+              {timelineConfig.weekGroups.map((group, idx) => (
+                <div
+                  key={`week_${group.weekNum}_${idx}`}
+                  style={{ width: `${group.count * timelineConfig.cellWidth}px` }}
+                  className="px-2 border-r border-slate-200 dark:border-[#233549] text-[11px] font-bold flex items-center truncate"
+                >
+                  {group.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Header Tier 2: Days */}
+            <div
+              className={`h-6 flex border-b sticky top-6 z-30 ${
+                isLight ? 'bg-white border-slate-200 text-slate-600' : 'bg-[#121B26] border-[#233549] text-slate-400'
+              }`}
+            >
+              {timelineConfig.daysArray.map((day, idx) => {
+                const dayName = day.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2);
+                const dayNumber = day.getDate();
+                const isToday = idx === timelineConfig.todayIndex;
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+
+                return (
+                  <div
+                    key={`day_hdr_${idx}`}
+                    style={{ width: `${timelineConfig.cellWidth}px` }}
+                    className={`border-r border-slate-200 dark:border-[#233549]/60 text-[11px] font-medium flex items-center justify-center shrink-0 ${
+                      isWeekend ? (isLight ? 'bg-slate-100/70' : 'bg-[#0A1017]') : ''
+                    }`}
+                  >
+                    {isToday ? (
+                      <span className="w-5 h-5 rounded-full bg-rose-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs">
+                        {dayNumber}
+                      </span>
+                    ) : (
+                      <span className="truncate">
+                        {dayName} {dayNumber}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Timeline Grid Background with Weekend Shading & Today Line */}
+            <div className="absolute inset-0 top-12 pointer-events-none flex z-0">
+              {timelineConfig.daysArray.map((day, idx) => {
+                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                const isToday = idx === timelineConfig.todayIndex;
+
+                return (
+                  <div
+                    key={`grid_col_${idx}`}
+                    style={{ width: `${timelineConfig.cellWidth}px` }}
+                    className={`border-r border-slate-200/60 dark:border-[#233549]/30 h-full shrink-0 relative ${
+                      isWeekend
+                        ? isLight
+                          ? 'bg-slate-100/50 bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,#e2e8f0_6px,#e2e8f0_7px)]'
+                          : 'bg-[#0A1017] bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,#16222F_6px,#16222F_7px)]'
+                        : ''
+                    }`}
+                  >
+                    {/* Vertical Red Today Line extending down entire height */}
+                    {isToday && (
+                      <div className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-rose-500 shadow-sm z-10" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Task Rows and Interactive Gantt Bars */}
+            <div className="relative z-10 pt-0">
+              {/* Space spacer row */}
+              <div className="h-9 border-b border-transparent" />
+              {/* List spacer row */}
+              <div className="h-8 border-b border-transparent" />
+
+              {/* D3 SVG Dependency Link Lines */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible">
+                <defs>
+                  <marker id="gantt-arrow-amber" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <polygon points="0 0, 6 3, 0 6" fill="#F59E0B" />
+                  </marker>
+                  <marker id="gantt-arrow-cyan" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <polygon points="0 0, 6 3, 0 6" fill="#3BC0BB" />
+                  </marker>
+                  <marker id="gantt-arrow-rose" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <polygon points="0 0, 6 3, 0 6" fill="#F43F5E" />
+                  </marker>
+                </defs>
+
+                {displayedTasks.map((targetTask, targetIdx) => {
                   const prereqIds = [
                     ...(targetTask.dependencies || []),
                     ...dependencies.filter((d) => d.taskId === targetTask.id).map((d) => d.dependsOnTaskId)
                   ];
 
                   return prereqIds.map((prereqId) => {
-                    const prereqTask = projectTasks.find((t) => t.id === prereqId);
-                    if (!prereqTask) return null;
+                    const sourceIdx = displayedTasks.findIndex((t) => t.id === prereqId);
+                    if (sourceIdx === -1) return null;
 
-                    const isPrereqDone = prereqTask.status === 'Done';
-                    if (filterActiveBlockersOnly && isPrereqDone) return null;
+                    const sourceTask = displayedTasks[sourceIdx];
+                    const sourcePos = getTaskBarPixels(sourceTask.startDate, sourceTask.dueDate);
+                    const targetPos = getTaskBarPixels(targetTask.startDate, targetTask.dueDate);
+
+                    // Row Heights: spacer (68px) + index * 40px + 20px center
+                    const y1 = 68 + sourceIdx * 40 + 20;
+                    const y2 = 68 + targetIdx * 40 + 20;
+                    const x1 = sourcePos.left + sourcePos.width;
+                    const x2 = targetPos.left;
+
+                    const isCritical = (isTaskCritical(sourceTask) || isTaskCritical(targetTask)) && highlightCriticalPath;
+                    const strokeColor = isCritical ? '#F43F5E' : '#F59E0B';
+                    const markerId = isCritical ? 'url(#gantt-arrow-rose)' : 'url(#gantt-arrow-amber)';
+
+                    const midX = (x1 + x2) / 2;
 
                     return (
-                      <tr key={`matrix_${prereqId}_${targetTask.id}`} className="hover:bg-[#16222F]/60 transition-colors">
-                        <td className="p-2.5">
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-                            <span>{prereqTask.title}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            Due: {prereqTask.dueDate} | Status: {prereqTask.status}
-                          </div>
-                        </td>
-
-                        <td className="p-2.5 text-center">
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] border border-amber-500/40 font-bold">
-                            Finish-to-Start (FS)
-                          </span>
-                        </td>
-
-                        <td className="p-2.5">
-                          <div className="font-bold text-white flex items-center gap-1.5">
-                            <span className="w-2 h-2 rounded-full bg-[#3BC0BB] shrink-0" />
-                            <span>{targetTask.title}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            Start: {targetTask.startDate} | Status: {targetTask.status}
-                          </div>
-                        </td>
-
-                        <td className="p-2.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold flex items-center gap-1 w-fit border ${
-                            isPrereqDone
-                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                              : 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
-                          }`}>
-                            {isPrereqDone ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                            <span>{isPrereqDone ? 'Resolved' : 'Active Blocker'}</span>
-                          </span>
-                        </td>
-
-                        <td className="p-2.5 text-right">
-                          <button
-                            onClick={() => handleRemoveLink(targetTask.id, prereqId)}
-                            className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-[11px] font-bold transition-all flex items-center gap-1 ml-auto"
-                            title="Remove dependency connector link"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Remove Link</span>
-                          </button>
-                        </td>
-                      </tr>
+                      <path
+                        key={`dep_${prereqId}_${targetTask.id}`}
+                        d={`M ${x1} ${y1} C ${x1 + 16} ${y1}, ${x2 - 16} ${y2}, ${x2} ${y2}`}
+                        fill="none"
+                        stroke={strokeColor}
+                        strokeWidth="2"
+                        strokeDasharray={isCritical ? '4 2' : 'none'}
+                        markerEnd={markerId}
+                      />
                     );
-                  }).filter(Boolean);
+                  });
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </svg>
 
-      {/* Toast Alert Banner */}
-      {toastMsg && (
-        <div className="p-3.5 rounded-xl bg-amber-950/80 border border-amber-500/50 text-amber-200 text-xs font-medium flex items-center justify-between gap-3 shadow-xl animate-in slide-in-from-top-2">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>{toastMsg}</span>
-          </div>
-          <button onClick={() => setToastMsg(null)} className="text-amber-400 hover:text-white p-1">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Selected Task Inspector Banner */}
-      {selectedTask ? (
-        <div className="p-4 rounded-xl bg-[#0773BB]/15 border border-[#0773BB]/40 flex flex-col space-y-3 animate-in fade-in">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[#0773BB] text-white flex items-center justify-center font-bold shrink-0">
-                <Workflow className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold text-white">Selected Parent / Task:</span>
-                  <span className="text-xs font-extrabold text-[#3BC0BB]">{selectedTask.title}</span>
-                  <span className="px-2 py-0.5 rounded bg-black/40 font-mono text-[10px] text-slate-300">
-                    {selectedTask.startDate} ➔ {selectedTask.dueDate}
-                  </span>
-                  {isTaskCritical(selectedTask) && (
-                    <span className="px-2 py-0.5 rounded bg-rose-500/30 border border-rose-500/60 text-rose-200 text-[10px] font-bold flex items-center gap-1">
-                      <Diamond className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
-                      <span>CRITICAL PATH MILESTONE</span>
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-300 mt-1">
-                  <span>
-                    <strong className="text-[#3BC0BB]">{incomingDeps.length}</strong> Predecessor(s)
-                  </span>
-                  <span>•</span>
-                  <span>
-                    <strong className="text-amber-400">{outgoingDeps.length}</strong> Child Task(s) (Auto-Shift on Parent Move)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {/* Quick Toggle Critical Path / Milestone Button */}
-              <button
-                type="button"
-                onClick={(e) => handleToggleCriticalPath(selectedTask, e)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow border ${
-                  isTaskCritical(selectedTask)
-                    ? 'bg-rose-500/20 border-rose-500/50 text-rose-200 hover:bg-rose-500/30'
-                    : 'bg-amber-500/20 border-amber-500/50 text-amber-200 hover:bg-amber-500/30'
-                }`}
-              >
-                <Diamond className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
-                <span>
-                  {isTaskCritical(selectedTask) ? 'Remove Critical Path' : 'Flag as Critical Path Milestone'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setSelectedTaskId(null)}
-                className="px-3 py-1.5 rounded-lg bg-[#233549] hover:bg-[#2d445d] text-slate-300 hover:text-white text-xs font-semibold"
-              >
-                Clear Selection
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Date Shift & Child Cascade Controls */}
-          <div className="p-3 rounded-lg bg-[#0D1520]/80 border border-[#233549] flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-bold text-slate-300 text-[11px] uppercase tracking-wider">Move Timeline:</span>
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newStart = addDaysHelper(selectedTask.startDate, -7);
-                    const newDue = addDaysHelper(selectedTask.dueDate, -7);
-                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
-                  }}
-                  className="px-2 py-1 rounded bg-[#16222F] hover:bg-[#233549] text-slate-200 text-[11px] font-mono border border-[#233549]"
-                  title="Shift timeline back 7 days"
-                >
-                  -7d
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newStart = addDaysHelper(selectedTask.startDate, -1);
-                    const newDue = addDaysHelper(selectedTask.dueDate, -1);
-                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
-                  }}
-                  className="px-2 py-1 rounded bg-[#16222F] hover:bg-[#233549] text-slate-200 text-[11px] font-mono border border-[#233549]"
-                  title="Shift timeline back 1 day"
-                >
-                  -1d
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newStart = addDaysHelper(selectedTask.startDate, 1);
-                    const newDue = addDaysHelper(selectedTask.dueDate, 1);
-                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
-                  }}
-                  className="px-2 py-1 rounded bg-[#0773BB]/30 hover:bg-[#0773BB]/50 text-cyan-200 text-[11px] font-mono border border-[#0773BB]/50 font-bold"
-                  title="Shift timeline forward 1 day"
-                >
-                  +1d
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newStart = addDaysHelper(selectedTask.startDate, 7);
-                    const newDue = addDaysHelper(selectedTask.dueDate, 7);
-                    handleShiftTaskDate(selectedTask.id, newStart, newDue);
-                  }}
-                  className="px-2 py-1 rounded bg-[#0773BB]/30 hover:bg-[#0773BB]/50 text-cyan-200 text-[11px] font-mono border border-[#0773BB]/50 font-bold"
-                  title="Shift timeline forward 7 days"
-                >
-                  +7d
-                </button>
-              </div>
-
-              <div className="h-4 w-px bg-[#233549] mx-1 hidden sm:block" />
-
-              {/* Direct Date Editors */}
-              <div className="flex items-center gap-2">
-                <label className="text-[10px] text-slate-400 font-mono">Start:</label>
-                <input
-                  type="date"
-                  value={selectedTask.startDate}
-                  onChange={(e) => {
-                    if (e.target.value) handleShiftTaskDate(selectedTask.id, e.target.value, selectedTask.dueDate);
-                  }}
-                  className="bg-[#16222F] border border-[#233549] rounded px-2 py-0.5 text-slate-200 text-[11px] font-mono focus:outline-none focus:border-[#3BC0BB]"
-                />
-
-                <label className="text-[10px] text-slate-400 font-mono">Due:</label>
-                <input
-                  type="date"
-                  value={selectedTask.dueDate}
-                  onChange={(e) => {
-                    if (e.target.value) handleShiftTaskDate(selectedTask.id, selectedTask.startDate, e.target.value);
-                  }}
-                  className="bg-[#16222F] border border-[#233549] rounded px-2 py-0.5 text-slate-200 text-[11px] font-mono focus:outline-none focus:border-[#3BC0BB]"
-                />
-              </div>
-            </div>
-
-            {outgoingDeps.length > 0 && (
-              <div className="flex items-center gap-1.5 text-amber-300 font-mono text-[10px] bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-md">
-                <Zap className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
-                <span>Auto-Cascade Active: Moving parent due date shifts {outgoingDeps.length} child task start date(s)</span>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="p-3 rounded-xl bg-[#0D1520] border border-[#233549] flex items-center justify-between text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <MousePointer className="w-4 h-4 text-[#3BC0BB]" />
-            <span>
-              <strong>D3 Interactive Graph:</strong> Click any task to highlight dependency connections, or drag from a task&apos;s output handle <span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-400"></span> to link Finish-to-Start dependencies directly.
-            </span>
-          </div>
-          <div className="flex items-center gap-3 font-mono text-[11px]">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#3BC0BB]"></span> Predecessor
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Successor
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Add Dependency Link Modal */}
-      {showAddDepModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#121B26] border border-[#233549] rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
-            <div className="flex items-center justify-between border-b border-[#233549] pb-3">
-              <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
-                <Workflow className="w-4 h-4" />
-                <span>Link Finish-to-Start Dependency</span>
-              </div>
-              <button onClick={() => setShowAddDepModal(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddDependency} className="space-y-4">
-              <div>
-                <label className="block text-slate-300 text-xs font-bold mb-1">
-                  1. Predecessor Task (Must Finish First) *
-                </label>
-                <select
-                  required
-                  value={predTaskId}
-                  onChange={(e) => setPredTaskId(e.target.value)}
-                  className="w-full bg-[#16222F] border border-[#233549] rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-[#0773BB]"
-                >
-                  <option value="">Select Predecessor Task...</option>
-                  {projectTasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title} ({t.startDate} ➔ {t.dueDate})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-slate-300 text-xs font-bold mb-1">
-                  2. Successor Task (Starts After Predecessor Finishes) *
-                </label>
-                <select
-                  required
-                  value={succTaskId}
-                  onChange={(e) => setSuccTaskId(e.target.value)}
-                  className="w-full bg-[#16222F] border border-[#233549] rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-[#0773BB]"
-                >
-                  <option value="">Select Successor Task...</option>
-                  {projectTasks
-                    .filter((t) => t.id !== predTaskId)
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.title} ({t.startDate} ➔ {t.dueDate})
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-[#233549]">
-                <button
-                  type="button"
-                  onClick={() => setShowAddDepModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!predTaskId || !succTaskId}
-                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-black font-extrabold text-xs transition-all shadow-md"
-                >
-                  Link & Auto-Schedule
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Main Gantt Canvas with D3 Interactive Overlay */}
-      <div
-        ref={containerRef}
-        className="p-6 rounded-2xl bg-[#16222F]/80 backdrop-blur-md border border-[#233549] space-y-4 shadow-xl overflow-x-auto relative"
-      >
-        {/* Project Header Banner */}
-        <div className="flex items-center justify-between p-4 rounded-xl bg-[#0D1520] border border-[#233549]">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-[#0773BB]/20 text-[#3BC0BB]">
-              {activeProject?.code}
-            </span>
-            <h2 className="text-base font-bold text-white">{activeProject?.title}</h2>
-          </div>
-          <div className="text-xs text-slate-400 font-mono">
-            {activeProject?.startDate} ➔ {activeProject?.dueDate}
-          </div>
-        </div>
-
-        {/* Timeline Header Row */}
-        <div className="grid grid-cols-12 min-w-[900px] border-b border-[#233549] pb-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-          <div className="col-span-3 text-left pl-3">Task Deliverable</div>
-          <div className="col-span-9 grid grid-cols-6 gap-1 font-mono text-[11px] text-[#3BC0BB]">
-            {columns.slice(0, 6).map((c) => (
-              <div key={c} className="border-l border-[#233549] pl-1">
-                {c}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Visual Milestone & Critical Path Legend Bar */}
-        <div className="flex flex-wrap items-center justify-between text-xs px-4 py-2.5 rounded-xl bg-[#0D1520] border border-[#233549] text-slate-300 min-w-[900px]">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">Gantt Legend:</span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rotate-45 bg-gradient-to-tr from-amber-400 via-yellow-300 to-rose-500 border border-amber-200 shadow-sm shadow-amber-400/50 inline-block" />
-              <span className="font-bold text-amber-300">Critical Path Milestone</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3.5 h-2.5 rounded bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] inline-block" />
-              <span>Standard Task</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-4 h-0.5 bg-amber-400 border-t border-dashed border-amber-400 inline-block" />
-              <span>Predecessor Link</span>
-            </div>
-          </div>
-          <div className="text-slate-400 font-mono text-[11px] flex items-center gap-3">
-            <span>
-              Critical Tasks: <strong className="text-rose-400 font-extrabold">{criticalCount}</strong> / {projectTasks.length}
-            </span>
-            <span>•</span>
-            <span>
-              Milestones: <strong className="text-amber-300 font-extrabold">{milestoneCount}</strong>
-            </span>
-          </div>
-        </div>
-
-        {/* Task Rows & D3 Graph Overlay Container */}
-        <div className="space-y-3 min-w-[900px] relative">
-          {/* D3 SVG Interactive Overlay Layer */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
-            <defs>
-              <marker
-                id="d3-arrow-amber"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto"
-              >
-                <polygon points="0 0, 8 4, 0 8" fill="#F59E0B" />
-              </marker>
-              <marker
-                id="d3-arrow-cyan"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto"
-              >
-                <polygon points="0 0, 8 4, 0 8" fill="#3BC0BB" />
-              </marker>
-              <marker
-                id="d3-arrow-rose"
-                markerWidth="8"
-                markerHeight="8"
-                refX="6"
-                refY="4"
-                orient="auto"
-              >
-                <polygon points="0 0, 8 4, 0 8" fill="#F43F5E" />
-              </marker>
-              <marker
-                id="d3-arrow-dim"
-                markerWidth="7"
-                markerHeight="7"
-                refX="5"
-                refY="3.5"
-                orient="auto"
-              >
-                <polygon points="0 0, 7 3.5, 0 7" fill="#475569" />
-              </marker>
-            </defs>
-
-            {/* Render Existing Dependency Links via D3 Paths */}
-            {displayedTasks.map((targetTask, targetIndex) => {
-              const prereqIds = [
-                ...(targetTask.dependencies || []),
-                ...dependencies.filter((d) => d.taskId === targetTask.id).map((d) => d.dependsOnTaskId)
-              ];
-
-              return prereqIds.map((prereqId) => {
-                const sourceIndex = displayedTasks.findIndex((pt) => pt.id === prereqId);
-                if (sourceIndex === -1) return null;
-
-                const sourceTask = displayedTasks[sourceIndex];
-                const sourceOffset = getTaskOffsetValues(sourceTask.startDate, sourceTask.dueDate);
-                const targetOffset = getTaskOffsetValues(targetTask.startDate, targetTask.dueDate);
-
-                // Row Y positions
-                const sourceY = sourceIndex * 52 + 26;
-                const targetY = targetIndex * 52 + 26;
-
-                // X positions (Col-span 3 is 25%, Col-span 9 is 75%)
-                const x1Percent = 25 + (sourceOffset.leftVal + sourceOffset.widthVal) * 0.75;
-                const x2Percent = 25 + targetOffset.leftVal * 0.75;
-
-                const isSelectedLink =
-                  selectedTaskId && (selectedTaskId === targetTask.id || selectedTaskId === prereqId);
-                const isIncomingToSelected = selectedTaskId === targetTask.id;
-                const isOutgoingFromSelected = selectedTaskId === prereqId;
-                const isCriticalLink = isTaskCritical(sourceTask) || isTaskCritical(targetTask);
-
-                const strokeColor = isCriticalLink && highlightCriticalPath
-                  ? '#F43F5E'
-                  : !selectedTaskId
-                  ? '#F59E0B'
-                  : isIncomingToSelected
-                  ? '#3BC0BB'
-                  : isOutgoingFromSelected
-                  ? '#F59E0B'
-                  : '#334155';
-
-                const strokeWidth = isSelectedLink ? 3.5 : isCriticalLink ? 2.5 : 2;
-                const markerId = isCriticalLink && highlightCriticalPath
-                  ? 'url(#d3-arrow-rose)'
-                  : !selectedTaskId
-                  ? 'url(#d3-arrow-amber)'
-                  : isIncomingToSelected
-                  ? 'url(#d3-arrow-cyan)'
-                  : isOutgoingFromSelected
-                  ? 'url(#d3-arrow-amber)'
-                  : 'url(#d3-arrow-dim)';
-
-                const midX = (x1Percent + x2Percent) / 2;
-                const midY = (sourceY + targetY) / 2;
+              {/* Task Bar Elements */}
+              {displayedTasks.map((task, idx) => {
+                const { left, width } = getTaskBarPixels(task.startDate, task.dueDate);
+                const isSelected = selectedTaskId === task.id;
+                const isCritical = isTaskCritical(task);
+                const isMilestone = isTaskMilestone(task);
+                const isDraggingThis = barDragState.isDragging && barDragState.taskId === task.id;
+                const deltaPx = isDraggingThis ? barDragState.previewDaysDelta * timelineConfig.cellWidth : 0;
 
                 return (
-                  <g key={`d3_dep_${prereqId}_${targetTask.id}`}>
-                    <path
-                      d={generateConnectorPath(x1Percent, sourceY, x2Percent, targetY)}
-                      fill="none"
-                      stroke={strokeColor}
-                      strokeWidth={strokeWidth}
-                      strokeDasharray={isCriticalLink || isSelectedLink ? '6 3' : '4 2'}
-                      markerEnd={markerId}
-                      className="transition-all duration-300"
-                    />
-
-                    {/* Clickable Unlink Badge on hover or selection */}
-                    {(isSelectedLink || hoveredTaskId === targetTask.id || hoveredTaskId === prereqId) && (
-                      <g
-                        transform={`translate(${midX * 8.5}, ${midY})`}
-                        className="pointer-events-auto cursor-pointer group"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveLink(targetTask.id, prereqId);
-                        }}
-                      >
-                        <circle
-                          r="9"
-                          fill="#16222F"
-                          stroke={strokeColor}
-                          strokeWidth="2"
-                          className="hover:scale-125 transition-all"
-                        />
-                        <text
-                          textAnchor="middle"
-                          dy="3"
-                          fill="#EF4444"
-                          fontSize="10"
-                          fontWeight="bold"
-                        >
-                          ✕
-                        </text>
-                      </g>
-                    )}
-                  </g>
-                );
-              });
-            })}
-
-            {/* Active Rubberband Drag Line */}
-            {dragState.isDragging && dragState.startPos && dragState.currentPos && (
-              <path
-                d={`M ${dragState.startPos.x} ${dragState.startPos.y} C ${dragState.startPos.x + 50} ${dragState.startPos.y}, ${dragState.currentPos.x - 50} ${dragState.currentPos.y}, ${dragState.currentPos.x} ${dragState.currentPos.y}`}
-                fill="none"
-                stroke="#3BC0BB"
-                strokeWidth="3.5"
-                strokeDasharray="6 3"
-                markerEnd="url(#d3-arrow-cyan)"
-                className="animate-pulse"
-              />
-            )}
-          </svg>
-
-          {/* Task Rows */}
-          {displayedTasks.length === 0 ? (
-            <div className="py-4">
-              <EmptyStateCard
-                variant="gantt"
-                theme={theme === 'light' ? 'light' : 'dark'}
-                hasActiveFilters={Boolean(searchQuery || selectedListFilter || showOnlyMilestones)}
-                onPrimaryAction={handleCreateGanttTask}
-                primaryActionLabel="Create Milestone Task"
-                onSecondaryAction={() => setShowCsvImportModal(true)}
-                secondaryActionLabel="Import Deliverables (CSV)"
-                onSeedDemoData={() => seedDemoTasksForProject(selectedProjectId || undefined)}
-                seedDemoLabel="Load Demo Deliverables"
-                onResetFilters={() => {
-                  if (setSearchQuery) setSearchQuery('');
-                  if (setSelectedListFilter) setSelectedListFilter(null);
-                  setShowOnlyMilestones(false);
-                }}
-              />
-            </div>
-          ) : (
-            displayedTasks.map((t) => {
-            const isCritical = isTaskCritical(t);
-            const isMilestone = isTaskMilestone(t);
-            const isHighlighted = highlightCriticalPath && isCritical;
-
-            const hasDep =
-              (t.dependencies && t.dependencies.length > 0) ||
-              dependencies.some((d) => d.taskId === t.id);
-            const offset = getTaskOffset(t.startDate, t.dueDate);
-            const assignee = users.find((u) => t.assigneeIds.includes(u.id));
-
-            const isSelected = selectedTaskId === t.id;
-            const isHoveredTarget = hoveredDropTaskId === t.id;
-            const isDrawSource = isDrawModeActive && selectedSourceTaskId === t.id;
-            const isDrawTargetCandidate = isDrawModeActive && selectedSourceTaskId && selectedSourceTaskId !== t.id;
-
-            return (
-              <div
-                key={t.id}
-                onClick={() => handleTaskClickForDependency(t)}
-                onMouseEnter={() => {
-                  setHoveredTaskId(t.id);
-                  if (dragState.isDragging && dragState.sourceTaskId !== t.id) {
-                    setHoveredDropTaskId(t.id);
-                  }
-                }}
-                onMouseLeave={() => {
-                  setHoveredTaskId(null);
-                  if (dragState.isDragging) {
-                    setHoveredDropTaskId(null);
-                  }
-                }}
-                className={`grid grid-cols-12 items-center p-2 rounded-xl transition-all cursor-pointer relative z-0 gantt-print-row group ${
-                  isDrawSource
-                    ? 'bg-amber-950/60 border-2 border-amber-400 ring-4 ring-amber-500/30 shadow-xl'
-                    : isDrawTargetCandidate && hoveredTaskId === t.id
-                    ? 'bg-emerald-950/60 border-2 border-emerald-400 ring-4 ring-emerald-500/30 shadow-xl'
-                    : isSelected
-                    ? 'bg-[#0773BB]/20 border-2 border-[#3BC0BB] shadow-lg shadow-[#0773BB]/20'
-                    : isHoveredTarget
-                    ? 'bg-emerald-950/40 border-2 border-emerald-400'
-                    : isHighlighted
-                    ? 'bg-rose-950/20 border-2 border-rose-500/60 shadow-lg shadow-rose-950/50'
-                    : (theme === 'light' ? 'bg-white border-slate-200 hover:border-[#0773BB] shadow-xs' : 'bg-[#0D1520] border-[#233549] hover:border-[#0773BB]')
-                }`}
-              >
-                {/* Left Task Title Column */}
-                <div className="col-span-3 pl-2 pr-4">
-                  <div className="flex items-center gap-2">
-                    {hasDep && (
-                      <span
-                        className="w-2.5 h-2.5 rounded-full bg-amber-400 border border-amber-500 shadow-sm shadow-amber-400/50 shrink-0"
-                        title="Has Prerequisite Dependency"
-                      />
-                    )}
-
-                    {/* Milestone Diamond Badge */}
-                    {(isCritical || isMilestone) && (
-                      <span
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/25 border border-rose-500/60 text-rose-200 text-[10px] font-extrabold tracking-wider shrink-0 shadow-sm shadow-rose-950/50"
-                        title="Critical Path Milestone Task"
-                      >
-                        <Diamond className="w-3 h-3 text-amber-300 fill-amber-300 animate-pulse" />
-                        <span className="text-[9px]">MILESTONE</span>
-                      </span>
-                    )}
-
-                    <span
-                      className={`text-xs font-bold truncate gantt-row-title-print ${
-                        isSelected ? 'text-[#3BC0BB]' : isHighlighted ? 'text-rose-500' : (theme === 'light' ? 'text-slate-900' : 'text-white')
-                      }`}
-                    >
-                      {t.title}
-                    </span>
-
-                    {/* Quick Toggle Button on Hover */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleCriticalPath(t, e)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto text-[10px] p-1 text-slate-400 hover:text-amber-300 shrink-0"
-                      title={isCritical ? 'Remove Critical Path' : 'Flag as Critical Path Milestone'}
-                    >
-                      <Diamond className={`w-3.5 h-3.5 ${isCritical ? 'text-amber-300 fill-amber-300' : 'text-slate-500'}`} />
-                    </button>
-                  </div>
-
-                  <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                    <span>{assignee?.name || 'Team'}</span>
-                    <span>•</span>
-                    <span className="font-mono">{t.estimatedHours}h est</span>
-                  </div>
-                </div>
-
-                  {/* Right Timeline Bar Stage with D3 Drag Connection Handles */}
-                  <div className="col-span-9 relative h-10 bg-[#16222F]/60 rounded-lg flex items-center px-1 border border-[#233549]/50 gantt-bar-bg-print">
-                    {/* Live Dragging Ghost Preview Badge */}
-                    {barDragState.isDragging && barDragState.taskId === t.id && barDragState.previewDaysDelta !== 0 && (
-                      <div
-                        className="absolute -top-7 z-40 px-2 py-0.5 rounded bg-amber-400 text-black font-mono font-extrabold text-[10px] shadow-lg border border-black animate-pulse flex items-center gap-1"
-                        style={{ left: offset.left }}
-                      >
-                        <Zap className="w-3 h-3 fill-black shrink-0" />
-                        <span>
-                          {barDragState.mode === 'move'
-                            ? `${addDaysHelper(t.startDate, barDragState.previewDaysDelta)} ➔ ${addDaysHelper(t.dueDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`
-                            : barDragState.mode === 'resize-end'
-                            ? `Due: ${addDaysHelper(t.dueDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`
-                            : `Start: ${addDaysHelper(t.startDate, barDragState.previewDaysDelta)} (${barDragState.previewDaysDelta > 0 ? '+' : ''}${barDragState.previewDaysDelta}d)`}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Task Bar */}
+                  <div
+                    key={`bar_row_${task.id}`}
+                    className="h-10 border-b border-slate-200/40 dark:border-[#233549]/30 relative flex items-center"
+                  >
+                    {/* The Gantt Bar */}
                     <div
-                      onMouseDown={(e) => handleStartBarDrag(e, t, 'move')}
-                      className={`absolute h-7 rounded-lg shadow-lg flex items-center justify-between px-2 text-[10px] font-bold text-white transition-all cursor-grab active:cursor-grabbing group/bar ${
-                        barDragState.isDragging && barDragState.taskId === t.id
-                          ? 'ring-4 ring-amber-400/80 scale-[1.02] z-30 shadow-2xl'
-                          : isHighlighted
-                          ? 'bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 border-2 border-amber-300 shadow-xl shadow-rose-600/50 ring-2 ring-rose-500/40'
-                          : isMilestone
-                          ? 'bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 border-2 border-amber-300 shadow-md shadow-amber-500/40'
-                          : t.status === 'Done'
-                          ? 'bg-gradient-to-r from-emerald-600 to-emerald-400'
-                          : t.priority === 'Urgent'
-                          ? 'bg-gradient-to-r from-rose-600 to-amber-500'
-                          : 'bg-gradient-to-r from-[#0773BB] to-[#3BC0BB]'
+                      onClick={() => setDetailModalTaskId(task.id)}
+                      style={{
+                        left: `${Math.max(0, left + deltaPx)}px`,
+                        width: `${Math.max(30, width)}px`
+                      }}
+                      className={`h-6 rounded-md absolute flex items-center px-2 shadow-sm transition-shadow cursor-pointer group select-none ${
+                        isCritical && highlightCriticalPath
+                          ? 'bg-rose-600 text-white ring-2 ring-rose-400 shadow-rose-900/50'
+                          : task.status === 'Done'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-[#0773BB] text-white hover:bg-[#0096C7]'
                       }`}
-                      style={{ left: offset.left, width: offset.width }}
-                      title={`${t.title} (${t.startDate} to ${t.dueDate}) — Drag bar left/right to move timeline. Drag end handles to resize duration.`}
+                      title={`${task.title} (${task.startDate} ➔ ${task.dueDate}) • Click to inspect details`}
                     >
                       {/* Left Resize Handle */}
                       <div
-                        onMouseDown={(e) => handleStartBarDrag(e, t, 'resize-start')}
-                        title="Drag left edge to resize start date"
-                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-l-lg z-30 opacity-0 group-hover/bar:opacity-100 transition-opacity"
-                      />
-
-                      <div className="flex items-center gap-1 truncate max-w-[140px] pointer-events-none">
-                        {(isCritical || isMilestone) && (
-                          <Diamond className="w-3.5 h-3.5 text-amber-200 fill-amber-300 shrink-0 filter drop-shadow animate-pulse" />
-                        )}
-                        <span className="truncate">{t.title}</span>
+                        onMouseDown={(e) => handleStartBarDrag(e, task, 'resize-start')}
+                        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-l flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <div className="w-0.5 h-3 bg-white/80" />
                       </div>
 
-                      <span className="font-mono text-[9px] bg-black/30 px-1 rounded shrink-0 pointer-events-none">
-                        {t.startDate} ➔ {t.dueDate}
-                      </span>
+                      {/* Middle Drag & Info */}
+                      <div
+                        onMouseDown={(e) => handleStartBarDrag(e, task, 'move')}
+                        className="flex-1 flex items-center justify-between gap-1.5 overflow-hidden cursor-grab active:cursor-grabbing h-full"
+                      >
+                        <div className="flex items-center gap-1 min-w-0">
+                          {isMilestone && <Diamond className="w-2.5 h-2.5 text-amber-300 fill-amber-300 shrink-0" />}
+                          <span className="text-[11px] font-semibold truncate leading-none">{task.title}</span>
+                        </div>
+                        {task.progress !== undefined && task.progress > 0 && (
+                          <span className="text-[9px] font-bold text-white/80 shrink-0">{task.progress}%</span>
+                        )}
+                      </div>
 
                       {/* Right Resize Handle */}
                       <div
-                        onMouseDown={(e) => handleStartBarDrag(e, t, 'resize-end')}
-                        title="Drag right edge to resize due date (auto-shifts child tasks)"
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-r-lg z-30 opacity-0 group-hover/bar:opacity-100 transition-opacity"
-                      />
-
-                      {/* Milestone Diamond Marker Pin on Right Edge */}
-                      {(isCritical || isMilestone) && (
-                        <div
-                          onClick={(e) => handleToggleCriticalPath(t, e)}
-                          className="absolute -right-3 top-1/2 -translate-y-1/2 w-5.5 h-5.5 rotate-45 bg-gradient-to-tr from-amber-400 via-yellow-300 to-amber-500 border-2 border-rose-950 shadow-xl shadow-amber-400/90 flex items-center justify-center z-20 hover:scale-125 transition-transform group/ms cursor-pointer"
-                          title={`Critical Milestone Marker: ${t.title} (Due: ${t.dueDate})`}
-                        >
-                          <div className="w-1.5 h-1.5 bg-rose-950 rounded-full" />
-                        </div>
-                      )}
-
-                      {/* Connector Output Port Circle (Right Side of Bar) */}
-                      <div
-                        onMouseDown={(e) => handleStartDragLink(e, t)}
-                        title="Click & Drag to link dependency to a child task"
-                        className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-amber-400 border-2 border-black cursor-crosshair hover:scale-125 transition-transform flex items-center justify-center shadow-md z-30 pointer-events-auto no-print"
+                        onMouseDown={(e) => handleStartBarDrag(e, task, 'resize-end')}
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize hover:bg-white/40 rounded-r flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                       >
-                        <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
+                        <div className="w-0.5 h-3 bg-white/80" />
                       </div>
 
-                      {/* Connector Input Port Circle (Left Side of Bar) */}
+                      {/* Dependency Output Connector Port (Orange Dot) */}
                       <div
-                        className={`absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-black transition-transform flex items-center justify-center shadow-md z-30 no-print ${
-                          isHoveredTarget
-                            ? 'bg-emerald-400 scale-125 ring-4 ring-emerald-500/30'
-                            : 'bg-[#3BC0BB]'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!selectedSourceTaskId) {
+                            setSelectedSourceTaskId(task.id);
+                            setIsDrawModeActive(true);
+                            setToastMsg(`Selected "${task.title}". Click target task to link dependency.`);
+                          } else if (selectedSourceTaskId !== task.id) {
+                            addDependency(task.id, selectedSourceTaskId);
+                            recalculateProjectTimeline(selectedProjectId);
+                            setSelectedSourceTaskId(null);
+                            setIsDrawModeActive(false);
+                            setToastMsg('Dependency established!');
+                          }
+                        }}
+                        className={`absolute -right-2 top-1.5 w-3 h-3 rounded-full bg-amber-400 border-2 border-white shadow cursor-crosshair opacity-0 group-hover:opacity-100 hover:scale-125 transition-all z-30 ${
+                          selectedSourceTaskId === task.id ? 'opacity-100 ring-2 ring-amber-300 animate-ping' : ''
                         }`}
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-black"></span>
-                      </div>
+                        title="Click or drag to connect dependency to another task"
+                      />
                     </div>
                   </div>
-              </div>
-            );
-          }))}
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Floating Zoom Buttons on Canvas */}
+          <div className="fixed bottom-6 right-6 flex items-center gap-1 p-1 bg-[#121B26] border border-[#233549] rounded-xl shadow-xl z-40">
+            <button
+              onClick={() => {
+                if (zoomMode === 'year') setZoomMode('month');
+                else if (zoomMode === 'month') setZoomMode('week');
+                else if (zoomMode === 'week') setZoomMode('4days');
+                else if (zoomMode === '4days') setZoomMode('day');
+              }}
+              className="p-1.5 hover:bg-[#1E2B3A] rounded-lg text-slate-300 hover:text-white"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                if (zoomMode === 'day') setZoomMode('4days');
+                else if (zoomMode === '4days') setZoomMode('week');
+                else if (zoomMode === 'week') setZoomMode('month');
+                else if (zoomMode === 'month') setZoomMode('year');
+              }}
+              className="p-1.5 hover:bg-[#1E2B3A] rounded-lg text-slate-300 hover:text-white"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* 3. ClickUp Task Detail Modal / Inspector Drawer */}
+      <ClickUpTaskDetailModal
+        taskId={detailModalTaskId}
+        onClose={() => setDetailModalTaskId(null)}
+      />
+
+      {/* 4. CSV Import Modal */}
       {showCsvImportModal && (
         <ProjectCsvImportModal
-          projectId={selectedProjectId || projects[0]?.id || 'proj_1'}
+          projectId={selectedProjectId}
           onClose={() => setShowCsvImportModal(false)}
         />
       )}

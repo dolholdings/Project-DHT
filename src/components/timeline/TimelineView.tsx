@@ -102,7 +102,11 @@ export const TimelineView: React.FC = () => {
         <div className="flex items-center gap-2 no-print">
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() => {
+              try {
+                window.print();
+              } catch (_) {}
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-700/60 hover:bg-slate-700/80 border border-slate-500 text-white text-xs font-bold transition-all shadow-md active:scale-95"
             title="Export formatted A4 Landscape Executive Report PDF"
           >

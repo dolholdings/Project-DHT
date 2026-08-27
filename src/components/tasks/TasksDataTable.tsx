@@ -43,6 +43,8 @@ import { PermissionGuard } from '../common/PermissionGuard';
 import { normalizeTaskStatus, getStatusBadgeStyle } from '../kanban/KanbanView';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { PriorityBadge } from '../common/PriorityBadge';
+import { PriorityPicker } from './PriorityPicker';
+import { TaskInteractiveProgressBar } from './TaskInteractiveProgressBar';
 import { canEditSpace } from '../../lib/permissions';
 import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
@@ -931,6 +933,9 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                   </div>
                 </th>
 
+                {/* Progress Column */}
+                <th className="p-3.5 min-w-[130px]">Progress</th>
+
                 {/* Assignees Column */}
                 <th className="p-3.5 w-36">Assignees</th>
 
@@ -1216,14 +1221,14 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                         </select>
                       </td>
 
-                      {/* Priority Tag */}
+                      {/* Priority Flag */}
                       <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
-                        <PriorityBadge
-                          priority={t.priority}
-                          onChange={(newPriority) => updateTask(t.id, { priority: newPriority })}
-                          interactive
-                          size="sm"
-                        />
+                        <PriorityPicker task={t} compact />
+                      </td>
+
+                      {/* Progress Draggable Bar */}
+                      <td className="p-3.5" onClick={(e) => e.stopPropagation()}>
+                        <TaskInteractiveProgressBar task={t} compact />
                       </td>
 
                       {/* Assignees */}

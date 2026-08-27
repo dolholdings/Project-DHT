@@ -75,6 +75,9 @@ const MainLayout: React.FC = () => {
         return 'workload';
       case 'calendar':
         return 'calendar';
+      case 'gantt':
+      case 'timeline':
+        return 'gantt';
       case 'reports':
         return 'activity';
       default:
@@ -113,6 +116,7 @@ const MainLayout: React.FC = () => {
     else if (tabId === 'board') setActiveTab('kanban');
     else if (tabId === 'team' || tabId === 'workload') setActiveTab('workload');
     else if (tabId === 'calendar') setActiveTab('calendar');
+    else if (tabId === 'gantt') setActiveTab('gantt');
     else if (tabId === 'activity') setActiveTab('reports');
     else setActiveTab('tasks');
   };

@@ -25,15 +25,18 @@ import {
   Layers,
   Percent,
   SlidersHorizontal,
-  X
+  X,
+  Flag
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, User, CustomFieldDefinition } from '../../types';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
 import { PriorityBadge } from '../common/PriorityBadge';
+import { PriorityPicker } from './PriorityPicker';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { calculatePriorityScore } from '../../lib/priorityScore';
+import { TaskInteractiveProgressBar } from './TaskInteractiveProgressBar';
 
 interface ClickUpGroupedListViewProps {
   tasks: Task[];
@@ -146,9 +149,6 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
 
   // Status Dropdown open state per task
   const [activeStatusDropdownTaskId, setActiveStatusDropdownTaskId] = useState<string | null>(null);
-
-  // Progress Popover state per task
-  const [activeProgressTaskId, setActiveProgressTaskId] = useState<string | null>(null);
 
   // Toggle group collapse
   const toggleGroup = (groupKey: string) => {
@@ -301,9 +301,6 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
       if (!target.closest('.status-dropdown-container')) {
         setActiveStatusDropdownTaskId(null);
       }
-      if (!target.closest('.progress-popover-container')) {
-        setActiveProgressTaskId(null);
-      }
     };
     window.addEventListener('click', handleGlobalClick);
     return () => window.removeEventListener('click', handleGlobalClick);
@@ -439,6 +436,19 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
                       {/* Status Column */}
                       <th className="py-3 px-3 w-36">
                         <span>Status</span>
+                      </th>
+
+                      {/* Priority Column */}
+                      <th
+                        onClick={() => handleSort('priority')}
+                        className="py-3 px-3 cursor-pointer hover:text-[#00AEA9] transition-colors select-none w-28"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>Priority</span>
+                          {sortField === 'priority' && (
+                            <ArrowUpDown className="w-3 h-3 text-[#00AEA9]" />
+                          )}
+                        </div>
                       </th>
 
                       {/* Created by Column */}
@@ -711,7 +721,12 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
                             )}
                           </td>
 
-                          {/* 5. CREATED BY COLUMN (Creator Avatar Bubble e.g. "S") */}
+                          {/* 5. PRIORITY COLUMN (Color-Coded Flags with 1-Click Toggle / Dropdown) */}
+                          <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                            <PriorityPicker task={task} />
+                          </td>
+
+                          {/* 6. CREATED BY COLUMN (Creator Avatar Bubble e.g. "S") */}
                           <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
                             <div
                               className="flex items-center gap-2"
@@ -727,116 +742,12 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
                             </div>
                           </td>
 
-                          {/* 6. PERCENTAGE LINE (PROGRESS BAR + % INDICATOR) */}
+                          {/* 6. PERCENTAGE LINE (INTERACTIVE MINI PROGRESS BAR & DRAG-TO-UPDATE) */}
                           <td
-                            className="py-3 px-3 relative progress-popover-container"
+                            className="py-3 px-3 relative"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div
-                              onClick={() =>
-                                setActiveProgressTaskId((prev) =>
-                                  prev === task.id ? null : task.id
-                                )
-                              }
-                              className="flex items-center gap-2 cursor-pointer group/prog py-1"
-                              title={`Task Progress: ${progress}% - Click to change`}
-                            >
-                              {/* Horizontal Progress Track & Filled Line */}
-                              <div
-                                className={`w-16 sm:w-20 h-1.5 rounded-full overflow-hidden shrink-0 ${
-                                  isLight ? 'bg-slate-200' : 'bg-[#233549]'
-                                }`}
-                              >
-                                <div
-                                  className="h-full rounded-full transition-all duration-300"
-                                  style={{
-                                    width: `${progress}%`,
-                                    backgroundColor:
-                                      progress === 100
-                                        ? '#10B981'
-                                        : progress >= 60
-                                        ? '#00AEA9'
-                                        : progress > 0
-                                        ? '#7B68EE'
-                                        : 'transparent'
-                                  }}
-                                />
-                              </div>
-
-                              {/* Percentage Text */}
-                              <span
-                                className={`text-[11px] font-mono font-bold ${
-                                  progress === 100
-                                    ? 'text-emerald-400'
-                                    : progress > 0
-                                    ? isLight
-                                    ? 'text-slate-800'
-                                    : 'text-slate-200'
-                                    : 'text-slate-400'
-                                }`}
-                              >
-                                {progress}%
-                              </span>
-                            </div>
-
-                            {/* Quick Progress Selector Popover */}
-                            {activeProgressTaskId === task.id && (
-                              <div
-                                className={`absolute left-0 top-full mt-1 z-30 p-3 rounded-xl border shadow-2xl w-48 animate-in fade-in zoom-in-95 ${
-                                  isLight
-                                    ? 'bg-white border-slate-200 text-slate-800'
-                                    : 'bg-[#16222F] border-[#233549] text-slate-100'
-                                }`}
-                              >
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
-                                  <span>Set Progress</span>
-                                  <span className="font-mono text-[#00AEA9]">{progress}%</span>
-                                </div>
-
-                                {/* Slider Control */}
-                                <input
-                                  type="range"
-                                  min={0}
-                                  max={100}
-                                  step={5}
-                                  value={progress}
-                                  onChange={(e) => {
-                                    const val = Number(e.target.value);
-                                    updateTask(task.id, {
-                                      progress: val,
-                                      status: val === 100 ? 'Done' : task.status === 'Done' ? 'In Progress' : task.status
-                                    });
-                                  }}
-                                  className="w-full accent-[#00AEA9] cursor-pointer mb-2.5"
-                                />
-
-                                {/* Quick Presets (0%, 25%, 50%, 75%, 100%) */}
-                                <div className="grid grid-cols-5 gap-1">
-                                  {[0, 25, 50, 75, 100].map((pVal) => (
-                                    <button
-                                      key={pVal}
-                                      type="button"
-                                      onClick={() => {
-                                        updateTask(task.id, {
-                                          progress: pVal,
-                                          status: pVal === 100 ? 'Done' : task.status === 'Done' ? 'In Progress' : task.status
-                                        });
-                                        setActiveProgressTaskId(null);
-                                      }}
-                                      className={`py-1 rounded text-[10px] font-mono font-bold transition-all ${
-                                        progress === pVal
-                                          ? 'bg-[#00AEA9] text-slate-950 shadow-xs'
-                                          : isLight
-                                          ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                                          : 'bg-[#0D1520] hover:bg-[#233549] text-slate-300'
-                                      }`}
-                                    >
-                                      {pVal}%
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            <TaskInteractiveProgressBar task={task} />
                           </td>
 
                           {/* 7. DATE (DUE DATE) COLUMN */}

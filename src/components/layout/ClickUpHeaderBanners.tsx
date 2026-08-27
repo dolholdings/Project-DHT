@@ -14,6 +14,7 @@ import {
   UserCheck,
   Table as TableIcon,
   LayoutDashboard,
+  GanttChart,
   Plus,
   X,
   Search,
@@ -54,12 +55,13 @@ export const ClickUpHeaderBanners: React.FC<{
 
   const viewTabs = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'team', label: 'Team', icon: Users },
+    { id: 'workload', label: 'Workload', icon: UserCheck },
     { id: 'list', label: 'List', icon: List },
     { id: 'board', label: 'Board', icon: Kanban },
-    { id: 'team', label: 'Team', icon: Users },
     { id: 'calendar', label: 'Calendar', icon: Calendar },
+    { id: 'gantt', label: 'Gantt', icon: GanttChart, activeColor: 'text-rose-500' },
     { id: 'activity', label: 'Activity', icon: Activity },
-    { id: 'workload', label: 'Workload', icon: UserCheck },
     { id: 'table', label: 'Table', icon: TableIcon },
   ];
 
