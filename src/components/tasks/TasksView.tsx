@@ -62,6 +62,7 @@ import { PermissionGuard } from '../common/PermissionGuard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
 import { TasksDataTable } from './TasksDataTable';
+import { ClickUpGroupedListView } from './ClickUpGroupedListView';
 import { PriorityBadge } from '../common/PriorityBadge';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
@@ -182,7 +183,7 @@ export const TasksView: React.FC = () => {
   const [singleAnalyzingTaskId, setSingleAnalyzingTaskId] = useState<string | null>(null);
   const [filterUnassignedModal, setFilterUnassignedModal] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
-  const [tasksViewMode, setTasksViewMode] = useState<'table' | 'list' | 'sprints'>('table');
+  const [tasksViewMode, setTasksViewMode] = useState<'list' | 'table' | 'sprints'>('list');
   const [showCustomFieldsModal, setShowCustomFieldsModal] = useState(false);
 
   // Unassigned tasks helper
@@ -524,7 +525,7 @@ export const TasksView: React.FC = () => {
       startDate: new Date().toISOString().split('T')[0],
       dueDate: '2025-08-30',
       estimatedHours: 10,
-      tags: ['ClickUp', 'Task'],
+      tags: [],
       listName: selectedListFilter || undefined
     });
     setInlineTaskTitle('');
@@ -549,7 +550,7 @@ export const TasksView: React.FC = () => {
           }
         : undefined;
 
-    const taskTags = ['ClickUp', 'Task'];
+    const taskTags: string[] = [];
     if (recurrenceConfig) taskTags.push('Recurring');
 
     const finalListName = newListName || selectedListFilter || undefined;
@@ -734,10 +735,27 @@ export const TasksView: React.FC = () => {
           ? 'bg-slate-50 border-slate-200'
           : 'bg-[#121B26] border-[#233549]'
       }`}>
-        {/* Left: View Mode Toggle Switch (Data Table vs Grouped List vs Sprints) */}
+        {/* Left: View Mode Toggle Switch (ClickUp Grouped List vs Data Table vs Sprints) */}
         <div className={`p-1 rounded-xl border flex items-center gap-1 shrink-0 ${
           theme === 'light' ? 'bg-slate-200/70 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
         }`}>
+          <button
+            type="button"
+            onClick={() => setTasksViewMode('list')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              tasksViewMode === 'list'
+                ? theme === 'light'
+                  ? 'bg-white text-[#0773BB] shadow-sm border border-slate-200 font-extrabold'
+                  : 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30 font-extrabold'
+                : theme === 'light'
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
+                : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+            }`}
+            title="ClickUp Grouped Accordions list view by status"
+          >
+            <ListOrdered className="w-3.5 h-3.5" />
+            <span>List</span>
+          </button>
           <button
             type="button"
             onClick={() => setTasksViewMode('table')}
@@ -753,24 +771,7 @@ export const TasksView: React.FC = () => {
             title="Interactive Data Table with multi-select checkboxes, batch status/priority operations, and sorting"
           >
             <Table className="w-3.5 h-3.5" />
-            <span>Data Table</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setTasksViewMode('list')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              tasksViewMode === 'list'
-                ? theme === 'light'
-                  ? 'bg-white text-[#0773BB] shadow-sm border border-slate-200 font-extrabold'
-                  : 'bg-[#0773BB] text-white shadow-md shadow-[#0773BB]/30 font-extrabold'
-                : theme === 'light'
-                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-300/60'
-                : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
-            }`}
-            title="Grouped Accordions view by status"
-          >
-            <ListOrdered className="w-3.5 h-3.5" />
-            <span>Grouped List</span>
+            <span>Table</span>
           </button>
           <button
             type="button"
@@ -1050,515 +1051,13 @@ export const TasksView: React.FC = () => {
               }}
             />
           ) : (
-            <>
-              {/* GROUP 1: IN PROGRESS */}
-          <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
-            {/* Group Header Bar */}
-            <div
-              onClick={() => setInProgressOpen(!inProgressOpen)}
-              className="px-4 py-3 bg-[#7B68EE]/10 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-[#7B68EE]/20 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                {inProgressOpen ? <ChevronDown className="w-4 h-4 text-[#7B68EE]" /> : <ChevronRight className="w-4 h-4 text-[#7B68EE]" />}
-                <span className="px-2.5 py-0.5 rounded-full bg-[#7B68EE] text-white text-[10px] font-extrabold uppercase tracking-wider">
-                  IN PROGRESS
-                </span>
-                <span className="text-xs font-mono font-bold text-slate-400">
-                  {inProgressTasks.length}
-                </span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setInlineAddGroup('In Progress');
-                }}
-                className="text-xs font-semibold text-[#7B68EE] hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Task</span>
-              </button>
-            </div>
-
-            {/* Task Table */}
-            {inProgressOpen && (
-              <div className="overflow-x-auto">
-                <table className={`w-full text-left text-xs ${isLight ? 'text-slate-800' : 'text-slate-300'}`}>
-                  <thead className={`font-semibold uppercase tracking-wider border-b text-[10px] ${
-                    isLight ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-[#0D1520]/40 text-slate-400 border-[#233549]/40'
-                  }`}>
-                    <tr>
-                      <th className="p-3 pl-6">Name</th>
-                      <th className="p-3">Assignee</th>
-                      <th className="p-3 text-center">Priority</th>
-                      <th className="p-3 text-center">Priority Score</th>
-                      <th className="p-3">Due date</th>
-                      <th className="p-3 text-right">Logged/Est</th>
-                      <th className="p-3 text-center">Timer</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y font-medium ${isLight ? 'divide-slate-200' : 'divide-[#233549]/40'}`}>
-                    {inProgressTasks.map((t) => {
-                      const assignee = users.find((u) => t.assigneeIds.includes(u.id));
-                      const isTimerRunning = timer.active && timer.taskId === t.id;
-                      const isSelected = selectedTaskId === t.id;
-                      const pScore = calculatePriorityScore(t, dependencies, tasks);
-
-                      return (
-                        <tr
-                          key={t.id}
-                          onClick={() => setSelectedTaskId(t.id)}
-                          className={`transition-colors cursor-pointer ${
-                            isLight ? 'hover:bg-slate-50' : 'hover:bg-[#16222F]/80'
-                          } ${
-                            isSelected ? (isLight ? 'bg-indigo-50/80 border-l-4 border-l-[#7B68EE]' : 'bg-[#7B68EE]/10 border-l-4 border-l-[#7B68EE]') : ''
-                          }`}
-                        >
-                          <td className="p-3 pl-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateTask(t.id, { status: 'Done' });
-                                }}
-                                className="w-4 h-4 rounded-full border-2 border-[#7B68EE] hover:bg-[#7B68EE] transition-all shrink-0 cursor-pointer"
-                                title="Click to complete task"
-                              />
-                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
-                                <span className={`font-bold transition-colors cursor-pointer ${
-                                  isLight ? 'text-slate-900 hover:text-[#0773BB]' : 'text-slate-100 hover:text-[#7B68EE]'
-                                }`}>
-                                  {getDisplayTaskTitle(t)}
-                                </span>
-                              </TaskQuickPreviewPopover>
-                              {t.recurrence && t.recurrence.type !== 'none' && (
-                                <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
-                                  title={`Recurring Schedule: Every ${t.recurrence.interval || 1} ${t.recurrence.type}`}
-                                >
-                                  <Repeat className="w-3 h-3 text-[#3BC0BB]" />
-                                  <span className="capitalize text-[9px]">{t.recurrence.type}</span>
-                                </span>
-                              )}
-                              {renderDependencyIndicators(t)}
-                            </div>
-                          </td>
-
-                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <AssigneePicker
-                                assigneeIds={t.assigneeIds || []}
-                                users={users}
-                                onUpdateAssignees={(newIds) => updateTask(t.id, { assigneeIds: newIds })}
-                              />
-                              {(!t.assigneeIds || t.assigneeIds.length === 0) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleSingleTaskSmartPriority(t)}
-                                  disabled={singleAnalyzingTaskId === t.id}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
-                                  title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
-                                >
-                                  <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
-                                  <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Color-Coded Priority Selector */}
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <PriorityBadge
-                              priority={t.priority}
-                              onChange={(newPriority) => updateTask(t.id, { priority: newPriority })}
-                              interactive
-                              size="sm"
-                            />
-                          </td>
-
-                          {/* Priority Score Badge Cell */}
-                          <td className="p-3 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}
-                              title={pScore.reasons.join(' • ')}
-                            >
-                              {pScore.tier === 'CRITICAL' ? (
-                                <Flame className="w-3 h-3 text-rose-400" />
-                              ) : pScore.tier === 'HIGH' ? (
-                                <Zap className="w-3 h-3 text-amber-400" />
-                              ) : (
-                                <Activity className="w-3 h-3 text-blue-400" />
-                              )}
-                              <span>{pScore.score}</span>
-                              <span className="text-[9px] opacity-75 uppercase">{pScore.tier}</span>
-                            </span>
-                          </td>
-
-                          <td className="p-3 font-mono text-rose-400 font-bold" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="date"
-                              value={t.dueDate || ''}
-                              onChange={(e) => updateTask(t.id, { dueDate: e.target.value })}
-                              className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#0D1520] text-rose-300 font-bold rounded px-1 py-0.5 font-mono text-xs cursor-pointer focus:outline-none transition-colors"
-                              title="Click to change due date"
-                            />
-                          </td>
-
-                          <td className="p-3 text-right font-mono">
-                            <span className="text-[#3BC0BB] font-bold">{t.loggedHours}h</span> / {t.estimatedHours}h
-                          </td>
-
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            {isTimerRunning ? (
-                              <button
-                                onClick={() => stopTimer('Logged time')}
-                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
-                              >
-                                <Square className="w-3.5 h-3.5 fill-current animate-pulse" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => startTimer(t.id, t.title)}
-                                className="p-1.5 rounded-lg bg-[#7B68EE]/20 hover:bg-[#7B68EE] text-[#7B68EE] hover:text-white transition-all"
-                              >
-                                <Play className="w-3.5 h-3.5 fill-current" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-
-                    {/* Inline Add Task Row */}
-                    {inlineAddGroup === 'In Progress' ? (
-                      <tr className="bg-[#16222F]/60">
-                        <td colSpan={5} className="p-3 pl-6">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              autoFocus
-                              placeholder="Task Name..."
-                              value={inlineTaskTitle}
-                              onChange={(e) => setInlineTaskTitle(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleInlineAdd('In Progress');
-                                if (e.key === 'Escape') setInlineAddGroup(null);
-                              }}
-                              className="flex-1 bg-[#0D1520] border border-[#7B68EE] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
-                            />
-                            <button
-                              onClick={() => handleInlineAdd('In Progress')}
-                              className="px-3 py-1.5 bg-[#7B68EE] text-white font-bold rounded-lg text-xs"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setInlineAddGroup(null)}
-                              className="p-1.5 text-slate-400 hover:text-white"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr
-                        onClick={() => setInlineAddGroup('In Progress')}
-                        className="hover:bg-[#16222F]/40 cursor-pointer text-slate-400 hover:text-white"
-                      >
-                        <td colSpan={5} className="p-2.5 pl-6 text-xs font-medium flex items-center gap-1.5">
-                          <Plus className="w-3.5 h-3.5 text-[#7B68EE]" />
-                          <span>Add Task</span>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* GROUP 2: TO DO */}
-          <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
-            {/* Group Header Bar */}
-            <div
-              onClick={() => setToDoOpen(!toDoOpen)}
-              className="px-4 py-3 bg-slate-800/20 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-slate-800/40 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                {toDoOpen ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
-                <span className="px-2.5 py-0.5 rounded-full bg-slate-700/60 text-slate-200 text-[10px] font-extrabold uppercase tracking-wider border border-slate-600/40 flex items-center gap-1">
-                  <Circle className="w-2.5 h-2.5 stroke-[3] text-slate-400" />
-                  TO DO
-                </span>
-                <span className="text-xs font-mono font-bold text-slate-400">
-                  {toDoTasks.length}
-                </span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setInlineAddGroup('To Do');
-                }}
-                className="text-xs font-semibold text-slate-300 hover:text-white hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Task</span>
-              </button>
-            </div>
-
-            {/* Task Table */}
-            {toDoOpen && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className={`font-semibold uppercase tracking-wider border-b text-[10px] ${
-                    theme === 'light' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-[#0D1520]/40 text-slate-400 border-[#233549]/40'
-                  }`}>
-                    <tr>
-                      <th className="p-3 pl-6">Name</th>
-                      <th className="p-3">Assignee</th>
-                      <th className="p-3 text-center">Priority</th>
-                      <th className="p-3 text-center">Priority Score</th>
-                      <th className="p-3">Due date</th>
-                      <th className="p-3 text-right">Logged/Est</th>
-                      <th className="p-3 text-center">Timer</th>
-                    </tr>
-                  </thead>
-                  <tbody className={`divide-y font-medium ${theme === 'light' ? 'divide-slate-200' : 'divide-[#233549]/40'}`}>
-                    {toDoTasks.map((t) => {
-                      const assignee = users.find((u) => t.assigneeIds.includes(u.id));
-                      const isTimerRunning = timer.active && timer.taskId === t.id;
-                      const isSelected = selectedTaskId === t.id;
-                      const pScore = calculatePriorityScore(t, dependencies, tasks);
-
-                      return (
-                        <tr
-                          key={t.id}
-                          onClick={() => setSelectedTaskId(t.id)}
-                          className={`transition-colors cursor-pointer ${
-                            theme === 'light'
-                              ? isSelected ? 'bg-teal-50/80 border-l-4 border-l-[#0D9488]' : 'hover:bg-slate-50'
-                              : isSelected ? 'bg-[#0773BB]/10 border-l-4 border-l-[#0773BB]' : 'hover:bg-[#16222F]/80'
-                          }`}
-                        >
-                          <td className="p-3 pl-6">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  updateTask(t.id, { status: 'In Progress' });
-                                }}
-                                className="w-4 h-4 rounded-full border-2 border-slate-400 hover:border-[#7B68EE] transition-all shrink-0"
-                                title="Click to set In Progress"
-                              />
-                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
-                                <span className={`font-medium transition-colors cursor-pointer ${
-                                  theme === 'light' ? 'text-slate-800 hover:text-teal-700' : 'text-slate-200 hover:text-white'
-                                }`}>
-                                  {getDisplayTaskTitle(t)}
-                                </span>
-                              </TaskQuickPreviewPopover>
-                              {t.recurrence && t.recurrence.type !== 'none' && (
-                                <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#3BC0BB]/15 text-[#3BC0BB] border border-[#3BC0BB]/30 shrink-0"
-                                  title={`Recurring Schedule: Every ${t.recurrence.interval || 1} ${t.recurrence.type}`}
-                                >
-                                  <Repeat className="w-3 h-3 text-[#3BC0BB]" />
-                                  <span className="capitalize text-[9px]">{t.recurrence.type}</span>
-                                </span>
-                              )}
-                              {renderDependencyIndicators(t)}
-                            </div>
-                          </td>
-
-                          <td className="p-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <AssigneePicker
-                                assigneeIds={t.assigneeIds || []}
-                                users={users}
-                                onUpdateAssignees={(newIds) => updateTask(t.id, { assigneeIds: newIds })}
-                              />
-                              {(!t.assigneeIds || t.assigneeIds.length === 0) && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleSingleTaskSmartPriority(t)}
-                                  disabled={singleAnalyzingTaskId === t.id}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-gradient-to-r from-amber-600/30 to-amber-500/30 hover:from-amber-600 hover:to-amber-500 text-amber-200 hover:text-white border border-amber-500/40 text-[10px] font-bold transition-all shrink-0"
-                                  title="Analyze deadline & effort estimate with Gemini to auto-tag High/Medium/Low priority"
-                                >
-                                  <Sparkles className={`w-3 h-3 text-amber-300 ${singleAnalyzingTaskId === t.id ? 'animate-spin' : ''}`} />
-                                  <span>{singleAnalyzingTaskId === t.id ? 'Analyzing...' : 'AI Tag Priority'}</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Color-Coded Priority Selector */}
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            <PriorityBadge
-                              priority={t.priority}
-                              onChange={(newPriority) => updateTask(t.id, { priority: newPriority })}
-                              interactive
-                              size="sm"
-                            />
-                          </td>
-
-                          {/* Priority Score Badge Cell */}
-                          <td className="p-3 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border ${pScore.bgColor} ${pScore.color} ${pScore.borderColor}`}
-                              title={pScore.reasons.join(' • ')}
-                            >
-                              {pScore.tier === 'CRITICAL' ? (
-                                <Flame className="w-3 h-3 text-rose-400" />
-                              ) : pScore.tier === 'HIGH' ? (
-                                <Zap className="w-3 h-3 text-amber-400" />
-                              ) : (
-                                <Activity className="w-3 h-3 text-blue-400" />
-                              )}
-                              <span>{pScore.score}</span>
-                              <span className="text-[9px] opacity-75 uppercase">{pScore.tier}</span>
-                            </span>
-                          </td>
-
-                          <td className="p-3 font-mono text-slate-400" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              type="date"
-                              value={t.dueDate || ''}
-                              onChange={(e) => updateTask(t.id, { dueDate: e.target.value })}
-                              className="bg-transparent border border-transparent hover:border-[#233549] focus:border-[#3BC0BB] focus:bg-[#0D1520] text-rose-300 font-bold rounded px-1 py-0.5 font-mono text-xs cursor-pointer focus:outline-none transition-colors"
-                              title="Click to change due date"
-                            />
-                          </td>
-
-                          <td className="p-3 text-right font-mono">
-                            <span className="text-slate-400">{t.loggedHours}h</span> / {t.estimatedHours}h
-                          </td>
-
-                          <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
-                            {isTimerRunning ? (
-                              <button
-                                onClick={() => stopTimer('Logged time')}
-                                className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white transition-all"
-                              >
-                                <Square className="w-3.5 h-3.5 fill-current animate-pulse" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => startTimer(t.id, t.title)}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-[#0773BB] text-slate-400 hover:text-white transition-all"
-                              >
-                                <Play className="w-3.5 h-3.5 fill-current" />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-
-                    {/* Inline Add Task Row */}
-                    {inlineAddGroup === 'To Do' ? (
-                      <tr className="bg-[#16222F]/60">
-                        <td colSpan={5} className="p-3 pl-6">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              autoFocus
-                              placeholder="Task Name..."
-                              value={inlineTaskTitle}
-                              onChange={(e) => setInlineTaskTitle(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleInlineAdd('To Do');
-                                if (e.key === 'Escape') setInlineAddGroup(null);
-                              }}
-                              className="flex-1 bg-[#0D1520] border border-[#0773BB] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none"
-                            />
-                            <button
-                              onClick={() => handleInlineAdd('To Do')}
-                              className="px-3 py-1.5 bg-[#0773BB] text-white font-bold rounded-lg text-xs"
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setInlineAddGroup(null)}
-                              className="p-1.5 text-slate-400 hover:text-white"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr
-                        onClick={() => setInlineAddGroup('To Do')}
-                        className="hover:bg-[#16222F]/40 cursor-pointer text-slate-400 hover:text-white"
-                      >
-                        <td colSpan={5} className="p-2.5 pl-6 text-xs font-medium flex items-center gap-1.5">
-                          <Plus className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Add Task</span>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* GROUP 3: COMPLETED */}
-          {doneTasks.length > 0 && (
-            <div className={`rounded-2xl border ${theme === 'light' ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#121B26] border-[#233549] shadow-xl'} overflow-hidden`}>
-              <div
-                onClick={() => setCompletedOpen(!completedOpen)}
-                className="px-4 py-3 bg-emerald-500/10 border-b border-[#233549]/60 flex items-center justify-between cursor-pointer select-none hover:bg-emerald-500/20 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  {completedOpen ? <ChevronDown className="w-4 h-4 text-emerald-400" /> : <ChevronRight className="w-4 h-4 text-emerald-400" />}
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/30">
-                    COMPLETE
-                  </span>
-                  <span className="text-xs font-mono font-bold text-slate-400">
-                    {doneTasks.length}
-                  </span>
-                </div>
-              </div>
-
-              {completedOpen && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <tbody className="divide-y divide-[#233549]/40 font-medium">
-                      {doneTasks.map((t) => (
-                        <tr
-                          key={t.id}
-                          onClick={() => setSelectedTaskId(t.id)}
-                          className="hover:bg-[#16222F]/80 transition-colors cursor-pointer opacity-75"
-                        >
-                          <td className="p-3 pl-6 text-slate-400 font-medium">
-                            <div className="flex items-center gap-2">
-                              <TaskQuickPreviewPopover task={t} onOpenFullTask={(id) => setSelectedTaskId(id)}>
-                                <span className="line-through cursor-pointer hover:text-slate-200">{getDisplayTaskTitle(t)}</span>
-                              </TaskQuickPreviewPopover>
-                              {renderDependencyIndicators(t)}
-                            </div>
-                          </td>
-                          <td className="p-3 text-emerald-400 font-bold text-[10px]">
-                            COMPLETED
-                          </td>
-                          <td className="p-3 font-mono text-slate-500">{t.dueDate}</td>
-                          <td className="p-3 text-right font-mono text-emerald-400 font-bold">
-                            {t.loggedHours}h / {t.estimatedHours}h
-                          </td>
-                          <td className="p-3 text-center">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 inline-block" />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-            </>
+            <ClickUpGroupedListView
+              tasks={filteredTasks}
+              onSelectTask={(id) => setSelectedTaskId(id)}
+              selectedTaskId={selectedTaskId}
+              onOpenCustomFieldsModal={() => setShowCustomFieldsModal(true)}
+              onOpenCreateTaskModal={() => setShowCreateModal(true)}
+            />
           )}
 
         </div>

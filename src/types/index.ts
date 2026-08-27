@@ -150,6 +150,7 @@ export interface Task {
   latestFinish?: string;    // CPM computed Latest Finish date
   recurrence?: RecurrenceConfig;
   listName?: string; // ClickUp list name within the space (e.g., 'Website Development', 'SEO & Google Ads')
+  progress?: number; // Completion percentage (0 - 100)
   customFields?: Record<string, any>; // Mapping fieldId -> value
   createdAt: string;
   updatedAt: string;
