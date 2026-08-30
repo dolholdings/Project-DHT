@@ -9,8 +9,9 @@ import {
   query
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Project, Task, ProjectFile, User } from '../types';
+import { Project, Task, ProjectFile, User, Company } from '../types';
 
+const COMPANIES_COLLECTION = 'companies';
 const PROJECTS_COLLECTION = 'projects';
 const TASKS_COLLECTION = 'tasks';
 const FILES_COLLECTION = 'files';
@@ -35,6 +36,73 @@ export function sanitizeForFirestore<T>(data: T): T {
     return cleaned as T;
   }
   return data;
+}
+
+// ==================== COMPANIES CRUD ====================
+
+export async function fetchCompaniesFromFirestore(): Promise<Company[]> {
+  try {
+    const colRef = collection(db, COMPANIES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const companies: Company[] = [];
+    snapshot.forEach((docSnap) => {
+      companies.push({ id: docSnap.id, ...docSnap.data() } as Company);
+    });
+    return companies;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, COMPANIES_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToCompanies(onUpdate: (companies: Company[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, COMPANIES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const companies: Company[] = [];
+      snapshot.forEach((docSnap) => {
+        companies.push({ id: docSnap.id, ...docSnap.data() } as Company);
+      });
+      onUpdate(companies);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) {
+        console.warn('Firestore companies snapshot notice:', msg);
+        return;
+      }
+      console.warn('Firestore companies snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createCompanyInFirestore(company: Company): Promise<void> {
+  const docRef = doc(db, COMPANIES_COLLECTION, company.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(company));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `companies/${company.id}`);
+  }
+}
+
+export async function updateCompanyInFirestore(id: string, updates: Partial<Company>): Promise<void> {
+  const docRef = doc(db, COMPANIES_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `companies/${id}`);
+  }
+}
+
+export async function deleteCompanyFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, COMPANIES_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `companies/${id}`);
+  }
 }
 
 // ==================== PROJECTS CRUD ====================
@@ -334,14 +402,55 @@ export async function clearAllFirestoreData(): Promise<void> {
   }
 }
 
-// Seed initial data into Firestore if collection is empty
+// Force restore all initial data into Firestore immediately
+export async function forceRestoreFirestoreData(
+  initialProjects: Project[],
+  initialTasks: Task[],
+  initialFiles: ProjectFile[] = [],
+  initialUsers: User[] = [],
+  initialCompanies: Company[] = []
+): Promise<void> {
+  try {
+    for (const c of initialCompanies) {
+      await createCompanyInFirestore(c);
+    }
+    for (const u of initialUsers) {
+      await createUserInFirestore(u);
+    }
+    for (const p of initialProjects) {
+      await createProjectInFirestore(p);
+    }
+    for (const t of initialTasks) {
+      await createTaskInFirestore(t);
+    }
+    for (const f of initialFiles) {
+      await createFileInFirestore(f);
+    }
+  } catch (error) {
+    console.warn('Error during forceRestoreFirestoreData:', error);
+  }
+}
+
+// Seed initial data into Firestore if collection is empty or missing key entities
 export async function seedInitialFirestoreData(
   initialProjects: Project[],
   initialTasks: Task[],
   initialFiles: ProjectFile[] = [],
-  initialUsers: User[] = []
+  initialUsers: User[] = [],
+  initialCompanies: Company[] = []
 ): Promise<void> {
   try {
+    // 1. Companies / Workspaces seeding
+    if (initialCompanies.length > 0) {
+      const existingCompanies = await fetchCompaniesFromFirestore();
+      for (const ic of initialCompanies) {
+        if (!existingCompanies.some((c) => c.id === ic.id || c.code === ic.code || c.domain === ic.domain)) {
+          await createCompanyInFirestore(ic);
+        }
+      }
+    }
+
+    // 2. Users seeding
     const legacyEmails = [
       'tareq.aldolphin@dolphingroup.ae',
       'parvez.khan@dolphingroup.ae',
@@ -364,23 +473,32 @@ export async function seedInitialFirestoreData(
     const remainingUsers = await fetchUsersFromFirestore();
     if (initialUsers.length > 0) {
       for (const iu of initialUsers) {
-        if (!remainingUsers.some((u) => u.email.toLowerCase() === iu.email.toLowerCase())) {
+        const existing = remainingUsers.find((u) => u.email.toLowerCase() === iu.email.toLowerCase() || u.id === iu.id);
+        if (!existing) {
           await createUserInFirestore(iu);
+        } else if (!existing.password && iu.password) {
+          await updateUserInFirestore(existing.id, { password: iu.password });
         }
       }
     }
+
+    // 3. Projects seeding (ensure DHT-Ajman projects and all initial projects exist)
     const existingProjects = await fetchProjectsFromFirestore();
-    if (existingProjects.length === 0) {
-      for (const p of initialProjects) {
-        await createProjectInFirestore(p);
+    for (const ip of initialProjects) {
+      if (!existingProjects.some((p) => p.id === ip.id || p.code === ip.code)) {
+        await createProjectInFirestore(ip);
       }
     }
+
+    // 4. Tasks seeding
     const existingTasks = await fetchTasksFromFirestore();
-    if (existingTasks.length === 0) {
-      for (const t of initialTasks) {
-        await createTaskInFirestore(t);
+    for (const it of initialTasks) {
+      if (!existingTasks.some((t) => t.id === it.id)) {
+        await createTaskInFirestore(it);
       }
     }
+
+    // 5. Files seeding
     const existingFiles = await fetchFilesFromFirestore();
     if (existingFiles.length === 0 && initialFiles.length > 0) {
       for (const f of initialFiles) {

@@ -69,6 +69,21 @@ export const INITIAL_COMPANIES: Company[] = [
 
 export const INITIAL_USERS: User[] = [
   {
+    id: 'usr_superadmin_dgh',
+    name: 'Dolphin Group Executive',
+    email: 'dolphingroup786@gmail.com',
+    role: 'Admin',
+    companyId: 'comp_dht',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
+    department: 'Executive Board & Plant Operations',
+    hourlyRate: 250,
+    maxWeeklyHours: 40,
+    status: 'Active',
+    isEmailVerified: true,
+    password: 'Admin@dolphin2026!',
+    lastActive: new Date().toISOString()
+  },
+  {
     id: 'usr_admin_dml',
     name: 'DML Admin',
     email: 'admin@dolrad.ae',
@@ -235,7 +250,7 @@ export const INITIAL_PROJECTS: Project[] = [
     budget: 850000,
     spentBudget: 420000,
     category: 'Heat Exchanger',
-    members: ['usr_pm_dht', 'usr_admin_dml'],
+    members: ['usr_pm_dht', 'usr_admin_dml', 'usr_ciro_campos', 'usr_gabriel_hoffman'],
     lists: [
       'Engineering (20% Wt)',
       'Materials Ordering (25% Wt)',
@@ -258,11 +273,99 @@ export const INITIAL_PROJECTS: Project[] = [
     budget: 250000,
     spentBudget: 95000,
     category: 'Heat Exchanger',
-    members: ['usr_pm_dht', 'usr_admin_dml'],
+    members: ['usr_pm_dht', 'usr_admin_dml', 'usr_gray_mackenzie'],
     lists: [
       'Red Critical / Holdpoints',
       'Amber Attention',
       'Green Approved / Completed'
+    ]
+  },
+  {
+    id: 'proj_dml_radiators',
+    title: 'Heavy Commercial Radiators & Tube Bundle Retubing',
+    code: 'DML-RAD',
+    companyId: 'comp_dml',
+    description: 'Dolphin Manufacturing Limited - Heavy duty radiator cores fabrication, hydro-testing, CNC finning and brazing assembly for industrial fleets and diesel generators.',
+    status: 'In Progress',
+    progress: 62,
+    managerId: 'usr_admin_dml',
+    startDate: '2026-06-01',
+    dueDate: '2026-11-15',
+    budget: 450000,
+    spentBudget: 280000,
+    category: 'Industrial Manufacturing',
+    members: ['usr_admin_dml', 'usr_derek_harvey'],
+    lists: [
+      'Core Stacking & Braze',
+      'Header Plate TIG Welding',
+      'Hydrostatic Leak Testing',
+      'Powder Coating & Dispatch'
+    ]
+  },
+  {
+    id: 'proj_drcs_cooling',
+    title: 'Ammonia Chiller & Plate Heat Exchanger Overhaul',
+    code: 'DRCS-CHL',
+    companyId: 'comp_drcs',
+    description: 'Dolphin Refrigeration & Cooling Systems - Overhaul of marine chillers, plate regasketing, tube de-scaling and ultrasonic leak testing for Sharjah cold storage clients.',
+    status: 'In Progress',
+    progress: 45,
+    managerId: 'usr_member_drcs',
+    startDate: '2026-07-01',
+    dueDate: '2026-10-31',
+    budget: 320000,
+    spentBudget: 140000,
+    category: 'Commercial Refrigeration',
+    members: ['usr_member_drcs', 'usr_jakub_grajcar'],
+    lists: [
+      'Disassembly & Acid Wash',
+      'Laser Alignment & Gaskets',
+      'Helium Leak Check',
+      'Commissioning & Signoff'
+    ]
+  },
+  {
+    id: 'proj_corp_operations',
+    title: 'DGH Group Strategic Operations & Financial Governance 2026',
+    code: 'CORP-GOV',
+    companyId: 'comp_corp',
+    description: 'Corporate executive oversight, ERP synchronization, inter-company cross-billing, quarterly compliance audit and group capital allocation.',
+    status: 'In Progress',
+    progress: 75,
+    managerId: 'usr_viewer_corp',
+    startDate: '2026-01-01',
+    dueDate: '2026-12-31',
+    budget: 1200000,
+    spentBudget: 780000,
+    category: 'Corporate Strategy',
+    members: ['usr_viewer_corp', 'usr_admin_dml'],
+    lists: [
+      'Q3 Board Reviews',
+      'Tax & Legal Compliance',
+      'Digital Transformation',
+      'Capital Asset Allocation'
+    ]
+  },
+  {
+    id: 'proj_dgha_bi',
+    title: 'Enterprise BI & Real-time KPI Analytics Engine',
+    code: 'DGHA-BI',
+    companyId: 'comp_dgha',
+    description: 'DGH Analytics - Business Intelligence data lake connector, factory telemetry aggregation, automated milestone predictive forecast, and executive dashboards.',
+    status: 'In Progress',
+    progress: 58,
+    managerId: 'usr_admin_dml',
+    startDate: '2026-05-15',
+    dueDate: '2026-10-15',
+    budget: 280000,
+    spentBudget: 160000,
+    category: 'Analytics & BI',
+    members: ['usr_admin_dml', 'usr_pm_dht'],
+    lists: [
+      'Data Lake Ingestion',
+      'Predictive Milestone Models',
+      'Executive KPI Views',
+      'Alerts & Escalation Engine'
     ]
   }
 ];
@@ -730,6 +833,147 @@ export const INITIAL_TASKS: Task[] = [
     listName: 'Green Approved / Completed',
     createdAt: '2026-07-10T08:00:00.000Z',
     updatedAt: '2026-07-14T14:00:00.000Z'
+  },
+
+  // --- DML (DOLPHIN MANUFACTURING LIMITED) TASKS ---
+  {
+    id: 'tsk_dml_01',
+    projectId: 'proj_dml_radiators',
+    companyId: 'comp_dml',
+    title: 'Automated Copper-Brass Core Stacking & Oven Brazing Run',
+    description: 'High-efficiency thermal core matrix stacking for 500kW heavy genset radiators. Continuous fluxing and controlled atmosphere brazing.',
+    status: 'In Progress',
+    priority: 'Urgent',
+    assigneeIds: ['usr_admin_dml', 'usr_derek_harvey'],
+    reporterId: 'usr_admin_dml',
+    startDate: '2026-08-01',
+    dueDate: '2026-09-15',
+    estimatedHours: 45,
+    loggedHours: 28,
+    tags: ['DML', 'Brazing', 'Core Stacking', 'Radiator'],
+    listName: 'Core Stacking & Braze',
+    createdAt: '2026-08-01T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+  {
+    id: 'tsk_dml_02',
+    projectId: 'proj_dml_radiators',
+    companyId: 'comp_dml',
+    title: 'Header Plate TIG Welding & Baffle Alignment',
+    description: 'Precision TIG welding of aluminum header plates and structural side brackets with 100% dye penetrant testing.',
+    status: 'In Progress',
+    priority: 'High',
+    assigneeIds: ['usr_derek_harvey'],
+    reporterId: 'usr_admin_dml',
+    startDate: '2026-08-05',
+    dueDate: '2026-09-20',
+    estimatedHours: 35,
+    loggedHours: 18,
+    tags: ['DML', 'TIG Welding', 'Fabrication'],
+    listName: 'Header Plate TIG Welding',
+    createdAt: '2026-08-05T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+  {
+    id: 'tsk_dml_03',
+    projectId: 'proj_dml_radiators',
+    companyId: 'comp_dml',
+    title: 'Hydrostatic Pressure & Pulsation Cycle Leak Test (4.5 Bar)',
+    description: 'Immersion tank hydrostatic leak testing under 4.5 Bar pneumatic hold for 30 minutes with calibrated pressure gauges.',
+    status: 'To Do',
+    priority: 'Urgent',
+    assigneeIds: ['usr_admin_dml', 'usr_derek_harvey'],
+    reporterId: 'usr_admin_dml',
+    startDate: '2026-08-15',
+    dueDate: '2026-09-25',
+    estimatedHours: 20,
+    loggedHours: 0,
+    tags: ['DML', 'Hydrotest', 'QAQC'],
+    listName: 'Hydrostatic Leak Testing',
+    createdAt: '2026-08-15T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+
+  // --- DRCS (DOLPHIN REFRIGERATION & COOLING) TASKS ---
+  {
+    id: 'tsk_drcs_01',
+    projectId: 'proj_drcs_cooling',
+    companyId: 'comp_drcs',
+    title: 'Plate Heat Exchanger Chemical Descaling & Ultrasonic Clean',
+    description: 'Circulation of food-grade sulfamic acid solution to remove calcium scaling followed by ultrasonic transducer cleaning.',
+    status: 'In Progress',
+    priority: 'High',
+    assigneeIds: ['usr_member_drcs', 'usr_jakub_grajcar'],
+    reporterId: 'usr_member_drcs',
+    startDate: '2026-08-01',
+    dueDate: '2026-09-10',
+    estimatedHours: 40,
+    loggedHours: 24,
+    tags: ['DRCS', 'Descaling', 'Chemical Wash', 'Plate Exchanger'],
+    listName: 'Disassembly & Acid Wash',
+    createdAt: '2026-08-01T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+  {
+    id: 'tsk_drcs_02',
+    projectId: 'proj_drcs_cooling',
+    companyId: 'comp_drcs',
+    title: 'EPDM/NBR Clip-on Regasketing & Laser Dimension Inspection',
+    description: 'Replacing 140 plate gaskets with virgin peroxide-cured EPDM clip-on gaskets and laser tightening dimension verification.',
+    status: 'In Progress',
+    priority: 'Medium',
+    assigneeIds: ['usr_member_drcs'],
+    reporterId: 'usr_member_drcs',
+    startDate: '2026-08-10',
+    dueDate: '2026-09-18',
+    estimatedHours: 30,
+    loggedHours: 12,
+    tags: ['DRCS', 'Gaskets', 'EPDM', 'Refrigeration'],
+    listName: 'Laser Alignment & Gaskets',
+    createdAt: '2026-08-10T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+
+  // --- CORPORATE GOVERNANCE TASKS ---
+  {
+    id: 'tsk_corp_01',
+    projectId: 'proj_corp_operations',
+    companyId: 'comp_corp',
+    title: 'Group Q3 Financial Consolidated Balance Sheet & EBITDA Review',
+    description: 'Auditing inter-entity cross charges across DML, DHT, and DRCS for consolidated executive quarterly presentation.',
+    status: 'In Progress',
+    priority: 'Urgent',
+    assigneeIds: ['usr_viewer_corp', 'usr_admin_dml'],
+    reporterId: 'usr_viewer_corp',
+    startDate: '2026-08-01',
+    dueDate: '2026-09-30',
+    estimatedHours: 50,
+    loggedHours: 35,
+    tags: ['Corporate', 'Finance', 'EBITDA', 'Executive'],
+    listName: 'Q3 Board Reviews',
+    createdAt: '2026-08-01T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
+  },
+
+  // --- DGH ANALYTICS TASKS ---
+  {
+    id: 'tsk_dgha_01',
+    projectId: 'proj_dgha_bi',
+    companyId: 'comp_dgha',
+    title: 'Factory Telemetry Ingestion Pipeline & Critical Holdpoint Sync',
+    description: 'Configuring automated telemetry and IoT sensors from Ajman CNC machines to aggregate daily output into executive BI dashboard.',
+    status: 'In Progress',
+    priority: 'High',
+    assigneeIds: ['usr_admin_dml', 'usr_pm_dht'],
+    reporterId: 'usr_admin_dml',
+    startDate: '2026-08-05',
+    dueDate: '2026-09-28',
+    estimatedHours: 36,
+    loggedHours: 22,
+    tags: ['Analytics', 'IoT', 'Telemetry', 'BI'],
+    listName: 'Data Lake Ingestion',
+    createdAt: '2026-08-05T08:00:00.000Z',
+    updatedAt: '2026-08-15T12:00:00.000Z'
   }
 ];
 

@@ -64,6 +64,10 @@ import {
 } from '../data/initialData';
 import { INITIAL_EMAIL_THREADS, INITIAL_EMAIL_CONFIG } from '../data/initialEmailData';
 import {
+  createCompanyInFirestore,
+  updateCompanyInFirestore,
+  deleteCompanyFromFirestore,
+  subscribeToCompanies,
   createProjectInFirestore,
   updateProjectInFirestore,
   deleteProjectFromFirestore,
@@ -82,6 +86,7 @@ import {
   deleteUserFromFirestore,
   seedInitialFirestoreData,
   clearAllFirestoreData,
+  forceRestoreFirestoreData,
 } from '../services/dataService';
 import { sendTransactionalEmail } from '../services/emailNotificationService';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../config/auth';
@@ -246,6 +251,7 @@ interface AppContextType {
 
   // Workspace Reset / Clear Sample Data
   clearAllData: () => void;
+  restoreAllWorkspaceData: () => Promise<void>;
 
   // Email Inbox & Task Linking
   emailThreads: EmailThread[];
@@ -373,7 +379,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     applyThemeToDOM(dolphinTheme, resolvedBase);
     return resolvedBase;
   });
-  const [authorizedDomains, setAuthorizedDomains] = useState<string[]>(() => loadFromStorage('pm_auth_domains', [...APPROVED_DOMAINS, 'gmail.com']));
+  const [authorizedDomains, setAuthorizedDomains] = useState<string[]>(() => {
+    const loaded = loadFromStorage<string[]>('pm_auth_domains', APPROVED_DOMAINS);
+    const domainList = Array.isArray(loaded) && loaded.length > 0 ? loaded : APPROVED_DOMAINS;
+    const cleanList = Array.from(
+      new Set(domainList.map((d) => (typeof d === 'string' ? d.toLowerCase().trim().replace(/^@/, '') : '')).filter(Boolean))
+    );
+    return cleanList.length > 0 ? cleanList : APPROVED_DOMAINS;
+  });
 
   const setDolphinTheme = (newDolphinTheme: DolphinTheme) => {
     setDolphinThemeState(newDolphinTheme);
@@ -442,21 +455,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [companies, setCompanies] = useState<Company[]>(() => {
-    const stored = loadFromStorage('dolphin_companies', INITIAL_COMPANIES);
-    const hasCorp = stored.some((c) => c.domain === 'dolphingroup.ae');
-    const hasDrcs = stored.some((c) => c.domain === 'dolcool.ae');
-    const hasDml = stored.some((c) => c.domain === 'dolrad.ae');
-    const hasDht = stored.some((c) => c.domain === 'dolheat.ae');
-    const hasDgha = stored.some((c) => c.domain === 'p.dghanalytics.com' || c.domain === 'dghanalytics.com');
-    if (!hasCorp || !hasDrcs || !hasDml || !hasDht || !hasDgha) {
-      return INITIAL_COMPANIES;
+    const stored: Company[] = loadFromStorage('dolphin_companies', INITIAL_COMPANIES);
+    const compMap = new Map<string, Company>();
+    INITIAL_COMPANIES.forEach((c) => compMap.set(c.id, c));
+    if (Array.isArray(stored)) {
+      stored.forEach((c) => {
+        if (c && c.id) compMap.set(c.id, c);
+      });
     }
-    return stored;
+    return Array.from(compMap.values());
   });
   const [activeCompany, setActiveCompany] = useState<Company>(() => {
-    const storedActive = loadFromStorage('dolphin_active_company', INITIAL_COMPANIES[0]);
-    const match = INITIAL_COMPANIES.find((c) => c.id === storedActive.id || c.domain === storedActive.domain);
-    return match || INITIAL_COMPANIES[0];
+    const storedActive = loadFromStorage<Company | null>('dolphin_active_company', null);
+    const storedCompanies: Company[] = loadFromStorage('dolphin_companies', INITIAL_COMPANIES);
+    if (storedActive && Array.isArray(storedCompanies) && storedCompanies.length > 0) {
+      const matchStored = storedCompanies.find(
+        (c) => c.id === storedActive.id || c.domain === storedActive.domain || c.code === storedActive.code
+      );
+      if (matchStored) return matchStored;
+    }
+    const dhtCompany = (storedCompanies || INITIAL_COMPANIES).find((c) => c.id === 'comp_dht') || INITIAL_COMPANIES[3];
+    return storedActive || dhtCompany || INITIAL_COMPANIES[0];
   });
   const [deletedUserIds, setDeletedUserIds] = useState<string[]>(() =>
     loadFromStorage('dolphin_deleted_user_ids', [])
@@ -578,6 +597,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const loaded: Project[] = loadFromStorage('dolphin_projects', INITIAL_PROJECTS);
+    if (!Array.isArray(loaded) || loaded.length === 0) {
+      saveToStorage('dolphin_projects', INITIAL_PROJECTS);
+      return INITIAL_PROJECTS;
+    }
     const merged = [...loaded];
     INITIAL_PROJECTS.forEach((ip) => {
       if (!merged.some((p) => p.id === ip.id)) {
@@ -589,6 +612,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
   const [tasks, setTasks] = useState<Task[]>(() => {
     const loaded: Task[] = loadFromStorage('dolphin_tasks', INITIAL_TASKS);
+    if (!Array.isArray(loaded) || loaded.length === 0) {
+      saveToStorage('dolphin_tasks', INITIAL_TASKS);
+      return INITIAL_TASKS;
+    }
     const merged = [...loaded];
     INITIAL_TASKS.forEach((it) => {
       if (!merged.some((t) => t.id === it.id)) {
@@ -656,7 +683,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // Seed initial data to Firestore if Firestore is empty
-    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, INITIAL_USERS);
+    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, INITIAL_USERS, INITIAL_COMPANIES);
+
+    // Subscribe to real-time Firestore updates for Companies/Workspaces
+    const unsubscribeCompanies = subscribeToCompanies((remoteCompanies) => {
+      if (remoteCompanies && remoteCompanies.length > 0) {
+        setCompanies((prev) => {
+          const compMap = new Map<string, Company>();
+          INITIAL_COMPANIES.forEach((c) => compMap.set(c.id, c));
+          prev.forEach((c) => compMap.set(c.id, c));
+          remoteCompanies.forEach((c) => compMap.set(c.id, c));
+          const merged = Array.from(compMap.values());
+          saveToStorage('dolphin_companies', merged);
+          return merged;
+        });
+      }
+    });
 
     // Subscribe to real-time Firestore updates for Users
     const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
@@ -739,6 +781,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       unsubscribeAuth();
+      unsubscribeCompanies();
       unsubscribeUsers();
       unsubscribeProjects();
       unsubscribeTasks();
@@ -916,18 +959,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...newComp,
       id: `comp_${Date.now()}`
     };
-    setCompanies((prev) => [...prev, created]);
+    setCompanies((prev) => {
+      const next = [...prev, created];
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
+    createCompanyInFirestore(created).catch((err) => console.warn('Company Firestore sync error:', err));
     logActivity('registered company', `${created.name} (${created.domain})`, 'system');
     return created;
   };
 
   const updateCompany = (id: string, updates: Partial<Company>) => {
-    setCompanies((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-    );
+    setCompanies((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
     if (activeCompany.id === id) {
-      setActiveCompany((prev) => ({ ...prev, ...updates }));
+      setActiveCompany((prev) => {
+        const next = { ...prev, ...updates };
+        saveToStorage('dolphin_active_company', next);
+        return next;
+      });
     }
+    updateCompanyInFirestore(id, updates).catch((err) => console.warn('Company Firestore update error:', err));
     logActivity('updated space config', updates.name || 'Space settings', 'system');
   };
 
@@ -939,6 +994,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const compToDelete = companies.find((c) => c.id === id);
     const remaining = companies.filter((c) => c.id !== id);
     setCompanies(remaining);
+    saveToStorage('dolphin_companies', remaining);
     setProjects((prev) => prev.filter((p) => p.companyId !== id));
     setTasks((prev) => prev.filter((t) => t.companyId !== id));
 
@@ -946,6 +1002,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveCompany(remaining[0]);
       saveToStorage('dolphin_active_company', remaining[0]);
     }
+
+    deleteCompanyFromFirestore(id).catch((err) => console.warn('Company Firestore delete error:', err));
 
     if (compToDelete) {
       logActivity('deleted space', compToDelete.name, 'system');
@@ -3480,10 +3538,58 @@ Please log into your workspace dashboard to update task status or adjust target 
     logActivity('cleared old sample data', 'Workspace reset for fresh real data entry', 'system');
   };
 
+  // Restore all master workspaces, companies, DHT-Ajman projects, and task registries
+  const restoreAllWorkspaceData = async () => {
+    // 1. Reset all state in memory
+    setCompanies(INITIAL_COMPANIES);
+    setProjects(INITIAL_PROJECTS);
+    setTasks(INITIAL_TASKS);
+    setSubtasks(INITIAL_SUBTASKS);
+    setDependencies(INITIAL_DEPENDENCIES);
+    setFiles(INITIAL_FILES);
+    setTimeEntries(INITIAL_TIME_ENTRIES);
+    setCustomFields(INITIAL_CUSTOM_FIELDS);
+    setSprints(INITIAL_SPRINTS);
+    setEmailThreads(INITIAL_EMAIL_THREADS);
+
+    const dhtWorkspace = INITIAL_COMPANIES.find((c) => c.id === 'comp_dht') || INITIAL_COMPANIES[3];
+    setActiveCompany(dhtWorkspace);
+    setSelectedProjectId('proj_dht_akkas');
+
+    // 2. Persist to LocalStorage
+    saveToStorage('dolphin_companies', INITIAL_COMPANIES);
+    saveToStorage('dolphin_projects', INITIAL_PROJECTS);
+    saveToStorage('dolphin_tasks', INITIAL_TASKS);
+    saveToStorage('dolphin_subtasks', INITIAL_SUBTASKS);
+    saveToStorage('dolphin_dependencies', INITIAL_DEPENDENCIES);
+    saveToStorage('dolphin_files', INITIAL_FILES);
+    saveToStorage('dolphin_time_entries', INITIAL_TIME_ENTRIES);
+    saveToStorage('dolphin_custom_fields', INITIAL_CUSTOM_FIELDS);
+    saveToStorage('dolphin_sprints', INITIAL_SPRINTS);
+    saveToStorage('dolphin_emails', INITIAL_EMAIL_THREADS);
+    saveToStorage('dolphin_active_company', dhtWorkspace);
+
+    // 3. Force populate in Firestore
+    try {
+      await forceRestoreFirestoreData(
+        INITIAL_PROJECTS,
+        INITIAL_TASKS,
+        INITIAL_FILES,
+        INITIAL_USERS,
+        INITIAL_COMPANIES
+      );
+    } catch (err) {
+      console.warn('Firestore restore warning:', err);
+    }
+
+    logActivity('restored all workspaces', 'Master enterprise workspaces, DHT-Ajman projects, and task registries restored from archive.', 'system');
+  };
+
   return (
     <AppContext.Provider
       value={{
         clearAllData,
+        restoreAllWorkspaceData,
         theme,
         setTheme,
         toggleTheme,

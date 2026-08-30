@@ -1,7 +1,7 @@
 import { isAbortError } from './lib/errorUtils';
 
 if (typeof window !== 'undefined') {
-  // Gracefully handle harmless abort errors / cancelled fetch requests
+  // Gracefully handle harmless abort errors / cancelled fetch requests / iframe sandbox getter collisions
   window.addEventListener('unhandledrejection', (event) => {
     if (isAbortError(event?.reason)) {
       try {
@@ -11,7 +11,13 @@ if (typeof window !== 'undefined') {
   });
 
   window.addEventListener('error', (event) => {
-    if (isAbortError(event?.error) || isAbortError(event?.message)) {
+    const errorStr = String(event?.message || event?.error || '').toLowerCase();
+    if (
+      isAbortError(event?.error) ||
+      isAbortError(event?.message) ||
+      errorStr.includes('cannot set property fetch') ||
+      errorStr.includes('which has only a getter')
+    ) {
       try {
         event.preventDefault();
       } catch (_) {}

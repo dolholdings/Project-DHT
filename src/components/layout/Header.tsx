@@ -21,7 +21,10 @@ import {
   Shield,
   KeyRound,
   Camera,
-  UserCog
+  UserCog,
+  Building2,
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { NotificationsDrawer } from '../notifications/NotificationsDrawer';
@@ -33,6 +36,7 @@ import { HeaderSearchInput } from './HeaderSearchInput';
 import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
 import { DolphinTooltip } from '../common/DolphinTooltip';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
+import { CompanyIconBadge } from '../common/CompanyLogo';
 import { useLogo } from '../../context/LogoContext';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
 import { DolphinLogo } from '../common/DolphinLogo';
@@ -49,14 +53,22 @@ export const Header: React.FC = () => {
     searchQuery,
     setSearchQuery,
     setCommandPaletteOpen,
+    companies,
+    activeCompany,
+    setActiveCompany,
+    projects,
     theme,
     toggleTheme,
     logout,
-    logActivity
+    logActivity,
+    restoreAllWorkspaceData
   } = useApp();
+
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const { showLogos } = useLogo();
 
+  const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -64,6 +76,7 @@ export const Header: React.FC = () => {
   const [showExcelModal, setShowExcelModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceMenuRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -71,6 +84,9 @@ export const Header: React.FC = () => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(event.target as Node)) {
+        setShowWorkspaceMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -98,6 +114,7 @@ export const Header: React.FC = () => {
             {showLogos && (
               <LogoPlaceholder
                 area="header"
+                companyId={activeCompany?.id}
                 className="h-7 shrink-0"
                 imgClassName="h-7 w-auto"
               />
@@ -113,6 +130,119 @@ export const Header: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Workspace Quick Switcher Dropdown */}
+          <div className="relative" ref={workspaceMenuRef}>
+            <button
+              onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] hover:border-[#3BC0BB]/50 text-xs font-semibold text-white transition-all shadow-sm group cursor-pointer"
+              title="Switch Workspace / Company"
+            >
+              <div className="w-5 h-5 rounded-lg bg-[#3BC0BB]/20 text-[#3BC0BB] flex items-center justify-center text-[10px] font-extrabold border border-[#3BC0BB]/30 overflow-hidden">
+                <CompanyIconBadge logo={activeCompany?.logo} name={activeCompany?.name} size="xs" />
+              </div>
+              <div className="text-left hidden sm:block">
+                <span className="block text-[11px] font-extrabold text-white group-hover:text-[#3BC0BB] max-w-[120px] truncate leading-tight">
+                  {activeCompany?.name || 'DHT-Ajman'}
+                </span>
+                <span className="block text-[9px] text-slate-400 font-mono leading-none">
+                  {projects.filter(p => p.companyId === activeCompany?.id || activeCompany?.id === 'comp_corp').length} projects
+                </span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-200 transition-transform ${showWorkspaceMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showWorkspaceMenu && (
+              <div className="absolute left-0 mt-2 w-64 rounded-2xl bg-[#0D1520] border border-[#233549] shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl">
+                <div className="px-2.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-[#1A2838] mb-1">
+                  <span>Switch Workspace</span>
+                  <span className="text-[#3BC0BB]">{companies.length} Workspaces</span>
+                </div>
+                <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
+                  {companies.map((comp) => {
+                    const isSelected = activeCompany?.id === comp.id;
+                    const compProjects = projects.filter(p => p.companyId === comp.id || comp.id === 'comp_corp');
+                    return (
+                      <button
+                        key={comp.id}
+                        onClick={() => {
+                          setActiveCompany(comp);
+                          setShowWorkspaceMenu(false);
+                          logActivity(
+                            'switched workspace',
+                            currentUser?.email || 'admin@dolrad.ae',
+                            'system',
+                            undefined,
+                            undefined,
+                            `Switched workspace view to ${comp.name}`,
+                            'info'
+                          );
+                        }}
+                        className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all ${
+                          isSelected
+                            ? 'bg-[#3BC0BB]/15 text-white border border-[#3BC0BB]/40 font-bold'
+                            : 'hover:bg-[#16222F] text-slate-300 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-6 h-6 rounded-md bg-[#16222F] border border-[#233549] flex items-center justify-center shrink-0 overflow-hidden">
+                            <CompanyIconBadge logo={comp.logo} name={comp.name} size="sm" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="block text-xs font-bold truncate">{comp.name}</span>
+                            <span className="block text-[10px] text-slate-400 font-mono truncate">{comp.domain}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#16222F] text-slate-300 font-mono">
+                            {compProjects.length}
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#3BC0BB]" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pt-2 mt-1 border-t border-[#1A2838]">
+                  <button
+                    onClick={async () => {
+                      setIsRestoring(true);
+                      try {
+                        await restoreAllWorkspaceData();
+                        setShowWorkspaceMenu(false);
+                      } finally {
+                        setIsRestoring(false);
+                      }
+                    }}
+                    disabled={isRestoring}
+                    className="w-full flex items-center justify-center gap-2 p-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRestoring ? 'animate-spin' : ''}`} />
+                    <span>{isRestoring ? 'Restoring...' : '⚡ Restore Master Workspaces & Tasks'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {projects.length === 0 && (
+            <button
+              onClick={async () => {
+                setIsRestoring(true);
+                try {
+                  await restoreAllWorkspaceData();
+                } finally {
+                  setIsRestoring(false);
+                }
+              }}
+              disabled={isRestoring}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 text-xs font-bold animate-pulse transition-all cursor-pointer"
+              title="Restore all workspaces and project tasks from archive"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isRestoring ? 'animate-spin' : ''}`} />
+              <span>Restore Workspaces & Tasks</span>
+            </button>
+          )}
 
           <button
             onClick={() => setShowAuthModal(true)}

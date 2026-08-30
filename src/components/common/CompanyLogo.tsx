@@ -10,6 +10,7 @@ interface CompanyLogoProps {
   companyName?: string;
   companyDomain?: string;
   logoFallback?: string;
+  companyId?: string;
 }
 
 export const CompanyLogo: React.FC<CompanyLogoProps> = ({
@@ -19,7 +20,8 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
   variant = 'horizontal',
   companyName = 'Dolphin Heat Transfer L.L.C',
   companyDomain,
-  logoFallback
+  logoFallback,
+  companyId
 }) => {
   const mappedArea = variant === 'horizontal' ? 'header' : variant === 'square' ? 'dashboard' : 'sidebar';
 
@@ -27,6 +29,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     return (
       <LogoPlaceholder
         area={mappedArea}
+        companyId={companyId}
         className={className}
         fallback={
           <div className={`inline-flex items-center justify-center text-[#0773BB] shrink-0 ${className}`}>
@@ -41,6 +44,7 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     <div className={`inline-flex items-center gap-2 ${className}`}>
       <LogoPlaceholder
         area={mappedArea}
+        companyId={companyId}
         className="shrink-0"
         fallback={
           <div className="p-1 rounded-lg bg-[#0773BB]/10 text-[#0773BB] shrink-0">
@@ -61,6 +65,46 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
         )}
       </div>
     </div>
+  );
+};
+
+export interface CompanyIconBadgeProps {
+  logo?: string;
+  name?: string;
+  className?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+}
+
+export const CompanyIconBadge: React.FC<CompanyIconBadgeProps> = ({
+  logo,
+  name,
+  className = '',
+  size = 'sm'
+}) => {
+  const isImage = logo && (logo.startsWith('http') || logo.startsWith('data:') || logo.startsWith('/') || logo.includes('.svg') || logo.includes('.png') || logo.includes('.jpg') || logo.includes('.webp'));
+
+  const sizeClasses = {
+    xs: 'w-4 h-4 text-[10px]',
+    sm: 'w-5 h-5 text-xs',
+    md: 'w-7 h-7 text-sm',
+    lg: 'w-9 h-9 text-base'
+  }[size];
+
+  if (isImage) {
+    return (
+      <img
+        src={logo}
+        alt={name || 'Workspace Logo'}
+        className={`${sizeClasses} object-contain rounded-md shrink-0 ${className}`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  return (
+    <span className={`inline-flex items-center justify-center shrink-0 select-none ${sizeClasses} ${className}`}>
+      {logo || '🏢'}
+    </span>
   );
 };
 

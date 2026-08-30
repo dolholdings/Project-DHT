@@ -15,9 +15,9 @@ export const DomainWhitelistWidget: React.FC<DomainWhitelistWidgetProps> = ({
         Restricted authorization access across official corporate email domains:
       </p>
       <div className="flex flex-wrap gap-1.5 pt-1">
-        {APPROVED_DOMAINS.map((d) => (
+        {Array.from(new Set(APPROVED_DOMAINS)).map((d) => (
           <span
-            key={d}
+            key={`appr-dom-${d}`}
             className={`text-[10px] px-2 py-0.5 rounded-md font-mono ${
               theme === 'light'
                 ? 'bg-slate-100 border border-slate-300 text-slate-700'

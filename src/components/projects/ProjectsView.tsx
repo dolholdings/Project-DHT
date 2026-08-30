@@ -36,6 +36,7 @@ import { ClientPsrReportModal } from '../reports/ClientPsrReportModal';
 import { ProjectsDataTable } from './ProjectsDataTable';
 import { canCreateSpace, canDeleteSpace } from '../../lib/permissions';
 import { PermissionGuard } from '../common/PermissionGuard';
+import { CompanyIconBadge } from '../common/CompanyLogo';
 
 export const ProjectsView: React.FC = () => {
   const {
@@ -516,7 +517,7 @@ export const ProjectsView: React.FC = () => {
                       {proj.title}
                     </h3>
                     <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-1 font-mono">
-                      <span>{comp?.logo}</span>
+                      <CompanyIconBadge logo={comp?.logo} name={comp?.name} size="xs" />
                       <span>{comp?.name}</span>
                     </div>
                   </div>

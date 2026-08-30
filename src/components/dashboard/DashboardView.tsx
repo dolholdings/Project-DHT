@@ -736,6 +736,7 @@ export const DashboardView: React.FC = () => {
         <div className="flex items-center gap-4 relative z-10">
           <LogoPlaceholder
             area="dashboard"
+            companyId={activeCompany?.id}
             className="w-12 h-12 p-1.5 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-md border border-slate-200/80 ring-2 ring-[#0773BB]/10"
             imgClassName="w-full h-full object-contain"
           />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Menu } from 'lucide-react';
+import { Menu, RefreshCw, AlertCircle } from 'lucide-react';
 import { AppProvider, useApp } from './context/AppContext';
 import { LogoProvider } from './context/LogoContext';
 import { UserProvider } from './context/UserContext';
@@ -37,11 +37,23 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { hasUserCompletedTour, markUserTourCompleted, startOnboardingTour } from './services/onboardingTour';
 
 const MainLayout: React.FC = () => {
-  const { activeTab, setActiveTab, isCommandPaletteOpen, setCommandPaletteOpen, theme, currentUser, setCurrentUser, isAuthenticated } = useApp();
+  const {
+    activeTab,
+    setActiveTab,
+    isCommandPaletteOpen,
+    setCommandPaletteOpen,
+    theme,
+    currentUser,
+    setCurrentUser,
+    isAuthenticated,
+    projects,
+    restoreAllWorkspaceData
+  } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showEmailGatewayModal, setShowEmailGatewayModal] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isRestoringData, setIsRestoringData] = useState(false);
   const isMobile = useIsMobile();
 
   // Trigger Onboarding Tour automatically on first login
@@ -159,6 +171,38 @@ const MainLayout: React.FC = () => {
           onOpenLoginModal={() => setShowLoginModal(true)}
           isMobile={isMobile}
         />
+
+        {/* Empty Workspace Recovery Banner */}
+        {projects.length === 0 && (
+          <div className="mx-4 sm:mx-6 mt-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-950/90 to-[#0D1520] border border-emerald-500/50 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">Workspaces and Projects are currently empty</h4>
+                <p className="text-xs text-emerald-200/80">
+                  Did you accidentally click "Reset Sample Data"? Restore all 5 enterprise workspaces (DHT-Ajman, DML, DRCS, Corporate) and tasks with 1 click.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                setIsRestoringData(true);
+                try {
+                  await restoreAllWorkspaceData();
+                } finally {
+                  setIsRestoringData(false);
+                }
+              }}
+              disabled={isRestoringData}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/30 flex items-center gap-2 shrink-0 transition-all cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRestoringData ? 'animate-spin' : ''}`} />
+              <span>{isRestoringData ? 'Restoring All Workspaces...' : '⚡ Restore All Workspaces & Tasks'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Active View Router */}
         <main className="flex-1 pb-12 overflow-y-auto">

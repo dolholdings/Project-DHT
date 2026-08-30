@@ -1155,7 +1155,7 @@ export const AdminView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#233549]">
-                  {authorizedDomains.map((dom) => {
+                  {Array.from(new Set(authorizedDomains)).map((dom) => {
                     const rule = domainSecurityRules[dom] || {
                       mfaRequired: true,
                       crossTenantCollab: true,
@@ -1165,7 +1165,7 @@ export const AdminView: React.FC = () => {
                     const matchedComp = companies.find((c) => c.domain === dom);
 
                     return (
-                      <tr key={dom} className="hover:bg-[#1C2C3D]/60 transition-colors">
+                      <tr key={`auth-dom-${dom}`} className="hover:bg-[#1C2C3D]/60 transition-colors">
                         <td className="py-3.5 px-4 font-mono font-bold text-white">
                           <div className="flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>

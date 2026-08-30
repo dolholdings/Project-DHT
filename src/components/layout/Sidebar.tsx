@@ -56,6 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     activeTab,
     setActiveTab,
     currentUser,
+    activeCompany,
     users,
     tasks,
     projects,
@@ -207,6 +208,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {shouldRenderSidebarLogo ? (
                   <LogoPlaceholder
                     area="sidebar"
+                    companyId={activeCompany?.id}
                     className="w-full h-full flex items-center justify-center"
                     imgClassName="w-full h-full object-contain"
                     fallback={<Building2 className="w-5 h-5 text-[#0D9488]" />}

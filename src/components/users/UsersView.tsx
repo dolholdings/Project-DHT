@@ -48,6 +48,7 @@ import { DolphinLogo } from '../common/DolphinLogo';
 import { PermissionGuard } from '../common/PermissionGuard';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
+import { CompanyIconBadge } from '../common/CompanyLogo';
 
 export const UsersView: React.FC = () => {
   const {
@@ -1526,11 +1527,11 @@ export const UsersView: React.FC = () => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-              {authorizedDomains.map((dom) => {
+              {Array.from(new Set(authorizedDomains)).map((dom) => {
                 const domainUsersCount = users.filter((u) => u.email.toLowerCase().endsWith(`@${dom}`)).length;
                 return (
                   <div
-                    key={dom}
+                    key={`user-dom-${dom}`}
                     className={`p-4 rounded-xl flex items-center justify-between shadow-inner ${
                       isLight ? 'bg-slate-50 border border-slate-200' : 'bg-[#0D1520] border border-[#233549]'
                     }`}
@@ -1595,10 +1596,10 @@ export const UsersView: React.FC = () => {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 overflow-hidden ${
                         isLight ? 'bg-slate-100 border border-slate-200' : 'bg-[#0D1520] border border-[#233549]'
                       }`}>
-                        {c.logo}
+                        <CompanyIconBadge logo={c.logo} name={c.name} size="md" />
                       </div>
                       <div>
                         <h3 className={`text-sm font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>{c.name}</h3>

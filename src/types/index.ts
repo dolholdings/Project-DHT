@@ -60,7 +60,7 @@ export interface Project {
   dueDate: string;
   budget: number;
   spentBudget: number;
-  category: 'Industrial Manufacturing' | 'HVAC Engineering' | 'Radiator Production' | 'Heat Exchanger' | 'Group IT' | 'Digital Marketing';
+  category: 'Industrial Manufacturing' | 'HVAC Engineering' | 'Radiator Production' | 'Heat Exchanger' | 'Group IT' | 'Digital Marketing' | 'Commercial Refrigeration' | 'Corporate Strategy' | 'Analytics & BI';
   members: string[]; // user ids
   memberRoles?: Record<string, SpaceRole>; // map of userId -> SpaceRole
   lists?: string[]; // Array of list names under this Space/Project (e.g., 'Chairman', 'SEO & Google Ads', etc.)

@@ -56,7 +56,8 @@ import {
   ShieldAlert,
   BarChart3,
   FileSpreadsheet,
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus, SpaceRole, ProjectTemplate, TemplateVersionRecord, TemplateCleanupRules, Task, TaskDependency, TemplateTask, TemplateDependency } from '../../types';
@@ -101,8 +102,11 @@ export const WorkspaceManager: React.FC = () => {
     instantiateProjectFromTemplate,
     deleteProjectTemplate,
     rollbackTemplateVersion,
-    currentUser
+    currentUser,
+    restoreAllWorkspaceData
   } = useApp();
+
+  const [isRestoringData, setIsRestoringData] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -516,6 +520,25 @@ export const WorkspaceManager: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2.5">
             <button
+              onClick={async () => {
+                if (window.confirm('Restore all 5 enterprise workspaces (DHT-Ajman, DML, DRCS, Corporate, DGH Analytics) and all project tasks from archive?')) {
+                  setIsRestoringData(true);
+                  try {
+                    await restoreAllWorkspaceData();
+                  } finally {
+                    setIsRestoringData(false);
+                  }
+                }
+              }}
+              disabled={isRestoringData}
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow-md transition-all cursor-pointer"
+              title="Restore master enterprise workspaces and tasks"
+            >
+              <RefreshCw className={`w-4 h-4 text-emerald-400 ${isRestoringData ? 'animate-spin' : ''}`} />
+              <span>{isRestoringData ? 'Restoring...' : '⚡ Restore Master Workspaces'}</span>
+            </button>
+
+            <button
               onClick={() => setShowUnifiedSearchModal(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-500/50 text-[#3BC0BB] font-black text-xs shadow-md transition-all"
               title="Search across all tasks, files, space configurations, and templates (Ctrl+K / Cmd+K)"
@@ -913,17 +936,40 @@ export const WorkspaceManager: React.FC = () => {
 
               if (displayList.length === 0) {
                 return (
-                  <div className="p-8 text-center rounded-2xl border border-dashed border-[#233549] bg-[#0D1520]/50 space-y-3">
-                    <FolderKanban className="w-10 h-10 text-slate-500 mx-auto" />
-                    <p className="text-sm font-semibold text-slate-300">No active spaces found in {activeCompany.name}.</p>
-                    <PermissionGuard action="create_space">
+                  <div className="p-8 text-center rounded-2xl border border-dashed border-[#233549] bg-[#0D1520]/50 space-y-4">
+                    <FolderKanban className="w-12 h-12 text-[#3BC0BB]/60 mx-auto" />
+                    <div>
+                      <p className="text-sm font-bold text-white">No active spaces found in {activeCompany.name}.</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                        Your workspace data may have been recently cleared or reset. You can create a new space or instantly restore all master projects and tasks.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                       <button
-                        onClick={() => setShowCreateSpaceModal(true)}
-                        className="px-4 py-2 rounded-xl bg-[#0773BB] text-white font-bold text-xs"
+                        onClick={async () => {
+                          setIsRestoringData(true);
+                          try {
+                            await restoreAllWorkspaceData();
+                          } finally {
+                            setIsRestoringData(false);
+                          }
+                        }}
+                        disabled={isRestoringData}
+                        className="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 font-bold text-xs flex items-center gap-2 transition-all cursor-pointer"
                       >
-                        + Create First Space in {activeCompany.name}
+                        <RefreshCw className={`w-4 h-4 text-emerald-400 ${isRestoringData ? 'animate-spin' : ''}`} />
+                        <span>{isRestoringData ? 'Restoring...' : '⚡ Restore Master Workspaces & Tasks'}</span>
                       </button>
-                    </PermissionGuard>
+                      <PermissionGuard action="create_space">
+                        <button
+                          onClick={() => setShowCreateSpaceModal(true)}
+                          className="px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs flex items-center gap-1.5"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Create Space Manually</span>
+                        </button>
+                      </PermissionGuard>
+                    </div>
                   </div>
                 );
               }

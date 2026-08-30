@@ -41,6 +41,12 @@ export const COMPANY_DOMAIN_MAPPINGS: Record<string, CompanyDomainConfig> = {
     companyName: 'DGH Analytics Portal',
     code: 'DGHA',
     logo: '🚀'
+  },
+  'gmail.com': {
+    domain: 'gmail.com',
+    companyName: 'Corporate',
+    code: 'CORP',
+    logo: '🏢'
   }
 };
 
