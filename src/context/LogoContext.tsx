@@ -1,4 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import {
+  saveBrandingSettingsToFirestore,
+  subscribeToBrandingSettings,
+  fetchBrandingSettingsFromFirestore
+} from '../services/dataService';
 
 export type LogoArea = 
   | 'header' 
@@ -90,6 +95,9 @@ export interface LogoContextValue {
   showLogos: boolean;
   updateLogoVisibility: (visibleOrArea: boolean | LogoArea, visible?: boolean) => void;
   settings: LogoSettings;
+  isSyncedWithFirebase: boolean;
+  isSavingToFirebase: boolean;
+  saveToFirebase: () => Promise<void>;
   getLogoForArea: (area: LogoArea, companyId?: string) => {
     path: string;
     isVisible: boolean;
@@ -138,6 +146,85 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return defaultInitialSettings;
   });
 
+  const [isSyncedWithFirebase, setIsSyncedWithFirebase] = useState<boolean>(true);
+  const [isSavingToFirebase, setIsSavingToFirebase] = useState<boolean>(false);
+  const settingsRef = useRef<LogoSettings>(settings);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  // Real-time Firestore synchronization for branding and logos
+  useEffect(() => {
+    let isMounted = true;
+
+    // First fetch once on mount
+    fetchBrandingSettingsFromFirestore()
+      .then((remote) => {
+        if (!isMounted || !remote) return;
+        setSettings((prev) => {
+          const merged: LogoSettings = {
+            ...defaultInitialSettings,
+            ...prev,
+            ...remote,
+            areas: {
+              ...DEFAULT_LOGO_CONFIGS,
+              ...(prev.areas || {}),
+              ...(remote.areas || {})
+            },
+            companyOverrides: {
+              ...(prev.companyOverrides || {}),
+              ...(remote.companyOverrides || {})
+            }
+          };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          } catch (_) {}
+          return merged;
+        });
+        setIsSyncedWithFirebase(true);
+      })
+      .catch((err) => {
+        console.warn('Failed initial branding fetch from Firestore:', err);
+      });
+
+    // Subscribe to real-time changes
+    const unsubscribe = subscribeToBrandingSettings(
+      (remote) => {
+        if (!isMounted || !remote) return;
+        setSettings((prev) => {
+          const merged: LogoSettings = {
+            ...defaultInitialSettings,
+            ...prev,
+            ...remote,
+            areas: {
+              ...DEFAULT_LOGO_CONFIGS,
+              ...(prev.areas || {}),
+              ...(remote.areas || {})
+            },
+            companyOverrides: {
+              ...(prev.companyOverrides || {}),
+              ...(remote.companyOverrides || {})
+            }
+          };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          } catch (_) {}
+          return merged;
+        });
+        setIsSyncedWithFirebase(true);
+      },
+      (err) => {
+        console.warn('Branding Firebase subscription notice:', err);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
+
   // Sync state changes to localStorage
   useEffect(() => {
     try {
@@ -146,6 +233,24 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn('Failed to persist logo settings to localStorage:', e);
     }
   }, [settings]);
+
+  // Persist branding to Firestore
+  const persistToFirebase = useCallback(async (updatedSettings: LogoSettings) => {
+    setIsSavingToFirebase(true);
+    try {
+      await saveBrandingSettingsToFirestore(updatedSettings);
+      setIsSyncedWithFirebase(true);
+    } catch (e) {
+      console.warn('Failed to save branding settings to Firestore:', e);
+      setIsSyncedWithFirebase(false);
+    } finally {
+      setIsSavingToFirebase(false);
+    }
+  }, []);
+
+  const saveToFirebase = useCallback(async () => {
+    await persistToFirebase(settingsRef.current);
+  }, [persistToFirebase]);
 
   const getLogoForArea = useCallback((area: LogoArea, companyId?: string) => {
     const areaConfig = settings.areas[area] || DEFAULT_LOGO_CONFIGS[area] || DEFAULT_LOGO_CONFIGS.general;
@@ -173,101 +278,134 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const showLogos = settings.globalEnabled;
 
   const updateLogoVisibility = useCallback((visibleOrArea: boolean | LogoArea, visible?: boolean) => {
-    if (typeof visibleOrArea === 'boolean') {
-      setSettings(prev => ({
+    setSettings((prev) => {
+      let updated: LogoSettings;
+      if (typeof visibleOrArea === 'boolean') {
+        updated = {
+          ...prev,
+          globalEnabled: visibleOrArea
+        };
+      } else if (typeof visibleOrArea === 'string' && typeof visible === 'boolean') {
+        updated = {
+          ...prev,
+          areas: {
+            ...prev.areas,
+            [visibleOrArea]: {
+              ...prev.areas[visibleOrArea],
+              enabled: visible
+            }
+          }
+        };
+      } else {
+        updated = prev;
+      }
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
+
+  const setGlobalEnabled = useCallback((enabled: boolean) => {
+    setSettings((prev) => {
+      const updated: LogoSettings = {
         ...prev,
-        globalEnabled: visibleOrArea
-      }));
-    } else if (typeof visibleOrArea === 'string' && typeof visible === 'boolean') {
-      setSettings(prev => ({
+        globalEnabled: enabled
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
+
+  const setAreaEnabled = useCallback((area: LogoArea, enabled: boolean) => {
+    setSettings((prev) => {
+      const updated: LogoSettings = {
         ...prev,
         areas: {
           ...prev.areas,
-          [visibleOrArea]: {
-            ...prev.areas[visibleOrArea],
-            enabled: visible
+          [area]: {
+            ...prev.areas[area],
+            enabled
           }
         }
-      }));
-    }
-  }, []);
-
-  const setGlobalEnabled = useCallback((enabled: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      globalEnabled: enabled
-    }));
-  }, []);
-
-  const setAreaEnabled = useCallback((area: LogoArea, enabled: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      areas: {
-        ...prev.areas,
-        [area]: {
-          ...prev.areas[area],
-          enabled
-        }
-      }
-    }));
-  }, []);
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
 
   const setAreaPath = useCallback((area: LogoArea, path: string) => {
-    setSettings(prev => ({
-      ...prev,
-      areas: {
-        ...prev.areas,
-        [area]: {
-          ...prev.areas[area],
-          path: path.trim()
+    setSettings((prev) => {
+      const updated: LogoSettings = {
+        ...prev,
+        areas: {
+          ...prev.areas,
+          [area]: {
+            ...prev.areas[area],
+            path: path.trim()
+          }
         }
-      }
-    }));
-  }, []);
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
 
   const setShowPlaceholderBorders = useCallback((show: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      showPlaceholderBorders: show
-    }));
-  }, []);
+    setSettings((prev) => {
+      const updated: LogoSettings = {
+        ...prev,
+        showPlaceholderBorders: show
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
 
   const setCompanyOverride = useCallback((companyId: string, area: LogoArea, path: string) => {
-    setSettings(prev => ({
-      ...prev,
-      companyOverrides: {
-        ...prev.companyOverrides,
-        [companyId]: {
-          ...(prev.companyOverrides[companyId] || {}),
-          [area]: path.trim()
+    setSettings((prev) => {
+      const updated: LogoSettings = {
+        ...prev,
+        companyOverrides: {
+          ...prev.companyOverrides,
+          [companyId]: {
+            ...(prev.companyOverrides[companyId] || {}),
+            [area]: path.trim()
+          }
         }
-      }
-    }));
-  }, []);
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
 
   const enableAllAreas = useCallback(() => {
-    setSettings(prev => {
+    setSettings((prev) => {
       const updatedAreas = { ...prev.areas };
-      (Object.keys(updatedAreas) as LogoArea[]).forEach(area => {
+      (Object.keys(updatedAreas) as LogoArea[]).forEach((area) => {
         updatedAreas[area] = {
           ...updatedAreas[area],
           enabled: true
         };
       });
-      return {
+      const updated: LogoSettings = {
         ...prev,
         globalEnabled: true,
         areas: updatedAreas
       };
+      persistToFirebase(updated);
+      return updated;
     });
-  }, []);
+  }, [persistToFirebase]);
 
   const disableAllAreas = useCallback(() => {
-    setSettings(prev => ({
-      ...prev,
-      globalEnabled: false
-    }));
-  }, []);
+    setSettings((prev) => {
+      const updated: LogoSettings = {
+        ...prev,
+        globalEnabled: false
+      };
+      persistToFirebase(updated);
+      return updated;
+    });
+  }, [persistToFirebase]);
 
   const resetToDefaults = useCallback(() => {
     setSettings(defaultInitialSettings);
@@ -276,7 +414,8 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Failed to clear saved logo settings:', e);
     }
-  }, []);
+    persistToFirebase(defaultInitialSettings);
+  }, [persistToFirebase]);
 
   return (
     <LogoContext.Provider
@@ -284,6 +423,9 @@ export const LogoProvider: React.FC<{ children: React.ReactNode }> = ({ children
         showLogos,
         updateLogoVisibility,
         settings,
+        isSyncedWithFirebase,
+        isSavingToFirebase,
+        saveToFirebase,
         getLogoForArea,
         setGlobalEnabled,
         setAreaEnabled,

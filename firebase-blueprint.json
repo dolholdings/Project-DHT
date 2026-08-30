@@ -100,6 +100,19 @@
         "contentSnippet": { "type": "string", "maxLength": 4096 }
       },
       "required": ["id", "projectId", "name", "uploadedBy"]
+    },
+    "BrandingSettings": {
+      "title": "BrandingSettings",
+      "description": "System branding, corporate logo paths, overrides and visibility toggles",
+      "type": "object",
+      "properties": {
+        "globalEnabled": { "type": "boolean" },
+        "showPlaceholderBorders": { "type": "boolean" },
+        "areas": { "type": "object" },
+        "companyOverrides": { "type": "object" },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["globalEnabled", "areas"]
     }
   },
   "firestore": {
@@ -122,6 +135,10 @@
     "/files/{fileId}": {
       "schema": "ProjectFile",
       "description": "Collection of project document files and version histories"
+    },
+    "/settings/{settingId}": {
+      "schema": "BrandingSettings",
+      "description": "System and branding configurations"
     }
   }
 }

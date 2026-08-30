@@ -27,6 +27,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Settings Collection (Branding, App Config)
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Branding Collection
+    match /branding/{brandingId} {
+      allow read, write: if true;
+    }
+
     // Default deny catch-all
     match /{document=**} {
       allow read, write: if false;

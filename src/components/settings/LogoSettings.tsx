@@ -29,7 +29,9 @@ import {
   Scale,
   Gauge,
   XCircle,
-  ArrowRight
+  ArrowRight,
+  Cloud,
+  Database
 } from 'lucide-react';
 import { useLogo, LogoArea, DEFAULT_LOGO_CONFIGS, LogoAreaConfig } from '../../context/LogoContext';
 import { useApp } from '../../context/AppContext';
@@ -264,6 +266,9 @@ export const LogoSettings: React.FC<LogoSettingsProps> = ({ theme = 'dark' }) =>
     showLogos,
     updateLogoVisibility,
     settings,
+    isSyncedWithFirebase,
+    isSavingToFirebase,
+    saveToFirebase,
     setGlobalEnabled,
     setAreaEnabled,
     setAreaPath,
@@ -679,6 +684,39 @@ export const LogoSettings: React.FC<LogoSettingsProps> = ({ theme = 'dark' }) =>
 
           {/* Master Controls */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Firebase Cloud Sync Status Badge */}
+            <div className={`px-3 py-2 rounded-xl flex items-center gap-2 border text-xs font-mono ${
+              isLight ? 'bg-slate-50 border-slate-200 text-slate-700' : 'bg-[#0D1520] border-[#233549] text-slate-300'
+            }`}>
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${
+                  isSavingToFirebase ? 'bg-amber-400 animate-pulse' : isSyncedWithFirebase ? 'bg-emerald-400' : 'bg-rose-400'
+                }`} />
+                <span className="font-semibold">
+                  {isSavingToFirebase ? 'Syncing to Firebase...' : 'Firebase Cloud Synced'}
+                </span>
+              </div>
+            </div>
+
+            {/* Save to Cloud Button */}
+            <button
+              onClick={async () => {
+                await saveToFirebase();
+                setSuccessMessage('✓ Branding & Logo settings securely saved to Firebase project (gen-lang-client-0765808259)!');
+                setTimeout(() => setSuccessMessage(null), 4000);
+              }}
+              disabled={isSavingToFirebase}
+              className={`px-3 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all cursor-pointer shadow-sm ${
+                isLight
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300'
+                  : 'bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border-emerald-500/40'
+              }`}
+              title="Save current branding & logo configuration to Firestore database"
+            >
+              <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{isSavingToFirebase ? 'Saving...' : 'Save to Firebase'}</span>
+            </button>
+
             {/* Master Switch */}
             <button
               onClick={() => updateLogoVisibility(!showLogos)}
