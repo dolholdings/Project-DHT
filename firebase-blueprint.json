@@ -76,6 +76,10 @@
         "estimatedHours": { "type": "number" },
         "loggedHours": { "type": "number" },
         "tags": { "type": "array" },
+        "isDeleted": { "type": "boolean" },
+        "deletedAt": { "type": "string", "maxLength": 64 },
+        "deletedBy": { "type": "string", "maxLength": 64 },
+        "deletedByName": { "type": "string", "maxLength": 128 },
         "createdAt": { "type": "string", "maxLength": 64 },
         "updatedAt": { "type": "string", "maxLength": 64 }
       },

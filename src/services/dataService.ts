@@ -238,6 +238,46 @@ export async function updateTaskInFirestore(id: string, updates: Partial<Task>):
   }
 }
 
+export async function softDeleteTaskInFirestore(
+  id: string,
+  deletedBy: string,
+  deletedByName?: string
+): Promise<void> {
+  const docRef = doc(db, TASKS_COLLECTION, id);
+  try {
+    await updateDoc(
+      docRef,
+      sanitizeForFirestore({
+        isDeleted: true,
+        deletedAt: new Date().toISOString(),
+        deletedBy,
+        deletedByName: deletedByName || 'Administrator',
+        updatedAt: new Date().toISOString()
+      })
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
+  }
+}
+
+export async function restoreTaskInFirestore(id: string): Promise<void> {
+  const docRef = doc(db, TASKS_COLLECTION, id);
+  try {
+    await updateDoc(
+      docRef,
+      sanitizeForFirestore({
+        isDeleted: false,
+        deletedAt: '',
+        deletedBy: '',
+        deletedByName: '',
+        updatedAt: new Date().toISOString()
+      })
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
+  }
+}
+
 export async function deleteTaskFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
   try {
@@ -245,6 +285,28 @@ export async function deleteTaskFromFirestore(id: string): Promise<void> {
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
   }
+}
+
+export async function purgeExpiredTasksFromFirestore(tasksList: Task[]): Promise<string[]> {
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const purgedIds: string[] = [];
+
+  for (const t of tasksList) {
+    if (t.isDeleted && t.deletedAt) {
+      const delTime = new Date(t.deletedAt).getTime();
+      if (!isNaN(delTime) && now - delTime >= THIRTY_DAYS_MS) {
+        try {
+          await deleteTaskFromFirestore(t.id);
+          purgedIds.push(t.id);
+        } catch (e) {
+          console.warn(`Failed to purge expired task ${t.id}:`, e);
+        }
+      }
+    }
+  }
+
+  return purgedIds;
 }
 
 // ==================== FILES & VERSION HISTORY CRUD ====================

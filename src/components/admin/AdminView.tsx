@@ -55,6 +55,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { User, Role, Company } from '../../types';
 import { AdminAuditLogs } from './AdminAuditLogs';
+import { AdminRecycleBin } from './AdminRecycleBin';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
@@ -70,6 +71,7 @@ export const AdminView: React.FC = () => {
     removeAuthorizedDomain,
     inviteUser,
     tasks,
+    deletedTasks,
     projects,
     updateProject,
     activityLogs,
@@ -115,7 +117,7 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'audit_logs' | 'usage' | 'security'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'audit_logs' | 'usage' | 'security' | 'recycle_bin'>('users');
 
   // Search & Filter state for Users Tab
   const [userSearch, setUserSearch] = useState('');
@@ -568,6 +570,25 @@ export const AdminView: React.FC = () => {
         >
           <Lock className="w-4 h-4 text-amber-500" />
           <span>System Health & Status</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('recycle_bin')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeTab === 'recycle_bin'
+              ? 'bg-rose-600 text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Trash2 className="w-4 h-4 text-rose-400" />
+          <span>Recycle Bin</span>
+          {deletedTasks.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30">
+              {deletedTasks.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -1467,6 +1488,11 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 8: ADMIN RECYCLE BIN & SOFT DELETE RESTORE GOVERNANCE */}
+      {activeTab === 'recycle_bin' && (
+        <AdminRecycleBin isLight={isLight} />
       )}
 
       {/* MODAL: INVITE TENANT USER */}

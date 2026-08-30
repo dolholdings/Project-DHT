@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, User as FirebaseUser } from 'firebase/auth';
 import { auth, googleProvider, testFirestoreConnection, handleFirestoreError, OperationType } from '../lib/firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -73,7 +73,10 @@ import {
   deleteProjectFromFirestore,
   createTaskInFirestore,
   updateTaskInFirestore,
+  softDeleteTaskInFirestore,
+  restoreTaskInFirestore,
   deleteTaskFromFirestore,
+  purgeExpiredTasksFromFirestore,
   createFileInFirestore,
   updateFileInFirestore,
   deleteFileFromFirestore,
@@ -181,6 +184,8 @@ interface AppContextType {
   
   // Tasks & Subtasks
   tasks: Task[];
+  deletedTasks: Task[];
+  allTasks: Task[];
   subtasks: Subtask[];
   taskComments: TaskComment[];
   dependencies: TaskDependency[];
@@ -188,6 +193,12 @@ interface AppContextType {
   updateTask: (id: string, updates: Partial<Task>) => void;
   reorderTasks: (newTasks: Task[]) => void;
   deleteTask: (id: string) => void;
+  restoreTask: (id: string) => void;
+  bulkRestoreTasks: (ids: string[]) => void;
+  purgeTask: (id: string) => void;
+  bulkPurgeTasks: (ids: string[]) => void;
+  emptyRecycleBin: () => void;
+  purgeExpiredTasks: () => Promise<number>;
   addSubtask: (taskId: string, title: string, assignedTo?: string) => void;
   toggleSubtask: (subtaskId: string) => void;
   addTaskComment: (taskId: string, content: string) => void;
@@ -610,7 +621,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return merged;
   });
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
-  const [tasks, setTasks] = useState<Task[]>(() => {
+  const [allTasks, setAllTasks] = useState<Task[]>(() => {
     const loaded: Task[] = loadFromStorage('dolphin_tasks', INITIAL_TASKS);
     if (!Array.isArray(loaded) || loaded.length === 0) {
       saveToStorage('dolphin_tasks', INITIAL_TASKS);
@@ -624,6 +635,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     return merged;
   });
+
+  // Active tasks (excluding soft-deleted items)
+  const tasks = useMemo(() => allTasks.filter((t) => !t.isDeleted), [allTasks]);
+  // Soft-deleted tasks for Recycle Bin
+  const deletedTasks = useMemo(() => allTasks.filter((t) => !!t.isDeleted), [allTasks]);
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => loadFromStorage('dolphin_subtasks', INITIAL_SUBTASKS));
   const [taskComments, setTaskComments] = useState<TaskComment[]>(() => loadFromStorage('dolphin_task_comments', []));
   const [dependencies, setDependencies] = useState<TaskDependency[]>(() => loadFromStorage('dolphin_dependencies', INITIAL_DEPENDENCIES));
@@ -768,7 +784,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Subscribe to real-time Firestore updates for Tasks
     const unsubscribeTasks = subscribeToTasks((remoteTasks) => {
       if (remoteTasks && remoteTasks.length > 0) {
-        setTasks(remoteTasks);
+        setAllTasks(remoteTasks);
+        // Automatically check and purge any items older than 30 days
+        purgeExpiredTasksFromFirestore(remoteTasks);
       }
     });
 
@@ -824,8 +842,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [projectTemplates]);
 
   useEffect(() => {
-    saveToStorage('dolphin_tasks', tasks);
-  }, [tasks]);
+    saveToStorage('dolphin_tasks', allTasks);
+  }, [allTasks]);
 
   useEffect(() => {
     saveToStorage('dolphin_subtasks', subtasks);
@@ -996,7 +1014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCompanies(remaining);
     saveToStorage('dolphin_companies', remaining);
     setProjects((prev) => prev.filter((p) => p.companyId !== id));
-    setTasks((prev) => prev.filter((t) => t.companyId !== id));
+    setAllTasks((prev) => prev.filter((t) => t.companyId !== id));
 
     if (activeCompany.id === id && remaining.length > 0) {
       setActiveCompany(remaining[0]);
@@ -1923,7 +1941,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
 
     setProjects((prev) => [newProject, ...prev]);
-    setTasks((prev) => [...createdTasks, ...prev]);
+    setAllTasks((prev) => [...createdTasks, ...prev]);
     if (createdSubtasks.length > 0) {
       setSubtasks((prev) => [...createdSubtasks, ...prev]);
     }
@@ -2020,7 +2038,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       updatedAt: new Date().toISOString(),
       completedAt: taskData.status === 'Done' ? new Date().toISOString() : undefined,
     };
-    setTasks((prev) => [newTask, ...prev]);
+    setAllTasks((prev) => [newTask, ...prev]);
     logActivity('created task', newTask.title, 'task', newTask.projectId, newTask.id);
 
     // Dispatch Email Notification to Assignees
@@ -2082,7 +2100,7 @@ Log in to your workspace dashboard to view full task details and track progress.
     let regeneratedTaskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'loggedHours'> | null = null;
     const oldTask = tasks.find((t) => t.id === id);
 
-    setTasks((prev) =>
+    setAllTasks((prev) =>
       prev.map((t) => {
         if (t.id === id) {
           const completedAtVal = updates.status === 'Done'
@@ -2220,8 +2238,11 @@ Log into your workspace dashboard to review the task details.`,
     }
   };
 
-  const reorderTasks = (newTasks: Task[]) => {
-    setTasks(newTasks);
+  const reorderTasks = (newActiveTasks: Task[]) => {
+    setAllTasks((prev) => {
+      const softDeleted = prev.filter((t) => t.isDeleted);
+      return [...newActiveTasks, ...softDeleted];
+    });
     logActivity('reordered tasks in Kanban view', 'Updated task priority sequence', 'task');
   };
 
@@ -2284,7 +2305,7 @@ Log into your workspace dashboard to review the task details.`,
       return filtered;
     });
     // Move tasks linked to this sprint to backlog
-    setTasks((prev) => prev.map((t) => (t.sprintId === id ? { ...t, sprintId: null } : t)));
+    setAllTasks((prev) => prev.map((t) => (t.sprintId === id ? { ...t, sprintId: null } : t)));
     if (s) {
       logActivity('deleted sprint', `Deleted sprint "${s.name}" (tasks moved to backlog)`, 'project', s.projectId);
     }
@@ -2307,7 +2328,7 @@ Log into your workspace dashboard to review the task details.`,
 
     // Rollover incomplete tasks to rolloverToSprintId or null (backlog)
     if (rolloverToSprintId !== undefined) {
-      setTasks((prev) =>
+      setAllTasks((prev) =>
         prev.map((t) => {
           if (t.sprintId === id && t.status !== 'Done') {
             return { ...t, sprintId: rolloverToSprintId || null, updatedAt: new Date().toISOString() };
@@ -2323,7 +2344,7 @@ Log into your workspace dashboard to review the task details.`,
   const moveTaskToSprint = (taskId: string, sprintId: string | null) => {
     updateTask(taskId, { sprintId });
     const targetSprint = sprintId ? sprints.find((s) => s.id === sprintId) : null;
-    const task = tasks.find((t) => t.id === taskId);
+    const task = allTasks.find((t) => t.id === taskId);
     logActivity(
       'moved task sprint assignment',
       `Moved "${task?.title || taskId}" to ${targetSprint ? `Sprint "${targetSprint.name}"` : 'Backlog'}`,
@@ -2333,31 +2354,189 @@ Log into your workspace dashboard to review the task details.`,
     );
   };
 
+  // Soft Delete Task: Instead of permanent deletion, marks task as isDeleted: true with timestamp and deleting user
   const deleteTask = (id: string) => {
     if (!canDeleteTask(currentUser)) {
       console.warn('Permission denied: Team Members cannot delete tasks. Contact your Project Manager or Admin.');
       return;
     }
 
-    const t = tasks.find((x) => x.id === id);
+    const t = allTasks.find((x) => x.id === id);
     const p = t ? projects.find((proj) => proj.id === t.projectId) : null;
+    const now = new Date().toISOString();
+    const deletedBy = currentUser ? currentUser.id : 'usr_admin';
+    const deletedByName = currentUser ? currentUser.name : 'Workspace Admin';
 
-    setTasks((prev) => prev.filter((x) => x.id !== id));
+    // Update in-memory allTasks list
+    setAllTasks((prev) =>
+      prev.map((task) =>
+        task.id === id
+          ? {
+              ...task,
+              isDeleted: true,
+              deletedAt: now,
+              deletedBy,
+              deletedByName,
+              updatedAt: now
+            }
+          : task
+      )
+    );
+
+    if (t) {
+      logActivity(
+        'deleted task (moved to Recycle Bin)',
+        t.title,
+        'task',
+        t.projectId,
+        t.id,
+        `Task "${t.title}" (Priority: ${t.priority}, Status: ${t.status}) moved to Recycle Bin by ${deletedByName}. Retained for 30 days before permanent auto-purge.`,
+        'warning'
+      );
+    }
+    // Persist soft-delete status to Firestore
+    softDeleteTaskInFirestore(id, deletedBy, deletedByName);
+  };
+
+  // Restore task from Recycle Bin back to active status
+  const restoreTask = (id: string) => {
+    const t = allTasks.find((x) => x.id === id);
+    const now = new Date().toISOString();
+
+    setAllTasks((prev) =>
+      prev.map((task) =>
+        task.id === id
+          ? {
+              ...task,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined,
+              updatedAt: now
+            }
+          : task
+      )
+    );
+
+    if (t) {
+      logActivity(
+        'restored task from Recycle Bin',
+        t.title,
+        'task',
+        t.projectId,
+        t.id,
+        `Task "${t.title}" restored to active status by ${currentUser?.name || 'Admin'}`,
+        'info'
+      );
+    }
+    restoreTaskInFirestore(id);
+  };
+
+  // Bulk restore multiple tasks from Recycle Bin
+  const bulkRestoreTasks = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const now = new Date().toISOString();
+
+    setAllTasks((prev) =>
+      prev.map((task) =>
+        ids.includes(task.id)
+          ? {
+              ...task,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined,
+              updatedAt: now
+            }
+          : task
+      )
+    );
+
+    ids.forEach((id) => {
+      restoreTaskInFirestore(id);
+    });
+
+    logActivity(
+      'bulk restored tasks from Recycle Bin',
+      `${ids.length} task(s) restored to active workspaces`,
+      'task',
+      undefined,
+      undefined,
+      `Restored ${ids.length} tasks by ${currentUser?.name || 'Admin'}`,
+      'info'
+    );
+  };
+
+  // Permanent Purge: Admin removes task completely from database
+  const purgeTask = (id: string) => {
+    const t = allTasks.find((x) => x.id === id);
+    setAllTasks((prev) => prev.filter((x) => x.id !== id));
     setSubtasks((prev) => prev.filter((s) => s.taskId !== id));
     setDependencies((prev) => prev.filter((d) => d.taskId !== id && d.dependsOnTaskId !== id));
 
     if (t) {
       logActivity(
-        'deleted task',
+        'permanently purged task',
         t.title,
         'task',
         t.projectId,
         t.id,
-        `Task "${t.title}" (Priority: ${t.priority}, Status: ${t.status}) deleted from Space "${p?.title || t.projectId}" by ${currentUser?.name || 'User'}`,
-        'warning'
+        `Task "${t.title}" permanently erased from database by ${currentUser?.name || 'Admin'}`,
+        'critical'
       );
     }
     deleteTaskFromFirestore(id);
+  };
+
+  // Bulk permanent purge of selected tasks
+  const bulkPurgeTasks = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    setAllTasks((prev) => prev.filter((x) => !ids.includes(x.id)));
+    setSubtasks((prev) => prev.filter((s) => !ids.includes(s.taskId)));
+    setDependencies((prev) => prev.filter((d) => !ids.includes(d.taskId) && !ids.includes(d.dependsOnTaskId)));
+
+    ids.forEach((id) => {
+      deleteTaskFromFirestore(id);
+    });
+
+    logActivity(
+      'bulk purged tasks from database',
+      `${ids.length} task(s) permanently destroyed`,
+      'task',
+      undefined,
+      undefined,
+      `Permanently purged ${ids.length} task(s) by ${currentUser?.name || 'Admin'}`,
+      'critical'
+    );
+  };
+
+  // Empty entire Recycle Bin (permanently purge all soft-deleted items)
+  const emptyRecycleBin = () => {
+    const deleted = allTasks.filter((t) => !!t.isDeleted);
+    if (deleted.length === 0) return;
+    const deletedIds = deleted.map((t) => t.id);
+    bulkPurgeTasks(deletedIds);
+  };
+
+  // Auto-purge tasks older than 30 days
+  const purgeExpiredTasks = async (): Promise<number> => {
+    const purgedIds = await purgeExpiredTasksFromFirestore(allTasks);
+    if (purgedIds.length > 0) {
+      setAllTasks((prev) => prev.filter((t) => !purgedIds.includes(t.id)));
+      setSubtasks((prev) => prev.filter((s) => !purgedIds.includes(s.taskId)));
+      setDependencies((prev) => prev.filter((d) => !purgedIds.includes(d.taskId) && !purgedIds.includes(d.dependsOnTaskId)));
+
+      logActivity(
+        'auto-purged expired tasks (>30 days)',
+        `${purgedIds.length} task(s) permanently cleaned up from Recycle Bin`,
+        'system',
+        undefined,
+        undefined,
+        `Purged ${purgedIds.length} expired task documents older than 30 days retention window`,
+        'info'
+      );
+    }
+    return purgedIds.length;
   };
 
   // Subtasks
@@ -2416,7 +2595,7 @@ Log into your workspace dashboard to review the task details.`,
     setDependencies((prev) => [...prev, newDep]);
 
     // Update task object fields for predecessors and successors
-    setTasks((prev) =>
+    setAllTasks((prev) =>
       prev.map((t) => {
         if (t.id === taskId) {
           const preds = Array.from(new Set([...(t.predecessors || []), dependsOnTaskId]));
@@ -2441,7 +2620,7 @@ Log into your workspace dashboard to review the task details.`,
 
     if (dep) {
       const { taskId, dependsOnTaskId } = dep;
-      setTasks((prev) =>
+      setAllTasks((prev) =>
         prev.map((t) => {
           if (t.id === taskId) {
             const preds = (t.predecessors || []).filter((id) => id !== dependsOnTaskId);
@@ -2529,7 +2708,7 @@ Log into your workspace dashboard to review the task details.`,
     }
 
     if (adjustedCount > 0) {
-      setTasks(currentTasks);
+      setAllTasks(currentTasks);
       logActivity(
         'recalculated project timeline (Finish-to-Start)',
         `Auto-adjusted ${adjustedCount} task schedules based on Finish-to-Start dependencies`,
@@ -2897,7 +3076,7 @@ Log into your workspace dashboard to review the task details.`,
         updatedAt: new Date().toISOString(),
       };
 
-      setTasks((prev) => [newTask, ...prev]);
+      setAllTasks((prev) => [newTask, ...prev]);
       createTaskInFirestore(newTask);
       count++;
     });
@@ -3294,10 +3473,18 @@ Please log into your workspace dashboard to update task status or adjust target 
     if (tasks.length > 0) {
       triggerDailyOverdueCheck(false);
     }
+    // Run automated 30-day Recycle Bin purge check on mount and hourly
+    purgeExpiredTasks();
     const interval = setInterval(() => {
       triggerUpcomingDueCheck();
     }, 60000);
-    return () => clearInterval(interval);
+    const purgeInterval = setInterval(() => {
+      purgeExpiredTasks();
+    }, 60 * 60 * 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(purgeInterval);
+    };
   }, []);
 
   // Automations
@@ -3429,7 +3616,7 @@ Please log into your workspace dashboard to update task status or adjust target 
       updatedAt: new Date().toISOString()
     };
 
-    setTasks((prev) => [newTask, ...prev]);
+    setAllTasks((prev) => [newTask, ...prev]);
     createTaskInFirestore(newTask);
 
     // Link the email thread to this newly created task
@@ -3507,7 +3694,7 @@ Please log into your workspace dashboard to update task status or adjust target 
   // Clear all old sample data to start fresh with real projects and activities
   const clearAllData = () => {
     setProjects([]);
-    setTasks([]);
+    setAllTasks([]);
     setSubtasks([]);
     setSprints([]);
     setTaskComments([]);
@@ -3543,7 +3730,7 @@ Please log into your workspace dashboard to update task status or adjust target 
     // 1. Reset all state in memory
     setCompanies(INITIAL_COMPANIES);
     setProjects(INITIAL_PROJECTS);
-    setTasks(INITIAL_TASKS);
+    setAllTasks(INITIAL_TASKS);
     setSubtasks(INITIAL_SUBTASKS);
     setDependencies(INITIAL_DEPENDENCIES);
     setFiles(INITIAL_FILES);
@@ -3626,6 +3813,8 @@ Please log into your workspace dashboard to update task status or adjust target 
         deleteProjectTemplate,
         rollbackTemplateVersion,
         tasks,
+        deletedTasks,
+        allTasks,
         subtasks,
         taskComments,
         dependencies,
@@ -3633,6 +3822,12 @@ Please log into your workspace dashboard to update task status or adjust target 
         updateTask,
         reorderTasks,
         deleteTask,
+        restoreTask,
+        bulkRestoreTasks,
+        purgeTask,
+        bulkPurgeTasks,
+        emptyRecycleBin,
+        purgeExpiredTasks,
         addSubtask,
         toggleSubtask,
         addTaskComment,

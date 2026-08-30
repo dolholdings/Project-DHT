@@ -155,6 +155,10 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedByName?: string;
 }
 
 export interface TaskComment {
