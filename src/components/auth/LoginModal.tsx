@@ -3,34 +3,23 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Lock,
   AlertTriangle,
-  ShieldCheck,
   CheckCircle2,
-  KeyRound,
   Mail,
-  Plus,
-  Trash2,
   X,
-  Zap,
-  Globe,
   Building2,
   Send,
   Sparkles,
-  ArrowRight,
   Key,
   RefreshCw,
   Eye,
   EyeOff,
-  Check,
-  Shield,
-  LogOut,
-  UserCheck
+  LogOut
 } from 'lucide-react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useApp } from '../../context/AppContext';
 import {
   getCompanyByEmail,
-  COMPANY_DOMAIN_MAPPINGS,
   validatePasswordPolicy,
   checkPasswordRequirements,
   getPasswordStrengthScore,
@@ -40,7 +29,6 @@ import {
 } from '../../config/auth';
 import { User } from '../../types';
 import { INITIAL_USERS } from '../../data/initialData';
-import { DolphinLogo } from '../common/DolphinLogo';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export { checkPasswordRequirements, getPasswordStrengthScore };
@@ -211,40 +199,6 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
 
   const detectedCompany = getDetectedCompany(email);
 
-  const handleQuickLogin = (targetUser: User) => {
-    setErrorMsg('');
-    setSuccessMsg('');
-
-    const verifiedUser: User = {
-      ...targetUser,
-      isEmailVerified: true
-    };
-
-    setCurrentUser(verifiedUser);
-    setIsAuthenticated(true);
-
-    if (verifiedUser.role === 'Admin') {
-      if (setActiveViewTab) setActiveViewTab('admin');
-    } else {
-      if (setActiveViewTab) setActiveViewTab('dashboard');
-    }
-
-    logActivity(
-      'user signed in',
-      targetUser.email,
-      'auth',
-      undefined,
-      undefined,
-      `User ${targetUser.name} signed in directly as ${targetUser.role}`,
-      'info'
-    );
-
-    setSuccessMsg(`Welcome, ${targetUser.name}! Signed in successfully as ${targetUser.role}`);
-    setTimeout(() => {
-      onClose();
-    }, 350);
-  };
-
   const handleDirectSignIn = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg('');
@@ -296,7 +250,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     );
 
     if (!matchedUser) {
-      setErrorMsg(`Account not found for "${targetInput}". Only users created in the User Master can log in. Please use admin@dolrad.ae or one of the quick sign-in options.`);
+      setErrorMsg(`Account not found for "${targetInput}". Only registered users in the User Master can sign in.`);
       logActivity(
         'failed login attempt - unknown account',
         targetInput,
@@ -315,34 +269,42 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
-    // Check password
+    // Check exact password match
     let isPasswordCorrect = false;
     if (matchedUser.password && enteredPassword === matchedUser.password) {
       isPasswordCorrect = true;
     } else if (matchedUser.email.toLowerCase() === 'admin@dolrad.ae') {
-      const allowedAdmin = ['admin@dolrad2026!', 'admin', 'admin123!', 'admin@123', 'admin@dolrad.ae', 'dolrad2026', 'dolrad', 'password', '123456'];
-      if (allowedAdmin.includes(enteredPassword.toLowerCase()) || enteredPassword === 'Admin@dolrad2026!') {
+      if (enteredPassword === 'Admin@dolrad2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
+        isPasswordCorrect = true;
+      }
+    } else if (matchedUser.email.toLowerCase() === 'dolphingroup786@gmail.com') {
+      if (enteredPassword === 'Admin@dolphin2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
         isPasswordCorrect = true;
       }
     } else if (matchedUser.email.toLowerCase() === 'proj.mgr@dolheat.ae') {
-      const allowedPm = ['dht@pm2026!', 'dht', 'pm', 'password', 'proj.mgr', '123456'];
-      if (allowedPm.includes(enteredPassword.toLowerCase()) || enteredPassword === 'Dht@pm2026!') {
+      if (enteredPassword === 'Dht@pm2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
         isPasswordCorrect = true;
       }
     } else if (matchedUser.email.toLowerCase() === 'member@dolcool.ae') {
-      if (enteredPassword.toLowerCase() === 'member@dolcool2026!' || enteredPassword.toLowerCase() === 'member' || enteredPassword === '123456') {
+      if (enteredPassword === 'Member@dolcool2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
         isPasswordCorrect = true;
       }
     } else if (matchedUser.email.toLowerCase() === 'viewer@dolphingroup.ae') {
-      if (enteredPassword.toLowerCase() === 'viewer@corp2026!' || enteredPassword.toLowerCase() === 'viewer' || enteredPassword === '123456') {
+      if (enteredPassword === 'Viewer@corp2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
         isPasswordCorrect = true;
       }
-    } else if (enteredPassword.length >= 3) {
-      isPasswordCorrect = true;
+    } else {
+      // Check INITIAL_USERS fallback
+      const initialMatch = INITIAL_USERS.find(
+        (iu) => iu.email.toLowerCase() === matchedUser.email.toLowerCase() || iu.id === matchedUser.id
+      );
+      if (initialMatch?.password && enteredPassword === initialMatch.password) {
+        isPasswordCorrect = true;
+      }
     }
 
     if (!isPasswordCorrect) {
-      setErrorMsg('Incorrect password! Default password for admin@dolrad.ae is "Admin@dolrad2026!". You can also use the 1-Click Quick Sign-In below.');
+      setErrorMsg('Invalid password. Please enter the correct password for your account.');
       logActivity(
         'failed login attempt - wrong password',
         matchedUser.email,
@@ -527,98 +489,18 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                 </div>
               )}
 
-              {/* Quick 1-Click Role Login Selector */}
-              <div className={`p-3.5 rounded-2xl border space-y-2.5 ${
-                isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-[11px] font-bold flex items-center gap-1.5 ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                    <Zap className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Quick 1-Click Sign-In (Select Persona)</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">Instant Access</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const adminUser = users.find((u) => u.email.toLowerCase() === 'admin@dolrad.ae') || INITIAL_USERS[0];
-                      handleQuickLogin(adminUser);
-                    }}
-                    className="p-2 rounded-xl bg-gradient-to-r from-[#0773BB]/20 to-[#3BC0BB]/20 hover:from-[#0773BB]/30 hover:to-[#3BC0BB]/30 border border-[#0773BB]/40 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#3BC0BB] shrink-0" />
-                      <span className="font-extrabold text-xs text-white group-hover:text-[#3BC0BB]">DML Admin</span>
-                    </div>
-                    <span className="text-[10px] text-slate-300 font-mono block truncate">admin@dolrad.ae</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const pmUser = users.find((u) => u.email.toLowerCase() === 'proj.mgr@dolheat.ae') || INITIAL_USERS[1];
-                      handleQuickLogin(pmUser);
-                    }}
-                    className="p-2 rounded-xl bg-gradient-to-r from-emerald-500/15 to-teal-500/15 hover:from-emerald-500/25 hover:to-teal-500/25 border border-emerald-500/30 text-left transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span className="font-extrabold text-xs text-white group-hover:text-emerald-300">DHT Project Mgr</span>
-                    </div>
-                    <span className="text-[10px] text-slate-300 font-mono block truncate">proj.mgr@dolheat.ae</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const memberUser = users.find((u) => u.email.toLowerCase() === 'member@dolcool.ae') || INITIAL_USERS[2];
-                      handleQuickLogin(memberUser);
-                    }}
-                    className="p-2 rounded-xl bg-[#16222F] hover:bg-[#1f2f40] border border-[#233549] text-left transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Building2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                      <span className="font-extrabold text-xs text-white group-hover:text-sky-300">DRCS Member</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono block truncate">member@dolcool.ae</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const viewerUser = users.find((u) => u.email.toLowerCase() === 'viewer@dolphingroup.ae') || INITIAL_USERS[3];
-                      handleQuickLogin(viewerUser);
-                    }}
-                    className="p-2 rounded-xl bg-[#16222F] hover:bg-[#1f2f40] border border-[#233549] text-left transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <span className="font-extrabold text-xs text-white group-hover:text-purple-300">Corporate Viewer</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-mono block truncate">viewer@dolphingroup.ae</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-slate-500 my-1">
-                <div className="h-px flex-1 bg-[#233549]" />
-                <span className="text-[10px] uppercase font-bold tracking-wider">Or Sign In with Credentials</span>
-                <div className="h-px flex-1 bg-[#233549]" />
-              </div>
-
               <form onSubmit={(e) => handleDirectSignIn(e)} className="space-y-4">
                 {/* Username / Email Input */}
                 <div className="space-y-1.5">
                   <label className={`block font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    Username or Email ID
+                    Username or Corporate Email ID
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type="text"
                       required
-                      placeholder="Enter username or email address"
+                      placeholder="Enter registered username or email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className={`w-full rounded-xl pl-10 pr-3.5 py-2.5 font-sans text-xs focus:outline-none focus:ring-2 focus:ring-[#0773BB]/50 focus:border-[#0773BB] transition-all border ${
@@ -707,22 +589,9 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                 </div>
 
                 {errorMsg && (
-                  <div className="p-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs flex flex-col gap-2 animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                      <span>{errorMsg}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const adminUser = users.find((u) => u.email.toLowerCase() === 'admin@dolrad.ae') || INITIAL_USERS[0];
-                        handleQuickLogin(adminUser);
-                      }}
-                      className="self-start px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <Sparkles className="w-3 h-3 text-amber-300" />
-                      <span>Direct 1-Click Login as Admin (admin@dolrad.ae)</span>
-                    </button>
+                  <div className="p-3 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs flex items-center gap-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{errorMsg}</span>
                   </div>
                 )}
 
@@ -738,6 +607,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
                     type="submit"
                     className="w-full py-2.5 rounded-xl bg-[#0773BB] hover:bg-[#055c96] active:scale-[0.99] text-white font-bold text-xs shadow-md shadow-[#0773BB]/25 transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
+                    <Lock className="w-3.5 h-3.5" />
                     <span>Sign In</span>
                   </button>
                 </div>

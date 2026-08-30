@@ -991,41 +991,7 @@ export const INITIAL_FILES: ProjectFile[] = [];
 
 export const INITIAL_TIME_ENTRIES: TimeEntry[] = [];
 
-export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [
-  {
-    id: 'cf_cost_center',
-    name: 'Cost Center Code',
-    type: 'text',
-    description: 'ERP Cost Center for accounting audit',
-    defaultValue: 'CC-9001',
-    required: false
-  },
-  {
-    id: 'cf_risk_rating',
-    name: 'Risk Level',
-    type: 'dropdown',
-    options: ['Low', 'Medium', 'High', 'Critical'],
-    description: 'Project risk matrix level',
-    defaultValue: 'Low',
-    required: true
-  },
-  {
-    id: 'cf_audit_id',
-    name: 'Audit Reference No',
-    type: 'number',
-    description: 'Numeric audit compliance registration ID',
-    defaultValue: 1001,
-    required: false
-  },
-  {
-    id: 'cf_approved_qa',
-    name: 'QA Approved',
-    type: 'checkbox',
-    description: 'Quality assurance checklist signoff',
-    defaultValue: false,
-    required: false
-  }
-];
+export const INITIAL_CUSTOM_FIELDS: CustomFieldDefinition[] = [];
 
 export const INITIAL_SPRINTS: Sprint[] = [
   {

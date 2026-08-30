@@ -645,9 +645,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [dependencies, setDependencies] = useState<TaskDependency[]>(() => loadFromStorage('dolphin_dependencies', INITIAL_DEPENDENCIES));
   const [files, setFiles] = useState<ProjectFile[]>(() => loadFromStorage('dolphin_files', INITIAL_FILES));
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => loadFromStorage('dolphin_time_entries', INITIAL_TIME_ENTRIES));
-  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>(() =>
-    loadFromStorage('dolphin_custom_fields', INITIAL_CUSTOM_FIELDS)
-  );
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>(() => {
+    const loaded: CustomFieldDefinition[] = loadFromStorage('dolphin_custom_fields', INITIAL_CUSTOM_FIELDS);
+    const hiddenIds = new Set(['cf_cost_center', 'cf_risk_rating', 'cf_audit_id', 'cf_approved_qa']);
+    const hiddenNames = new Set(['cost center code', 'cost center', 'risk level', 'audit reference no', 'qa approved']);
+    return (loaded || []).filter(
+      (cf) => !hiddenIds.has(cf.id) && !hiddenNames.has(cf.name?.toLowerCase()?.trim())
+    );
+  });
   const [sprints, setSprints] = useState<Sprint[]>(() =>
     loadFromStorage('dolphin_sprints', INITIAL_SPRINTS)
   );

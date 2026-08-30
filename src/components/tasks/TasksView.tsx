@@ -820,31 +820,6 @@ export const TasksView: React.FC = () => {
             </span>
           </button>
 
-          {/* AI Smart Priority */}
-          <button
-            type="button"
-            onClick={() => handleOpenSmartPriorityModal(false)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#0773BB] to-[#3BC0BB] hover:opacity-90 text-white text-xs font-bold transition-all shadow-xs active:scale-95 border border-[#3BC0BB]/40 whitespace-nowrap"
-            title="Analyze deadlines, effort estimates, and critical path to reorder all tasks"
-          >
-            <Sparkles className="w-3.5 h-3.5 fill-current text-white animate-pulse" />
-            <span>AI Smart Priority</span>
-          </button>
-
-          {/* Smart Priority (Unassigned) */}
-          <button
-            type="button"
-            onClick={() => handleOpenSmartPriorityModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:opacity-90 text-white text-xs font-bold transition-all shadow-xs active:scale-95 border border-amber-400/40 whitespace-nowrap"
-            title="Use Gemini to analyze deadlines and effort estimates to tag unassigned tasks High/Medium/Low"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-200 fill-current" />
-            <span>Smart Priority (Unassigned)</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-amber-100 text-[10px] font-mono font-extrabold">
-              {unassignedTasks.length}
-            </span>
-          </button>
-
           {/* CSV Export & Import */}
           <button
             type="button"

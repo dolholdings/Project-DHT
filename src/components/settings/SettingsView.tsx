@@ -2354,7 +2354,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Cost Center Code, Risk Rating, Budget ID"
+                      placeholder="e.g. Purchase Order No, Vendor ID, Budget Code"
                       value={cfName}
                       onChange={(e) => setCfName(e.target.value)}
                       className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB]"
@@ -2410,7 +2410,7 @@ SET FOREIGN_KEY_CHECKS = 1;
                     <label className="block text-slate-300 font-bold mb-1">Description / Help Text</label>
                     <input
                       type="text"
-                      placeholder="e.g. ERP Cost Center for financial tracking"
+                      placeholder="e.g. Identifier for procurement tracking"
                       value={cfDescription}
                       onChange={(e) => setCfDescription(e.target.value)}
                       className="w-full bg-[#0D1520] border border-[#233549] text-white rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-[#3BC0BB]"

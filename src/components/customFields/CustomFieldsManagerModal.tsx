@@ -286,7 +286,7 @@ export const CustomFieldsManagerModal: React.FC<CustomFieldsManagerModalProps> =
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Cost Center, QA Signoff, Vendor ID"
+                    placeholder="e.g. Purchase Order No, Vendor ID, Location Code"
                     className={`w-full px-3 py-2 text-xs rounded-xl border focus:outline-none focus:border-[#3BC0BB] ${
                       isLight
                         ? 'bg-white border-slate-300 text-slate-900'
