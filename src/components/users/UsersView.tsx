@@ -37,7 +37,9 @@ import {
   CheckCheck,
   Zap,
   Info,
-  Camera
+  Camera,
+  Cloud,
+  UploadCloud
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company, User } from '../../types';
@@ -70,8 +72,12 @@ export const UsersView: React.FC = () => {
     dispatchEmailNotification,
     logActivity,
     currentUser,
-    setActiveTab
+    setActiveTab,
+    syncAllUsersToFirestore
   } = useApp();
+
+  const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
+  const [firebaseSyncMessage, setFirebaseSyncMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<'users' | 'skills' | 'domains' | 'companies'>('users');
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -586,6 +592,49 @@ export const UsersView: React.FC = () => {
 
           <PermissionGuard action="create_user">
             <button
+              onClick={async () => {
+                setIsSyncingFirebase(true);
+                setFirebaseSyncMessage(null);
+                try {
+                  const res = await syncAllUsersToFirestore();
+                  if (res.success) {
+                    setFirebaseSyncMessage({
+                      type: 'success',
+                      text: `Successfully synced ${res.count} users directly to Firebase Firestore database!`
+                    });
+                  } else {
+                    setFirebaseSyncMessage({
+                      type: 'error',
+                      text: res.error || 'Failed to sync users to Firebase.'
+                    });
+                  }
+                } catch (err: any) {
+                  setFirebaseSyncMessage({
+                    type: 'error',
+                    text: err?.message || 'Error occurred during sync.'
+                  });
+                } finally {
+                  setIsSyncingFirebase(false);
+                  setTimeout(() => setFirebaseSyncMessage(null), 6000);
+                }
+              }}
+              disabled={isSyncingFirebase}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs transition-all shadow-md ${
+                isLight
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  : 'bg-emerald-600/90 hover:bg-emerald-600 text-white'
+              } disabled:opacity-50`}
+              title="Push all local & cached users directly into Firebase Firestore users collection"
+            >
+              {isSyncingFirebase ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <UploadCloud className="w-4 h-4" />
+              )}
+              <span>{isSyncingFirebase ? 'Syncing...' : 'Sync All to Firebase'}</span>
+            </button>
+
+            <button
               onClick={() => {
                 setShowWorkspaceInviteModal(true);
                 setWsInviteError('');
@@ -609,6 +658,18 @@ export const UsersView: React.FC = () => {
       </div>
 
       {/* Navigation Sub-Tabs */}
+      {firebaseSyncMessage && (
+        <div
+          className={`flex items-center gap-2 p-3 rounded-xl text-xs font-semibold ${
+            firebaseSyncMessage.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
+              : 'bg-rose-500/10 text-rose-500 border border-rose-500/30'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{firebaseSyncMessage.text}</span>
+        </div>
+      )}
       <div className={`flex items-center gap-2 border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
         <button
           onClick={() => setActiveSubTab('users')}

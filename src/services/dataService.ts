@@ -459,6 +459,38 @@ export async function deleteUserFromFirestore(id: string): Promise<void> {
   }
 }
 
+// Sync all users from local cache / state into Firebase Firestore
+export async function syncAllLocalUsersToFirestore(localUsers: User[]): Promise<{ count: number; error?: string }> {
+  try {
+    const legacyEmails = [
+      'tareq.aldolphin@dolphingroup.ae',
+      'parvez.khan@dolphingroup.ae',
+      'suhail.ahmed@dolrad.ae',
+      'fatima.zohra@dolheat.ae',
+      'rashed.m@dolcool.ae',
+      'elena.rostova@dolheat.ae',
+      'omar.mansoor@dolphingroup.ae',
+      'sys_analyst@dolrad.ae',
+      'proj@dolheat.ae',
+      'prog.mgr@dolheat.ae'
+    ];
+
+    let count = 0;
+    for (const user of localUsers) {
+      if (!user || !user.id || !user.email) continue;
+      if (legacyEmails.includes(user.email.toLowerCase())) continue;
+
+      const docRef = doc(db, USERS_COLLECTION, user.id);
+      await setDoc(docRef, sanitizeForFirestore(user), { merge: true });
+      count++;
+    }
+    return { count };
+  } catch (error: any) {
+    console.warn('Error syncing all local users to Firestore:', error);
+    return { count: 0, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 // Clear all projects and tasks from Firestore for clean fresh workspace
 export async function clearAllFirestoreData(): Promise<void> {
   try {

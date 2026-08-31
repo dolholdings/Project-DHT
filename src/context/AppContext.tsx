@@ -87,6 +87,7 @@ import {
   createUserInFirestore,
   updateUserInFirestore,
   deleteUserFromFirestore,
+  syncAllLocalUsersToFirestore,
   seedInitialFirestoreData,
   clearAllFirestoreData,
   forceRestoreFirestoreData,
@@ -125,6 +126,7 @@ interface AppContextType {
   users: User[];
   updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  syncAllUsersToFirestore: () => Promise<{ success: boolean; count: number; error?: string }>;
 
   // Email Control & Domain Validation
   authorizedDomains: string[];
@@ -703,8 +705,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseUser(u);
     });
 
-    // Seed initial data to Firestore if Firestore is empty
-    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, INITIAL_USERS, INITIAL_COMPANIES);
+    // Seed initial data to Firestore and sync all local users to Firestore
+    const localUsersOnBoot = loadFromStorage<User[]>('dolphin_users', INITIAL_USERS);
+    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, localUsersOnBoot, INITIAL_COMPANIES);
+    syncAllLocalUsersToFirestore(localUsersOnBoot);
 
     // Subscribe to real-time Firestore updates for Companies/Workspaces
     const unsubscribeCompanies = subscribeToCompanies((remoteCompanies) => {
@@ -1476,6 +1480,20 @@ ${currentUser?.name || 'Workspace Administrator'}`,
 
     if (u) {
       logActivity('deactivated tenant user', `${u.name} (${u.email})`, 'permission', undefined, undefined, 'User account removed from tenant directory', 'warning');
+    }
+  };
+
+  const syncAllUsersToFirestore = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      const localUsers = loadFromStorage<User[]>('dolphin_users', users);
+      const res = await syncAllLocalUsersToFirestore(localUsers);
+      if (res.error) {
+        return { success: false, count: res.count, error: res.error };
+      }
+      logActivity('synced users with cloud database', `Synchronized ${res.count} user profiles from local storage to Firebase Firestore`, 'user');
+      return { success: true, count: res.count };
+    } catch (err: any) {
+      return { success: false, count: 0, error: err?.message || String(err) };
     }
   };
 
@@ -3801,6 +3819,7 @@ Please log into your workspace dashboard to update task status or adjust target 
         users,
         updateUser,
         deleteUser,
+        syncAllUsersToFirestore,
         validateDomain,
         inviteUser,
         dispatchEmailNotification,
