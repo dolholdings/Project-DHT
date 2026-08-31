@@ -154,13 +154,13 @@ export const KanbanView: React.FC = () => {
       }
     }
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = t.title.toLowerCase().includes(q);
+      const q = String(searchQuery || '').toLowerCase();
+      const matchTitle = (t.title || '').toLowerCase().includes(q);
       const matchDesc = (t.description || '').toLowerCase().includes(q);
-      const matchTag = (t.tags || []).some((tag) => tag.toLowerCase().includes(q));
-      const assignees = users.filter((u) => t.assigneeIds.includes(u.id));
+      const matchTag = (t.tags || []).some((tag) => (tag || '').toLowerCase().includes(q));
+      const assignees = users.filter((u) => u && t.assigneeIds && t.assigneeIds.includes(u.id));
       const matchAssignee = assignees.some(
-        (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+        (u) => (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q)
       );
       if (!matchTitle && !matchDesc && !matchTag && !matchAssignee) return false;
     }

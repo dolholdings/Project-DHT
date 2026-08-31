@@ -29,7 +29,7 @@ const INBOX_CONFIG_STORAGE_PREFIX = 'dolphin_inbox_user_config_';
  * Derive email host based on user email domain
  */
 export function deriveEmailHostFromAddress(email: string): { incomingHost: string; outgoingHost: string; domain: string } {
-  const cleanEmail = email.toLowerCase().trim();
+  const cleanEmail = String(email || '').toLowerCase().trim();
   const domain = cleanEmail.includes('@') ? cleanEmail.split('@')[1] : 'dolphingroup.ae';
 
   if (domain.includes('gmail.com')) {
@@ -69,18 +69,19 @@ export function getDefaultInboxFolders(): InboxFolder[] {
  * Automatically initializes default user inbox configuration upon signup or first login
  */
 export function generateDefaultUserInboxConfig(user: { id: string; email: string; name: string }): UserInboxConfig {
-  const { incomingHost, outgoingHost } = deriveEmailHostFromAddress(user.email);
+  const uEmail = String(user?.email || '');
+  const { incomingHost, outgoingHost } = deriveEmailHostFromAddress(uEmail);
   const nowStr = new Date().toISOString();
 
   const defaultConfig: EmailConfig = {
-    email: user.email,
-    protocol: user.email.toLowerCase().includes('gmail') ? 'Gmail Workspace API' : 'Microsoft Office 365 (IMAP/OAuth2)',
+    email: uEmail,
+    protocol: uEmail.toLowerCase().includes('gmail') ? 'Gmail Workspace API' : 'Microsoft Office 365 (IMAP/OAuth2)',
     incomingHost,
     incomingPort: 993,
     outgoingHost,
     outgoingPort: 587,
     useSSL: false,
-    username: user.email,
+    username: uEmail,
     appToken: '••••••••••••••••',
     isConnected: true,
     lastSyncedAt: nowStr

@@ -573,11 +573,11 @@ export const DataImportModal: React.FC<DataImportModalProps> = ({
       // 3. Match Assignee User Email/Name
       const findAssigneeUserIds = (rawVal: string): string[] => {
         if (!rawVal) return [users[0]?.id || 'usr_1'];
-        const cleanVal = rawVal.toLowerCase();
+        const cleanVal = String(rawVal || '').toLowerCase();
         
         // Exact email or name match
         const matched = users.filter(
-          (u) => u.email.toLowerCase().includes(cleanVal) || u.name.toLowerCase().includes(cleanVal)
+          (u) => u && ((u.email || '').toLowerCase().includes(cleanVal) || (u.name || '').toLowerCase().includes(cleanVal))
         );
         if (matched.length > 0) return matched.map((m) => m.id);
 

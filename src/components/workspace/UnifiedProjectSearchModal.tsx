@@ -126,9 +126,9 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
         status: proj.status,
         date: proj.startDate,
         matchedTokens: [
-          proj.title.toLowerCase(),
-          proj.code.toLowerCase(),
-          proj.category.toLowerCase(),
+          (proj.title || '').toLowerCase(),
+          (proj.code || '').toLowerCase(),
+          (proj.category || '').toLowerCase(),
           (proj.description || '').toLowerCase()
         ],
         rawObject: proj
@@ -154,13 +154,13 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
         date: t.dueDate,
         authorName: assignees,
         matchedTokens: [
-          t.title.toLowerCase(),
+          (t.title || '').toLowerCase(),
           (t.description || '').toLowerCase(),
           projName.toLowerCase(),
           (t.tags || []).join(' ').toLowerCase(),
-          t.priority.toLowerCase(),
-          t.status.toLowerCase(),
-          assignees.toLowerCase()
+          (t.priority || '').toLowerCase(),
+          (t.status || '').toLowerCase(),
+          (assignees || '').toLowerCase()
         ],
         rawObject: t
       });
@@ -177,15 +177,15 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
         description: f.contentSnippet || `Document asset (${f.mimeType})`,
         projectId: f.projectId,
         projectName: projName,
-        categoryTag: f.mimeType.split('/')[1] || 'document',
+        categoryTag: (f.mimeType || '').split('/')[1] || 'document',
         date: f.uploadedAt,
         authorName: f.uploadedByName,
         matchedTokens: [
-          f.name.toLowerCase(),
+          (f.name || '').toLowerCase(),
           projName.toLowerCase(),
-          f.uploadedByName.toLowerCase(),
+          (f.uploadedByName || '').toLowerCase(),
           (f.contentSnippet || '').toLowerCase(),
-          f.mimeType.toLowerCase()
+          (f.mimeType || '').toLowerCase()
         ],
         rawObject: f
       });
@@ -202,8 +202,8 @@ export const UnifiedProjectSearchModal: React.FC<UnifiedProjectSearchModalProps>
         categoryTag: tpl.category,
         date: tpl.createdAt,
         matchedTokens: [
-          tpl.name.toLowerCase(),
-          tpl.category.toLowerCase(),
+          (tpl.name || '').toLowerCase(),
+          (tpl.category || '').toLowerCase(),
           (tpl.description || '').toLowerCase(),
           (tpl.tags || []).join(' ').toLowerCase()
         ],

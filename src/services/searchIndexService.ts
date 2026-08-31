@@ -94,15 +94,15 @@ export class FullTextSearchIndex {
         let score = 0;
         const matchedFields: string[] = [];
 
-        const titleLower = task.title.toLowerCase();
+        const titleLower = (task.title || '').toLowerCase();
         const descLower = (task.description || '').toLowerCase();
         const tagsLower = (task.tags || []).join(' ').toLowerCase();
-        const statusLower = task.status.toLowerCase();
-        const priorityLower = task.priority.toLowerCase();
+        const statusLower = (task.status || '').toLowerCase();
+        const priorityLower = (task.priority || '').toLowerCase();
         const projTitleLower = (proj?.title || '').toLowerCase();
         const compNameLower = (comp?.name || '').toLowerCase();
-        const assigneeNamesLower = assignees.map((a) => a.name.toLowerCase()).join(' ');
-        const assigneeEmailsLower = assignees.map((a) => a.email.toLowerCase()).join(' ');
+        const assigneeNamesLower = assignees.map((a) => (a?.name || '').toLowerCase()).join(' ');
+        const assigneeEmailsLower = assignees.map((a) => (a?.email || '').toLowerCase()).join(' ');
         const reporterNameLower = (reporter?.name || '').toLowerCase();
 
         for (const token of queryTokens) {
@@ -172,13 +172,13 @@ export class FullTextSearchIndex {
         let score = 0;
         const matchedFields: string[] = [];
 
-        const titleLower = proj.title.toLowerCase();
-        const codeLower = proj.code.toLowerCase();
+        const titleLower = (proj.title || '').toLowerCase();
+        const codeLower = (proj.code || '').toLowerCase();
         const descLower = (proj.description || '').toLowerCase();
         const categoryLower = (proj.category || '').toLowerCase();
-        const statusLower = proj.status.toLowerCase();
+        const statusLower = (proj.status || '').toLowerCase();
         const managerNameLower = (manager?.name || '').toLowerCase();
-        const memberNamesLower = members.map((m) => m.name.toLowerCase()).join(' ');
+        const memberNamesLower = members.map((m) => (m?.name || '').toLowerCase()).join(' ');
         const compNameLower = (comp?.name || '').toLowerCase();
 
         for (const token of queryTokens) {
@@ -230,10 +230,11 @@ export class FullTextSearchIndex {
     // 3. Search Team Members (Users)
     if (filterType === 'all' || filterType === 'user') {
       for (const u of this.users) {
+        if (!u) continue;
         let score = 0;
         const matchedFields: string[] = [];
 
-        const nameLower = u.name.toLowerCase();
+        const nameLower = (u.name || '').toLowerCase();
         const emailLower = (u.email || '').toLowerCase();
         const roleLower = (u.role || '').toLowerCase();
         const deptLower = (u.department || '').toLowerCase();
@@ -273,13 +274,14 @@ export class FullTextSearchIndex {
     // 4. Search Documents / Files
     if (filterType === 'all' || filterType === 'document') {
       for (const file of this.files) {
+        if (!file) continue;
         if (selectedProjectId && file.projectId !== selectedProjectId) continue;
 
         const proj = projectMap.get(file.projectId);
         let score = 0;
         const matchedFields: string[] = [];
 
-        const fileNameLower = file.name.toLowerCase();
+        const fileNameLower = (file.name || '').toLowerCase();
         const mimeLower = (file.mimeType || '').toLowerCase();
         const uploaderLower = (file.uploadedByName || '').toLowerCase();
         const snippetLower = (file.contentSnippet || '').toLowerCase();

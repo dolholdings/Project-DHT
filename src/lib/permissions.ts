@@ -43,14 +43,14 @@ export function getSpaceRole(user: User | null, project: Project | null): SpaceR
   }
 
   // Also check if user's email is in members or memberRoles (for newly invited users before ID match)
-  if (user.email) {
-    const userEmailLower = user.email.toLowerCase();
-    if (project.members && project.members.some((m) => m.toLowerCase() === userEmailLower)) {
+  if (user && user.email) {
+    const userEmailLower = String(user.email).toLowerCase();
+    if (project.members && Array.isArray(project.members) && project.members.some((m) => typeof m === 'string' && m.toLowerCase() === userEmailLower)) {
       return 'Editor';
     }
-    if (project.memberRoles) {
+    if (project.memberRoles && typeof project.memberRoles === 'object') {
       for (const [key, roleVal] of Object.entries(project.memberRoles)) {
-        if (key.toLowerCase() === userEmailLower) return roleVal;
+        if (typeof key === 'string' && key.toLowerCase() === userEmailLower) return roleVal as SpaceRole;
       }
     }
   }

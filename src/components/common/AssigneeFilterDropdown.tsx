@@ -63,18 +63,20 @@ export const AssigneeFilterDropdown: React.FC<AssigneeFilterDropdownProps> = ({
 
   const selectedUser = useMemo(() => {
     if (value === 'all' || value === 'unassigned') return null;
-    return users.find((u) => u.id === value || u.email.toLowerCase() === value.toLowerCase());
+    const targetVal = String(value || '').toLowerCase();
+    return users.find((u) => u && (u.id === value || (u.email || '').toLowerCase() === targetVal));
   }, [value, users]);
 
   const filteredUsers = useMemo(() => {
-    const query = searchTerm.toLowerCase().trim();
+    const query = String(searchTerm || '').toLowerCase().trim();
     if (!query) return users;
     return users.filter((u) => {
+      if (!u) return false;
       return (
-        u.name.toLowerCase().includes(query) ||
-        u.email.toLowerCase().includes(query) ||
-        (u.department && u.department.toLowerCase().includes(query)) ||
-        (u.role && u.role.toLowerCase().includes(query))
+        (u.name || '').toLowerCase().includes(query) ||
+        (u.email || '').toLowerCase().includes(query) ||
+        (u.department && (u.department || '').toLowerCase().includes(query)) ||
+        (u.role && (u.role || '').toLowerCase().includes(query))
       );
     });
   }, [users, searchTerm]);

@@ -1183,7 +1183,7 @@ export const AdminView: React.FC = () => {
                       ssoOnly: false,
                       exportAllowed: true
                     };
-                    const matchedComp = companies.find((c) => c.domain === dom);
+                    const matchedComp = companies.find((c) => c && c.domain === dom);
 
                     return (
                       <tr key={`auth-dom-${dom}`} className="hover:bg-[#1C2C3D]/60 transition-colors">

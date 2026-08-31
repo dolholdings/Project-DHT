@@ -173,7 +173,8 @@ export const EmailInboxView: React.FC = () => {
   const userAssignedTasks = tasks.filter((t) => {
     if (!currentUser) return false;
     const matchId = t.assigneeIds && t.assigneeIds.includes(currentUser.id);
-    const matchEmail = currentUser.email && t.assigneeIds && t.assigneeIds.some((aid) => aid.toLowerCase() === currentUser.email?.toLowerCase());
+    const userEmail = (currentUser.email || '').toLowerCase();
+    const matchEmail = Boolean(userEmail && t.assigneeIds && t.assigneeIds.some((aid) => (aid || '').toLowerCase() === userEmail));
     return matchId || matchEmail;
   });
 
@@ -191,11 +192,11 @@ export const EmailInboxView: React.FC = () => {
     if (tagFilter && !email.tags?.includes(tagFilter)) return false;
 
     if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      const matchSubject = email.subject.toLowerCase().includes(q);
-      const matchSender = email.senderName.toLowerCase().includes(q) || email.senderEmail.toLowerCase().includes(q);
-      const matchBody = email.body.toLowerCase().includes(q);
-      const matchTag = email.tags?.some((t) => t.toLowerCase().includes(q));
+      const q = String(searchFilter || '').toLowerCase();
+      const matchSubject = (email.subject || '').toLowerCase().includes(q);
+      const matchSender = (email.senderName || '').toLowerCase().includes(q) || (email.senderEmail || '').toLowerCase().includes(q);
+      const matchBody = (email.body || '').toLowerCase().includes(q);
+      const matchTag = email.tags?.some((t) => (t || '').toLowerCase().includes(q));
       if (!matchSubject && !matchSender && !matchBody && !matchTag) return false;
     }
 
@@ -205,10 +206,10 @@ export const EmailInboxView: React.FC = () => {
   // Filter assigned tasks
   const filteredAssignedTasks = userAssignedTasks.filter((task) => {
     if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      const matchTitle = task.title.toLowerCase().includes(q);
-      const matchDesc = task.description.toLowerCase().includes(q);
-      const matchStatus = task.status.toLowerCase().includes(q);
+      const q = String(searchFilter || '').toLowerCase();
+      const matchTitle = (task.title || '').toLowerCase().includes(q);
+      const matchDesc = (task.description || '').toLowerCase().includes(q);
+      const matchStatus = (task.status || '').toLowerCase().includes(q);
       if (!matchTitle && !matchDesc && !matchStatus) return false;
     }
     return true;

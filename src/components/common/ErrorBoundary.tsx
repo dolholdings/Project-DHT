@@ -66,7 +66,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </details>
           )}
 
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               type="button"
               onClick={this.handleReset}
@@ -74,6 +74,25 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Retry / Reload Section</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  const keys = Object.keys(localStorage);
+                  keys.forEach((k) => {
+                    if (k.startsWith('dolphin_') || k.startsWith('dgh_')) {
+                      localStorage.removeItem(k);
+                    }
+                  });
+                } catch (e) {}
+                window.location.reload();
+              }}
+              className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 hover:text-amber-200 text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Clear Cache & Reload</span>
             </button>
 
             <button

@@ -460,7 +460,7 @@ export const UsersView: React.FC = () => {
     }
 
     const cleanDomain = compDomain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').trim();
-    const existing = companies.find((c) => c.domain.toLowerCase() === cleanDomain);
+    const existing = companies.find((c) => (c?.domain || '').toLowerCase() === cleanDomain);
 
     if (existing) {
       setCompError(`A company with domain @${cleanDomain} already exists (${existing.name}).`);
@@ -1589,7 +1589,7 @@ export const UsersView: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
               {Array.from(new Set(authorizedDomains)).map((dom) => {
-                const domainUsersCount = users.filter((u) => u.email.toLowerCase().endsWith(`@${dom}`)).length;
+                const domainUsersCount = users.filter((u) => (u?.email || '').toLowerCase().endsWith(`@${dom}`)).length;
                 return (
                   <div
                     key={`user-dom-${dom}`}
@@ -1756,8 +1756,8 @@ export const UsersView: React.FC = () => {
                     const val = e.target.value;
                     setEmail(val);
                     if (val.includes('@') && !isCustomCompany) {
-                      const dom = val.split('@')[1].toLowerCase().trim();
-                      const matchedComp = companies.find((c) => c.domain.toLowerCase() === dom);
+                      const dom = (val.split('@')[1] || '').toLowerCase().trim();
+                      const matchedComp = companies.find((c) => (c?.domain || '').toLowerCase() === dom);
                       if (matchedComp) {
                         setSelectedCompanyId(matchedComp.id);
                       }
@@ -2269,8 +2269,8 @@ export const UsersView: React.FC = () => {
                     const val = e.target.value;
                     setEmail(val);
                     if (val.includes('@') && !isCustomCompany) {
-                      const dom = val.split('@')[1].toLowerCase().trim();
-                      const matchedComp = companies.find((c) => c.domain.toLowerCase() === dom);
+                      const dom = (val.split('@')[1] || '').toLowerCase().trim();
+                      const matchedComp = companies.find((c) => (c?.domain || '').toLowerCase() === dom);
                       if (matchedComp) {
                         setSelectedCompanyId(matchedComp.id);
                       }

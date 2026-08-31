@@ -338,10 +338,12 @@ export const TeamChatView: React.FC = () => {
 
     // Auto-match suggested assignee
     if (vm.suggestedAssignee) {
+      const targetAss = String(vm.suggestedAssignee || '').toLowerCase();
       const matched = users.find(
         (u) =>
-          u.name.toLowerCase().includes(vm.suggestedAssignee!.toLowerCase()) ||
-          u.department?.toLowerCase().includes(vm.suggestedAssignee!.toLowerCase())
+          u &&
+          ((u.name || '').toLowerCase().includes(targetAss) ||
+            (u.department || '').toLowerCase().includes(targetAss))
       );
       if (matched) setAssigneeId(matched.id);
     }

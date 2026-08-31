@@ -478,7 +478,7 @@ export async function syncAllLocalUsersToFirestore(localUsers: User[]): Promise<
     let count = 0;
     for (const user of localUsers) {
       if (!user || !user.id || !user.email) continue;
-      if (legacyEmails.includes(user.email.toLowerCase())) continue;
+      if (legacyEmails.includes((user.email || '').toLowerCase())) continue;
 
       const docRef = doc(db, USERS_COLLECTION, user.id);
       await setDoc(docRef, sanitizeForFirestore(user), { merge: true });
@@ -557,7 +557,7 @@ export async function seedInitialFirestoreData(
     if (initialCompanies.length > 0) {
       const existingCompanies = await fetchCompaniesFromFirestore();
       for (const ic of initialCompanies) {
-        if (!existingCompanies.some((c) => c.id === ic.id || c.code === ic.code || c.domain === ic.domain)) {
+        if (!existingCompanies.some((c) => c.id === ic.id || c.code === ic.code || (c.domain && ic.domain && c.domain === ic.domain))) {
           await createCompanyInFirestore(ic);
         }
       }
@@ -578,7 +578,7 @@ export async function seedInitialFirestoreData(
     ];
     const existingUsers = await fetchUsersFromFirestore();
     for (const u of existingUsers) {
-      if (legacyEmails.includes(u.email.toLowerCase())) {
+      if (u && u.email && legacyEmails.includes((u.email || '').toLowerCase())) {
         await deleteUserFromFirestore(u.id);
       }
     }
@@ -586,7 +586,7 @@ export async function seedInitialFirestoreData(
     const remainingUsers = await fetchUsersFromFirestore();
     if (initialUsers.length > 0) {
       for (const iu of initialUsers) {
-        const existing = remainingUsers.find((u) => u.email.toLowerCase() === iu.email.toLowerCase() || u.id === iu.id);
+        const existing = remainingUsers.find((u) => (u?.email && iu?.email && (u.email || '').toLowerCase() === (iu.email || '').toLowerCase()) || (u && iu && u.id === iu.id));
         if (!existing) {
           await createUserInFirestore(iu);
         } else if (!existing.password && iu.password) {

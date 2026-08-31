@@ -188,7 +188,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     const dom = userEmail.split('@')[1]?.toLowerCase().trim();
     if (!dom) return null;
     
-    const compMatch = companies.find((c) => c.domain.toLowerCase() === dom);
+    const compMatch = companies.find((c) => (c?.domain || '').toLowerCase() === dom);
     if (compMatch) return compMatch;
 
     const mapped = getCompanyByEmail(userEmail);
@@ -206,8 +206,8 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     setErrorMsg('');
     setSuccessMsg('');
 
-    const targetInput = email.toLowerCase().trim();
-    const enteredPassword = password.trim();
+    const targetInput = String(email || '').toLowerCase().trim();
+    const enteredPassword = String(password || '').trim();
 
     if (!targetInput) {
       setErrorMsg('Please enter your Username or registered Email address.');
@@ -234,21 +234,28 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     }
 
     INITIAL_USERS.forEach((iu) => {
-      if (!targetUsersList.some((u) => u.email.toLowerCase() === iu.email.toLowerCase() || u.id === iu.id)) {
+      if (!targetUsersList.some((u) => (u?.email || '').toLowerCase() === (iu?.email || '').toLowerCase() || u?.id === iu?.id)) {
         targetUsersList.push(iu);
       }
     });
 
     // Match by email, username prefix, or full name
     const matchedUser = targetUsersList.find(
-      (u) =>
-        u.email.toLowerCase() === targetInput ||
-        u.name.toLowerCase() === targetInput ||
-        u.email.split('@')[0].toLowerCase() === targetInput ||
-        (targetInput === 'admin' && u.email.toLowerCase() === 'admin@dolrad.ae') ||
-        (targetInput.includes('admin') && u.role === 'Admin') ||
-        (targetInput.includes('prog.mgr') && u.email.toLowerCase().includes('proj.mgr')) ||
-        (targetInput.includes('proj.mgr') && u.email.toLowerCase().includes('prog.mgr'))
+      (u) => {
+        if (!u) return false;
+        const uEmail = (u.email || '').toLowerCase();
+        const uName = (u.name || '').toLowerCase();
+        const uPrefix = uEmail.split('@')[0] || '';
+        return (
+          uEmail === targetInput ||
+          uName === targetInput ||
+          uPrefix === targetInput ||
+          (targetInput === 'admin' && uEmail === 'admin@dolrad.ae') ||
+          (targetInput.includes('admin') && u.role === 'Admin') ||
+          (targetInput.includes('prog.mgr') && uEmail.includes('proj.mgr')) ||
+          (targetInput.includes('proj.mgr') && uEmail.includes('prog.mgr'))
+        );
+      }
     );
 
     if (!matchedUser) {
@@ -356,15 +363,16 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     }
 
     setResetLoading(true);
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = String(email || '').toLowerCase().trim();
 
     try {
       // Find matching user in system
       const targetUser = users.find(
         (u) =>
-          u.email.toLowerCase() === cleanEmail ||
-          u.name.toLowerCase() === cleanEmail ||
-          u.email.split('@')[0].toLowerCase() === cleanEmail
+          u &&
+          ((u.email || '').toLowerCase() === cleanEmail ||
+            (u.name || '').toLowerCase() === cleanEmail ||
+            (u.email || '').split('@')[0].toLowerCase() === cleanEmail)
       );
 
       if (newPassword && targetUser) {
@@ -385,9 +393,10 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       // Fallback: if user was found and new password was provided, persist to Firestore
       const targetUser = users.find(
         (u) =>
-          u.email.toLowerCase() === cleanEmail ||
-          u.name.toLowerCase() === cleanEmail ||
-          u.email.split('@')[0].toLowerCase() === cleanEmail
+          u &&
+          ((u.email || '').toLowerCase() === cleanEmail ||
+            (u.name || '').toLowerCase() === cleanEmail ||
+            (u.email || '').split('@')[0].toLowerCase() === cleanEmail)
       );
       if (newPassword && targetUser) {
         updateUser(targetUser.id, { password: newPassword });

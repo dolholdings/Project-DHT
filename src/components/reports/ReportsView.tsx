@@ -508,7 +508,8 @@ export const ReportsView: React.FC = () => {
         const projLabel = proj ? `${proj.code} - ${proj.title}` : t.projectId;
         const assignees = (t.assigneeIds || [])
           .map((aid) => {
-            const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+            const targetAid = String(aid || '').toLowerCase();
+            const u = users.find((usr) => usr && (usr.id === aid || (usr.email || '').toLowerCase() === targetAid));
             return u ? u.name : aid;
           })
           .join('; ');

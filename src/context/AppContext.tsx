@@ -509,10 +509,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'prog.mgr@dolheat.ae'
     ];
     
-    const valid = loaded.filter((u) => !deleted.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase()));
+    const valid = loaded.filter((u) => !deleted.includes(u.id) && !legacyEmails.includes((u?.email || '').toLowerCase()));
     const merged = [...valid];
     INITIAL_USERS.forEach((iu) => {
-      if (!merged.some((u) => u.email.toLowerCase() === iu.email.toLowerCase())) {
+      if (!merged.some((u) => (u?.email || '').toLowerCase() === (iu?.email || '').toLowerCase())) {
         merged.push(iu);
       }
     });
@@ -534,7 +534,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       'proj@dolheat.ae',
       'prog.mgr@dolheat.ae'
     ];
-    if (!loaded?.email || legacyEmails.includes(loaded.email.toLowerCase())) {
+    if (!loaded?.email || legacyEmails.includes((loaded.email || '').toLowerCase())) {
       saveToStorage('dolphin_current_user', INITIAL_USERS[0]);
       return INITIAL_USERS[0];
     }
@@ -575,9 +575,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-      const host = window.location.hostname.toLowerCase();
+      const host = (window.location.hostname || '').toLowerCase();
       const matchedComp = companies.find(
-        (c) => host.includes(c.domain.toLowerCase()) || c.domain.toLowerCase().includes(host) || (host.includes('dghanalytics') && c.code === 'DGHA')
+        (c) => {
+          const compDomain = (c?.domain || '').toLowerCase();
+          return (compDomain && host.includes(compDomain)) || (compDomain && compDomain.includes(host)) || (host.includes('dghanalytics') && c?.code === 'DGHA');
+        }
       );
       if (matchedComp) {
         setActiveCompany(matchedComp);
@@ -742,20 +745,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ];
 
       const validRemote = (remoteUsers || []).filter(
-        (u) => !currentDeletedIds.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase())
+        (u) => u && !currentDeletedIds.includes(u.id) && !legacyEmails.includes((u.email || '').toLowerCase())
       );
 
       setUsers((prev) => {
         const userMap = new Map<string, User>();
         
         INITIAL_USERS.forEach((u) => {
-          if (!currentDeletedIds.includes(u.id)) {
+          if (u && !currentDeletedIds.includes(u.id)) {
             userMap.set(u.id, u);
           }
         });
 
         prev.forEach((u) => {
-          if (!currentDeletedIds.includes(u.id) && !legacyEmails.includes(u.email?.toLowerCase())) {
+          if (u && !currentDeletedIds.includes(u.id) && !legacyEmails.includes((u.email || '').toLowerCase())) {
             userMap.set(u.id, u);
           }
         });
@@ -1049,11 +1052,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isDomainAuthorized = authorizedDomains.includes(domain) || APPROVED_DOMAINS.includes(domain);
 
     // Check if user is registered in users list
-    const registeredUser = users.find((u) => u.email.toLowerCase() === cleanEmail);
+    const registeredUser = users.find((u) => (u?.email || '').toLowerCase() === cleanEmail);
 
     // Find registered company by domain or target id
     const registeredCompany =
-      companies.find((c) => c.domain.toLowerCase() === domain) ||
+      companies.find((c) => (c?.domain || '').toLowerCase() === domain) ||
       (targetCompanyId ? companies.find((c) => c.id === targetCompanyId) : undefined);
 
     if (isDomainAuthorized || registeredUser || registeredCompany) {
@@ -1248,7 +1251,7 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     );
 
     // Create target user in-app notification if user registered
-    const targetUser = users.find((u) => u.email.toLowerCase() === toEmail.toLowerCase());
+    const targetUser = users.find((u) => (u?.email || '').toLowerCase() === String(toEmail || '').toLowerCase());
     if (targetUser) {
       const notif: Notification = {
         id: `notif_email_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1844,10 +1847,10 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     if (sourceCustomFields && sourceCustomFields.length > 0) {
       setCustomFields((prevCfs) => {
         const existingIds = new Set(prevCfs.map((c) => c.id));
-        const existingNames = new Set(prevCfs.map((c) => c.name.toLowerCase()));
+        const existingNames = new Set(prevCfs.map((c) => (c?.name || '').toLowerCase()));
         const toAdd: CustomFieldDefinition[] = [];
         sourceCustomFields?.forEach((cf) => {
-          if (!existingIds.has(cf.id) && !existingNames.has(cf.name.toLowerCase())) {
+          if (cf && !existingIds.has(cf.id) && !existingNames.has((cf.name || '').toLowerCase())) {
             toAdd.push(cf);
           }
         });
@@ -2068,7 +2071,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     if (newTask.assigneeIds && newTask.assigneeIds.length > 0) {
       const proj = projects.find((p) => p.id === newTask.projectId);
       newTask.assigneeIds.forEach((assigneeId) => {
-        const targetUser = users.find((u) => u.id === assigneeId || u.email.toLowerCase() === assigneeId.toLowerCase());
+        const targetUser = users.find((u) => u.id === assigneeId || (u?.email || '').toLowerCase() === String(assigneeId || '').toLowerCase());
         const targetEmail = targetUser?.email || (assigneeId.includes('@') ? assigneeId : undefined);
         if (targetEmail) {
           dispatchEmailNotification({
@@ -2138,7 +2141,7 @@ Log in to your workspace dashboard to view full task details and track progress.
               const proj = projects.find((p) => p.id === t.projectId);
               const manager = users.find((u) => u.id === proj?.managerId) || currentUser;
               const assigneeEmails = (t.assigneeIds || []).map((aid) => {
-                const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+                const u = users.find((usr) => usr.id === aid || (usr?.email || '').toLowerCase() === String(aid || '').toLowerCase());
                 return u?.email || (aid.includes('@') ? aid : null);
               }).filter(Boolean) as string[];
               
@@ -2146,7 +2149,7 @@ Log in to your workspace dashboard to view full task details and track progress.
               const recipientEmails = Array.from(new Set([manager?.email, reporterUser?.email, ...assigneeEmails, currentUser?.email].filter(Boolean) as string[]));
 
               recipientEmails.forEach((targetEmail) => {
-                const targetUser = users.find((u) => u.email.toLowerCase() === targetEmail.toLowerCase());
+                const targetUser = users.find((u) => (u?.email || '').toLowerCase() === String(targetEmail || '').toLowerCase());
                 dispatchEmailNotification({
                   toEmail: targetEmail,
                   toName: targetUser?.name || targetEmail,
@@ -2213,7 +2216,7 @@ Dependencies and project progress meters have been updated in the workspace.`,
             if (newlyAdded.length > 0) {
               const proj = projects.find((p) => p.id === t.projectId);
               newlyAdded.forEach((aid) => {
-                const targetUser = users.find((u) => u.id === aid || u.email.toLowerCase() === aid.toLowerCase());
+                const targetUser = users.find((u) => u.id === aid || (u?.email || '').toLowerCase() === String(aid || '').toLowerCase());
                 const targetEmail = targetUser?.email || (aid.includes('@') ? aid : undefined);
                 if (targetEmail) {
                   dispatchEmailNotification({
@@ -3059,12 +3062,12 @@ Log into your workspace dashboard to review the task details.`,
       // Find matching user from workspace users if suggestedAssignee is present
       let assignedUserIds: string[] = [currentUser.id];
       if (et.suggestedAssignee) {
-        const query = et.suggestedAssignee.toLowerCase();
+        const query = String(et.suggestedAssignee || '').toLowerCase();
         const matched = users.find(
           (u) =>
-            u.name.toLowerCase().includes(query) ||
-            u.department?.toLowerCase().includes(query) ||
-            u.email.toLowerCase().includes(query)
+            (u?.name || '').toLowerCase().includes(query) ||
+            (u?.department || '').toLowerCase().includes(query) ||
+            (u?.email || '').toLowerCase().includes(query)
         );
         if (matched) {
           assignedUserIds = [matched.id];
@@ -3432,7 +3435,7 @@ Log into your workspace dashboard to review the task details.`,
         : [currentUser?.id || 'usr_1'];
 
       assignees.forEach((aid) => {
-        const u = users.find((usr) => usr.id === aid || usr.email.toLowerCase() === aid.toLowerCase());
+        const u = users.find((usr) => usr.id === aid || (usr?.email || '').toLowerCase() === String(aid || '').toLowerCase());
         const email = u?.email || (aid.includes('@') ? aid : currentUser?.email || 'dolphingroup786@gmail.com');
 
         if (!userOverdueMap.has(email)) {
