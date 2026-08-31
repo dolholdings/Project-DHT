@@ -419,7 +419,7 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void, onError?: (e
 export async function createUserInFirestore(user: User): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, user.id);
   try {
-    await setDoc(docRef, sanitizeForFirestore(user));
+    await setDoc(docRef, sanitizeForFirestore(user), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `users/${user.id}`);
   }
@@ -428,9 +428,25 @@ export async function createUserInFirestore(user: User): Promise<void> {
 export async function updateUserInFirestore(id: string, updates: Partial<User>): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
   try {
-    await updateDoc(docRef, sanitizeForFirestore(updates));
+    await setDoc(docRef, sanitizeForFirestore(updates), { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
+  }
+}
+
+export async function saveUserPasswordInFirestore(userId: string, newPassword: string): Promise<void> {
+  const docRef = doc(db, USERS_COLLECTION, userId);
+  try {
+    await setDoc(
+      docRef,
+      sanitizeForFirestore({
+        password: newPassword,
+        updatedAt: new Date().toISOString()
+      }),
+      { merge: true }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
   }
 }
 

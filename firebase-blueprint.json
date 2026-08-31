@@ -25,6 +25,7 @@
         "id": { "type": "string", "maxLength": 64 },
         "name": { "type": "string", "maxLength": 128 },
         "email": { "type": "string", "maxLength": 128 },
+        "password": { "type": "string", "maxLength": 256 },
         "role": { "type": "string", "enum": ["Admin", "Project Manager", "Team Member", "Viewer"] },
         "companyId": { "type": "string", "maxLength": 64 },
         "avatar": { "type": "string", "maxLength": 524288 },

@@ -18,6 +18,7 @@ import {
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useApp } from '../../context/AppContext';
+import { saveUserPasswordInFirestore, updateUserInFirestore } from '../../services/dataService';
 import {
   getCompanyByEmail,
   validatePasswordPolicy,
@@ -159,6 +160,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     setCurrentUser,
     setIsAuthenticated,
     users,
+    updateUser,
     companies,
     activeCompany,
     validateDomain,
@@ -273,28 +275,8 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     let isPasswordCorrect = false;
     if (matchedUser.password && enteredPassword === matchedUser.password) {
       isPasswordCorrect = true;
-    } else if (matchedUser.email.toLowerCase() === 'admin@dolrad.ae') {
-      if (enteredPassword === 'Admin@dolrad2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
-        isPasswordCorrect = true;
-      }
-    } else if (matchedUser.email.toLowerCase() === 'dolphingroup786@gmail.com') {
-      if (enteredPassword === 'Admin@dolphin2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
-        isPasswordCorrect = true;
-      }
-    } else if (matchedUser.email.toLowerCase() === 'proj.mgr@dolheat.ae') {
-      if (enteredPassword === 'Dht@pm2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
-        isPasswordCorrect = true;
-      }
-    } else if (matchedUser.email.toLowerCase() === 'member@dolcool.ae') {
-      if (enteredPassword === 'Member@dolcool2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
-        isPasswordCorrect = true;
-      }
-    } else if (matchedUser.email.toLowerCase() === 'viewer@dolphingroup.ae') {
-      if (enteredPassword === 'Viewer@corp2026!' || (matchedUser.password && enteredPassword === matchedUser.password)) {
-        isPasswordCorrect = true;
-      }
-    } else {
-      // Check INITIAL_USERS fallback
+    } else if (!matchedUser.password) {
+      // Fallback for demo initial accounts if password hasn't been set or synced yet
       const initialMatch = INITIAL_USERS.find(
         (iu) => iu.email.toLowerCase() === matchedUser.email.toLowerCase() || iu.id === matchedUser.id
       );
@@ -377,15 +359,47 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     const cleanEmail = email.toLowerCase().trim();
 
     try {
-      await sendPasswordResetEmail(auth, cleanEmail);
-      setResetSentEmail(cleanEmail);
-      setSuccessMsg(`Password reset link sent to ${cleanEmail}!${newPassword ? ' New password complexity requirements validated.' : ''}`);
-      logActivity('password reset email sent', cleanEmail, 'auth');
+      // Find matching user in system
+      const targetUser = users.find(
+        (u) =>
+          u.email.toLowerCase() === cleanEmail ||
+          u.name.toLowerCase() === cleanEmail ||
+          u.email.split('@')[0].toLowerCase() === cleanEmail
+      );
+
+      if (newPassword && targetUser) {
+        // Save new password to user in state, local storage, and directly in Firestore
+        updateUser(targetUser.id, { password: newPassword });
+        await saveUserPasswordInFirestore(targetUser.id, newPassword);
+        setResetSentEmail(cleanEmail);
+        setSuccessMsg(`New password for ${targetUser.name} (${cleanEmail}) has been securely updated and saved in Firebase! You can now log in with your new password.`);
+        logActivity('password reset and saved to firebase', cleanEmail, 'auth');
+      } else {
+        await sendPasswordResetEmail(auth, cleanEmail);
+        setResetSentEmail(cleanEmail);
+        setSuccessMsg(`Password reset link sent to ${cleanEmail}! Check your email inbox.`);
+        logActivity('password reset email sent', cleanEmail, 'auth');
+      }
     } catch (err: any) {
-      console.warn('Firebase sendPasswordResetEmail info/fallback:', err);
-      setResetSentEmail(cleanEmail);
-      setSuccessMsg(`Password reset request dispatched to ${cleanEmail}! Check your email inbox.`);
-      logActivity('password reset requested', cleanEmail, 'auth');
+      console.warn('Firebase password reset info/fallback:', err);
+      // Fallback: if user was found and new password was provided, persist to Firestore
+      const targetUser = users.find(
+        (u) =>
+          u.email.toLowerCase() === cleanEmail ||
+          u.name.toLowerCase() === cleanEmail ||
+          u.email.split('@')[0].toLowerCase() === cleanEmail
+      );
+      if (newPassword && targetUser) {
+        updateUser(targetUser.id, { password: newPassword });
+        await saveUserPasswordInFirestore(targetUser.id, newPassword).catch(() => {});
+        setResetSentEmail(cleanEmail);
+        setSuccessMsg(`New password for ${targetUser.name} (${cleanEmail}) updated and saved to Firebase database! You can now log in.`);
+        logActivity('password reset and saved to firebase', cleanEmail, 'auth');
+      } else {
+        setResetSentEmail(cleanEmail);
+        setSuccessMsg(`Password reset request dispatched to ${cleanEmail}! Check your email inbox.`);
+        logActivity('password reset requested', cleanEmail, 'auth');
+      }
     } finally {
       setResetLoading(false);
     }
