@@ -450,22 +450,15 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         )}
 
         {/* Header */}
-        <div className="text-center space-y-2.5 pt-2">
+        <div className="text-center space-y-2 pt-2">
           <LogoPlaceholder
             area="login"
             className="flex justify-center mb-2"
             imgClassName="w-16 h-18 p-1.5 rounded-2xl bg-white shadow-lg border border-slate-200/80 ring-2 ring-[#0773BB]/10 object-contain"
           />
           <h2 className={`text-xl font-extrabold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
-            {activeCompany?.name || 'Corporate Governance & Group Operations'}
+            Project Management
           </h2>
-          <p className={`text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-            {activeCompany?.description || 'Enterprise Engineering, Production & Project Management Workspace'}
-          </p>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0773BB]/15 border border-[#0773BB]/30 text-[10px] font-mono font-bold text-[#3BC0BB]">
-            <Lock className="w-3 h-3 text-[#3BC0BB]" />
-            <span>Authorized Domain: @{activeCompany?.domain || 'dolheat.ae'}</span>
-          </div>
         </div>
 
         <AnimatePresence mode="wait">
