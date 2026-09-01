@@ -54,6 +54,8 @@ import { EmptyStateCard } from '../common/EmptyStateCard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { CriticalPathBanner } from './CriticalPathBanner';
 import { ClickUpTaskDetailModal } from '../tasks/ClickUpTaskDetailModal';
+import { TeamMemberRightsModal } from '../tasks/TeamMemberRightsModal';
+import { canModifyDueDate } from '../../lib/permissions';
 
 type ZoomMode = 'day' | '4days' | 'week' | 'month' | 'year';
 
@@ -131,6 +133,8 @@ export const GanttView: React.FC = () => {
   const [showAddDepModal, setShowAddDepModal] = useState(false);
   const [showCsvImportModal, setShowCsvImportModal] = useState(false);
   const [showBlockerInspector, setShowBlockerInspector] = useState(false);
+  const [showRightsModal, setShowRightsModal] = useState<boolean>(false);
+  const [rightsModalTask, setRightsModalTask] = useState<Task | null>(null);
   const [predTaskId, setPredTaskId] = useState('');
   const [succTaskId, setSuccTaskId] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -361,6 +365,13 @@ export const GanttView: React.FC = () => {
 
   const handleStartBarDrag = (e: React.MouseEvent, task: Task, mode: 'move' | 'resize-start' | 'resize-end') => {
     e.stopPropagation();
+    const taskProject = projects.find((p) => p.id === task.projectId);
+    if (!canModifyDueDate(currentUser, task, taskProject)) {
+      setRightsModalTask(task);
+      setShowRightsModal(true);
+      return;
+    }
+
     setBarDragState({
       isDragging: true,
       taskId: task.id,
@@ -1303,6 +1314,19 @@ export const GanttView: React.FC = () => {
           onClose={() => setShowCsvImportModal(false)}
         />
       )}
+
+      {/* 5. Team Member Rights Modal */}
+      <TeamMemberRightsModal
+        isOpen={showRightsModal}
+        onClose={() => {
+          setShowRightsModal(false);
+          setRightsModalTask(null);
+        }}
+        task={rightsModalTask}
+        project={projects.find((p) => p.id === (rightsModalTask?.projectId || selectedProjectId)) || projects[0]}
+        initialTab="request_date"
+        restrictedActionAttempted="due_date"
+      />
     </div>
   );
 };

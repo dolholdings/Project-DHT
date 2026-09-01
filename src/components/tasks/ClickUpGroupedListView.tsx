@@ -26,7 +26,8 @@ import {
   Percent,
   SlidersHorizontal,
   X,
-  Flag
+  Flag,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Task, TaskStatus, Priority, User, CustomFieldDefinition } from '../../types';
@@ -37,6 +38,8 @@ import { PriorityPicker } from './PriorityPicker';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskInteractiveProgressBar } from './TaskInteractiveProgressBar';
+import { canModifyDueDate, canDeleteTask } from '../../lib/permissions';
+import { TeamMemberRightsModal } from './TeamMemberRightsModal';
 
 interface ClickUpGroupedListViewProps {
   tasks: Task[];
@@ -149,6 +152,11 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
 
   // Status Dropdown open state per task
   const [activeStatusDropdownTaskId, setActiveStatusDropdownTaskId] = useState<string | null>(null);
+
+  // Rights Modal State
+  const [showRightsModal, setShowRightsModal] = useState<boolean>(false);
+  const [selectedRightsTask, setSelectedRightsTask] = useState<Task | null>(null);
+  const [rightsModalAction, setRightsModalAction] = useState<'due_date' | 'delete_task' | null>(null);
 
   // Toggle group collapse
   const toggleGroup = (groupKey: string) => {
@@ -752,21 +760,46 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
 
                           {/* 7. DATE (DUE DATE) COLUMN */}
                           <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center gap-1 text-[11px] font-mono">
-                              <input
-                                type="date"
-                                value={task.dueDate || ''}
-                                onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
-                                className={`bg-transparent border border-transparent hover:border-[#233549] focus:border-[#00AEA9] rounded px-1 py-0.5 font-mono text-[11px] cursor-pointer focus:outline-none transition-colors ${
-                                  task.dueDate
-                                    ? isLight
-                                      ? 'text-slate-800'
-                                      : 'text-slate-200'
-                                    : 'text-slate-500'
-                                }`}
-                                title="Click to edit due date"
-                              />
-                            </div>
+                            {(() => {
+                              const taskProject = projects.find((p) => p.id === task.projectId);
+                              const canEditDue = canModifyDueDate(currentUser, task, taskProject);
+
+                              if (canEditDue) {
+                                return (
+                                  <div className="flex items-center gap-1 text-[11px] font-mono">
+                                    <input
+                                      type="date"
+                                      value={task.dueDate || ''}
+                                      onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
+                                      className={`bg-transparent border border-transparent hover:border-[#233549] focus:border-[#00AEA9] rounded px-1 py-0.5 font-mono text-[11px] cursor-pointer focus:outline-none transition-colors ${
+                                        task.dueDate
+                                          ? isLight
+                                            ? 'text-slate-800'
+                                            : 'text-slate-200'
+                                          : 'text-slate-500'
+                                      }`}
+                                      title="Click to edit due date"
+                                    />
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRightsTask(task);
+                                    setRightsModalAction('due_date');
+                                    setShowRightsModal(true);
+                                  }}
+                                  className="flex items-center gap-1 text-[11px] font-mono text-slate-400 hover:text-amber-400 px-1 py-0.5 rounded cursor-pointer group/date transition-colors"
+                                  title="Due date is locked for Team Members. Click to view rights or request date extension."
+                                >
+                                  <span>{task.dueDate || '–'}</span>
+                                  <Lock className="w-2.5 h-2.5 text-amber-500/70 group-hover/date:text-amber-400" />
+                                </button>
+                              );
+                            })()}
                           </td>
 
                           {/* 8. CUSTOM FIELDS COLUMNS */}
@@ -810,6 +843,40 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
                           {/* 9. QUICK TIMER / ACTION MENU */}
                           <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Delete task button on hover */}
+                              {(() => {
+                                const taskProject = projects.find((p) => p.id === task.projectId);
+                                const canDelete = canDeleteTask(currentUser, task, taskProject);
+
+                                return canDelete ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (window.confirm(`Delete task "${task.title}"?`)) {
+                                        deleteTask(task.id);
+                                      }
+                                    }}
+                                    className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all opacity-0 group-hover:opacity-100"
+                                    title="Delete task"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedRightsTask(task);
+                                      setRightsModalAction('delete_task');
+                                      setShowRightsModal(true);
+                                    }}
+                                    className="p-1 rounded-lg text-slate-600 hover:text-amber-400 hover:bg-amber-500/10 transition-all opacity-0 group-hover:opacity-100"
+                                    title="Task deletion is locked for Team Members (PM only). Click to view rights."
+                                  >
+                                    <Lock className="w-3.5 h-3.5 text-amber-500/60" />
+                                  </button>
+                                );
+                              })()}
+
                               {isTimerRunning ? (
                                 <button
                                   type="button"
@@ -905,6 +972,20 @@ export const ClickUpGroupedListView: React.FC<ClickUpGroupedListViewProps> = ({
           </div>
         );
       })}
+
+      {/* Team Member Rights & Task Permissions Modal */}
+      <TeamMemberRightsModal
+        isOpen={showRightsModal}
+        onClose={() => {
+          setShowRightsModal(false);
+          setSelectedRightsTask(null);
+          setRightsModalAction(null);
+        }}
+        task={selectedRightsTask}
+        project={projects.find((p) => p.id === selectedRightsTask?.projectId) || projects[0]}
+        initialTab={rightsModalAction === 'due_date' ? 'request_date' : 'overview'}
+        restrictedActionAttempted={rightsModalAction}
+      />
     </div>
   );
 };

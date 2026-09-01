@@ -57,7 +57,8 @@ import { isAbortError } from '../../lib/errorUtils';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { TaskQuickPreviewPopover } from './TaskQuickPreviewPopover';
 import { AssigneePicker } from './AssigneePicker';
-import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks, canDeleteTask } from '../../lib/permissions';
+import { getSpaceRole, canEditSpace, getAccessibleProjects, getAccessibleTasks, canDeleteTask, canModifyDueDate } from '../../lib/permissions';
+import { TeamMemberRightsModal } from './TeamMemberRightsModal';
 import { PermissionGuard } from '../common/PermissionGuard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
@@ -168,6 +169,11 @@ export const TasksView: React.FC = () => {
 
   // AI Smart Priority State
   const [showSmartPriorityModal, setShowSmartPriorityModal] = useState(false);
+
+  // Rights Modal State
+  const [showRightsModal, setShowRightsModal] = useState<boolean>(false);
+  const [rightsModalTask, setRightsModalTask] = useState<Task | null>(null);
+  const [rightsModalAction, setRightsModalAction] = useState<'due_date' | 'delete_task' | null>(null);
   const [isAnalyzingPriority, setIsAnalyzingPriority] = useState(false);
   const [priorityRecommendations, setPriorityRecommendations] = useState<Array<{
     id: string;
@@ -1212,16 +1218,42 @@ export const TasksView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 font-semibold mb-1 flex items-center gap-1.5">
-                    <CalendarIcon className="w-3.5 h-3.5 text-rose-400" />
-                    <span>Due Date</span>
+                  <label className="block text-slate-400 font-semibold mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <CalendarIcon className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Due Date</span>
+                    </span>
+                    {!canModifyDueDate(currentUser, activeTask, projects.find((p) => p.id === activeTask.projectId)) && (
+                      <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" /> PM Only
+                      </span>
+                    )}
                   </label>
-                  <input
-                    type="date"
-                    value={activeTask.dueDate || ''}
-                    onChange={(e) => updateTask(activeTask.id, { dueDate: e.target.value })}
-                    className="w-full bg-[#16222F] border border-rose-500/40 text-rose-300 font-bold rounded-lg px-2.5 py-1.5 font-mono text-xs focus:border-[#3BC0BB] focus:outline-none cursor-pointer"
-                  />
+                  {canModifyDueDate(currentUser, activeTask, projects.find((p) => p.id === activeTask.projectId)) ? (
+                    <input
+                      type="date"
+                      value={activeTask.dueDate || ''}
+                      onChange={(e) => updateTask(activeTask.id, { dueDate: e.target.value })}
+                      className="w-full bg-[#16222F] border border-rose-500/40 text-rose-300 font-bold rounded-lg px-2.5 py-1.5 font-mono text-xs focus:border-[#3BC0BB] focus:outline-none cursor-pointer"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRightsModalTask(activeTask);
+                        setRightsModalAction('due_date');
+                        setShowRightsModal(true);
+                      }}
+                      className="w-full bg-[#16222F]/80 border border-[#233549] hover:border-amber-500/50 text-slate-300 hover:text-amber-300 font-mono text-xs rounded-lg px-2.5 py-1.5 flex items-center justify-between transition-colors cursor-pointer"
+                      title="Due date is locked for Team Members. Click to view rights or request extension."
+                    >
+                      <span>{activeTask.dueDate || 'No Due Date'}</span>
+                      <div className="flex items-center gap-1 text-[10px] text-amber-400 font-sans font-semibold">
+                        <Lock className="w-3 h-3" />
+                        <span>Request PM</span>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2480,6 +2512,20 @@ export const TasksView: React.FC = () => {
       <CustomFieldsManagerModal
         isOpen={showCustomFieldsModal}
         onClose={() => setShowCustomFieldsModal(false)}
+      />
+
+      {/* Team Member Rights & Task Permissions Modal */}
+      <TeamMemberRightsModal
+        isOpen={showRightsModal}
+        onClose={() => {
+          setShowRightsModal(false);
+          setRightsModalTask(null);
+          setRightsModalAction(null);
+        }}
+        task={rightsModalTask}
+        project={projects.find((p) => p.id === rightsModalTask?.projectId) || projects[0]}
+        initialTab={rightsModalAction === 'due_date' ? 'request_date' : 'overview'}
+        restrictedActionAttempted={rightsModalAction}
       />
     </div>
   );

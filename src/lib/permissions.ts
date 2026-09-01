@@ -7,6 +7,7 @@ export type PermissionAction =
   | 'create_space'
   | 'delete_space'
   | 'delete_task'
+  | 'modify_due_date'
   | 'edit_space'
   | 'manage_space_settings'
   | 'view_space';
@@ -187,6 +188,25 @@ export function canDeleteTask(user: User | null, task?: Task | null, project?: P
 }
 
 /**
+ * Checks if the user has permission to modify task due dates / deadlines.
+ * Team Members and Viewers are strictly NOT allowed to modify task due dates.
+ * Only Admins and Project Managers can modify due dates.
+ */
+export function canModifyDueDate(user: User | null, task?: Task | null, project?: Project | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  if (role === 'admin') return true;
+  if (role === 'project manager') {
+    if (project) {
+      return project.managerId === user.id || getSpaceRole(user, project) === 'Admin';
+    }
+    return true;
+  }
+  // Team Members and Viewers cannot change due dates
+  return false;
+}
+
+/**
  * Evaluates whether the user has permission for a specific named action.
  */
 export function hasPermission(
@@ -207,6 +227,8 @@ export function hasPermission(
       return canDeleteSpace(user);
     case 'delete_task':
       return canDeleteTask(user, options?.task, options?.project);
+    case 'modify_due_date':
+      return canModifyDueDate(user, options?.task, options?.project);
     case 'edit_space':
       return canEditSpace(user, options?.project || null);
     case 'manage_space_settings':
@@ -235,7 +257,9 @@ export function getPermissionDeniedReason(user: User | null, action: PermissionA
     case 'delete_space':
       return `Permission Denied: Users with role "${role}" cannot delete spaces. Only Workspace Administrators can delete spaces.`;
     case 'delete_task':
-      return `Permission Denied: Users with role "${role}" cannot delete tasks. Team Members and Viewers cannot delete tasks.`;
+      return `Permission Denied: Users with role "${role}" cannot delete tasks. Only Project Managers and Workspace Administrators have task deletion authority.`;
+    case 'modify_due_date':
+      return `Permission Denied: Users with role "${role}" cannot change task due dates. Only Project Managers and Workspace Administrators can modify target completion dates.`;
     case 'edit_space':
       return `Permission Denied: You have read-only access to this space.`;
     case 'manage_space_settings':

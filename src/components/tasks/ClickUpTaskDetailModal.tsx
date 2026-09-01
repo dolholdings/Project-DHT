@@ -39,6 +39,8 @@ import { TaskInteractiveProgressBar } from './TaskInteractiveProgressBar';
 import { calculatePriorityScore } from '../../lib/priorityScore';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
 import { normalizeTaskStatus, getStatusBadgeStyle } from '../../lib/statusUtils';
+import { canModifyDueDate, canDeleteTask } from '../../lib/permissions';
+import { TeamMemberRightsModal } from './TeamMemberRightsModal';
 
 interface ClickUpTaskDetailModalProps {
   taskId: string | null;
@@ -96,6 +98,11 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
   const [selectedList, setSelectedList] = useState<string>('');
   const [newListNameInput, setNewListNameInput] = useState<string>('');
 
+  // Rights Modal State
+  const [showRightsModal, setShowRightsModal] = useState<boolean>(false);
+  const [rightsModalTab, setRightsModalTab] = useState<'overview' | 'request_date' | 'roles'>('overview');
+  const [rightsActionAttempted, setRightsActionAttempted] = useState<'due_date' | 'delete_task' | null>(null);
+
   // Sync state with selected task
   useEffect(() => {
     if (task) {
@@ -119,6 +126,9 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
   if (!task) return null;
 
   const currentProject = projects.find((p) => p.id === task.projectId) || projects[0];
+  const canEditDue = canModifyDueDate(currentUser, task, currentProject);
+  const canDelete = canDeleteTask(currentUser, task, currentProject);
+
   const taskSubtasks = subtasks.filter((s) => s.taskId === task.id);
   const completedSubtasksCount = taskSubtasks.filter((s) => s.completed).length;
   const subtaskProgressPercent =
@@ -252,6 +262,28 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
 
           {/* Right Action Icons */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Role Rights Pill Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setRightsActionAttempted(null);
+                setRightsModalTab('overview');
+                setShowRightsModal(true);
+              }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100 hover:border-[#0D9488]'
+                  : 'bg-[#16222F] border-[#233549] text-slate-300 hover:text-white hover:border-[#3BC0BB]'
+              }`}
+              title="View Team Member & Project Manager Rights"
+            >
+              <Lock className="w-3 h-3 text-[#3BC0BB]" />
+              <span className="hidden sm:inline">Role Rights:</span>
+              <span className="font-mono text-[11px] font-bold text-[#3BC0BB]">
+                {currentUser?.role || 'Member'}
+              </span>
+            </button>
+
             {/* Status Dropdown */}
             <select
               value={normalizeTaskStatus(task.status)}
@@ -389,6 +421,14 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
                 <span className="flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-rose-400" />
                   <span>Due Date</span>
+                  {!canEditDue && (
+                    <span
+                      className="inline-flex items-center gap-0.5 text-[9px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30 font-bold"
+                      title="Only Project Managers can modify due dates. Click to request extension."
+                    >
+                      <Lock className="w-2.5 h-2.5" /> PM Only
+                    </span>
+                  )}
                 </span>
                 {isOverdue && (
                   <span className="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[9px] font-bold uppercase font-mono">
@@ -396,18 +436,43 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
                   </span>
                 )}
               </label>
-              <input
-                type="date"
-                value={task.dueDate || ''}
-                onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
-                className={`w-full rounded-xl px-2.5 py-1.5 font-mono text-xs font-bold border transition-colors cursor-pointer ${
-                  isOverdue
-                    ? 'border-rose-500 text-rose-500 bg-rose-500/10'
-                    : isLight
-                    ? 'bg-white border-slate-300 text-slate-900'
-                    : 'bg-[#16222F] border-[#233549] text-white focus:border-[#3BC0BB]'
-                }`}
-              />
+
+              {canEditDue ? (
+                <input
+                  type="date"
+                  value={task.dueDate || ''}
+                  onChange={(e) => updateTask(task.id, { dueDate: e.target.value })}
+                  className={`w-full rounded-xl px-2.5 py-1.5 font-mono text-xs font-bold border transition-colors cursor-pointer ${
+                    isOverdue
+                      ? 'border-rose-500 text-rose-500 bg-rose-500/10'
+                      : isLight
+                      ? 'bg-white border-slate-300 text-slate-900'
+                      : 'bg-[#16222F] border-[#233549] text-white focus:border-[#3BC0BB]'
+                  }`}
+                />
+              ) : (
+                <div
+                  onClick={() => {
+                    setRightsActionAttempted('due_date');
+                    setRightsModalTab('request_date');
+                    setShowRightsModal(true);
+                  }}
+                  className={`w-full rounded-xl px-2.5 py-1.5 font-mono text-xs font-bold border flex items-center justify-between cursor-pointer transition-all ${
+                    isLight
+                      ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-amber-50 hover:border-amber-400'
+                      : 'bg-[#16222F]/80 border-[#233549] text-slate-300 hover:border-amber-500/50 hover:bg-amber-950/20'
+                  }`}
+                  title="Team members cannot change due dates. Click to view rights or request a date extension from your Project Manager."
+                >
+                  <span className={task.dueDate ? (isOverdue ? 'text-rose-400' : '') : 'text-slate-500 font-normal italic'}>
+                    {task.dueDate || 'No Due Date'}
+                  </span>
+                  <div className="flex items-center gap-1 text-[10px] text-amber-400 font-sans font-semibold shrink-0">
+                    <Lock className="w-3 h-3" />
+                    <span>Request PM</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Start Date */}
@@ -1069,19 +1134,39 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
             isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
           }`}
         >
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(`Are you sure you want to permanently delete task "${task.title}"?`)) {
-                deleteTask(task.id);
-                onClose();
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Delete Task</span>
-          </button>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to permanently delete task "${task.title}"?`)) {
+                  deleteTask(task.id);
+                  onClose();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Task</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setRightsActionAttempted('delete_task');
+                setRightsModalTab('overview');
+                setShowRightsModal(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-slate-100 border-slate-300 text-slate-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-400'
+                  : 'bg-[#16222F]/80 border-[#233549] text-slate-400 hover:text-amber-400 hover:border-amber-500/40'
+              }`}
+              title="Team members cannot delete tasks. Only Project Managers and Admins can delete tasks. Click to view rights."
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>Delete (PM Only)</span>
+            </button>
+          )}
 
           <div className="flex items-center gap-2">
             <button
@@ -1098,6 +1183,19 @@ export const ClickUpTaskDetailModal: React.FC<ClickUpTaskDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Team Member Rights & Task Permissions Modal */}
+      <TeamMemberRightsModal
+        isOpen={showRightsModal}
+        onClose={() => {
+          setShowRightsModal(false);
+          setRightsActionAttempted(null);
+        }}
+        task={task}
+        project={currentProject}
+        initialTab={rightsModalTab}
+        restrictedActionAttempted={rightsActionAttempted}
+      />
     </div>
   );
 };
