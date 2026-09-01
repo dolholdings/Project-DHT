@@ -32,7 +32,6 @@ import { EmailVerificationScreen } from './components/auth/EmailVerificationScre
 import { SessionTimeoutManager } from './components/auth/SessionTimeoutManager';
 import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
-import { QuickAddFAB } from './components/common/QuickAddFAB';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { hasUserCompletedTour, markUserTourCompleted, startOnboardingTour } from './services/onboardingTour';
 
@@ -231,9 +230,6 @@ const MainLayout: React.FC = () => {
 
       {/* Floating Task Due Date Alert Toast Stack */}
       <TaskDueAlertToast />
-
-      {/* Mini Quick Add Floating Action Button (FAB) */}
-      <QuickAddFAB />
 
       {/* Session Inactivity Timeout Guard */}
       <SessionTimeoutManager onTriggerLoginModal={() => setShowLoginModal(true)} />

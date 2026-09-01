@@ -73,15 +73,6 @@ const getTourSteps = (isLight: boolean): DriveStep[] => [
     }
   },
   {
-    element: '#tour-fab-quick-add',
-    popover: {
-      title: '🪄 Quick Add & AI Copilot',
-      description: 'Use the floating action button to rapidly capture tasks from anywhere, log billable hours, or synthesize task health.',
-      side: 'left',
-      align: 'end'
-    }
-  },
-  {
     element: '#tour-user-menu',
     popover: {
       title: '👤 User Governance & Theme Switcher',
