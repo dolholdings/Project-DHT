@@ -7,6 +7,7 @@ import {
   User,
   Project,
   Task,
+  DueDateRequest,
   Subtask,
   TaskComment,
   TaskDependency,
@@ -204,6 +205,9 @@ interface AppContextType {
   addSubtask: (taskId: string, title: string, assignedTo?: string) => void;
   toggleSubtask: (subtaskId: string) => void;
   addTaskComment: (taskId: string, content: string) => void;
+  requestDueDateChange: (taskId: string, proposedDueDate: string, reason: string) => void;
+  approveDueDateChange: (taskId: string, reviewComment?: string) => void;
+  rejectDueDateChange: (taskId: string, rejectionReason?: string) => void;
   addDependency: (taskId: string, dependsOnTaskId: string) => boolean;
   removeDependency: (depId: string) => void;
   recalculateProjectTimeline: (projectId?: string) => { adjustedCount: number; updatedTasks: Task[] };
@@ -2597,6 +2601,236 @@ Log into your workspace dashboard to review the task details.`,
     logActivity('added task comment', content.slice(0, 30), 'task', undefined, taskId);
   };
 
+  // Due Date Change Requests Engine for Team Members & Project Managers
+  const requestDueDateChange = (taskId: string, proposedDueDate: string, reason: string) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask) return;
+    const project = projects.find((p) => p.id === targetTask.projectId);
+
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const dueDateReq: DueDateRequest = {
+      id: requestId,
+      proposedDueDate,
+      currentDueDate: targetTask.dueDate || '',
+      reason: reason.trim() || 'Schedule adjustment requested by team member.',
+      requestedBy: currentUser?.id || 'usr_unknown',
+      requestedByName: currentUser?.name || 'Team Member',
+      requestedByEmail: currentUser?.email || '',
+      requestedByRole: currentUser?.role || 'Team Member',
+      requestedAt: new Date().toISOString(),
+      status: 'pending'
+    };
+
+    // 1. Update task with the pending dueDateRequest
+    setAllTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, dueDateRequest: dueDateReq, updatedAt: new Date().toISOString() } : t))
+    );
+    updateTaskInFirestore(taskId, { dueDateRequest: dueDateReq });
+
+    // 2. Post formal task comment
+    const commentBody = `📅 [DUE DATE CHANGE REQUEST]
+• Proposed Target Date: ${proposedDueDate}
+• Current Due Date: ${targetTask.dueDate || 'None'}
+• Requested By: ${currentUser?.name || 'Team Member'} (${currentUser?.role || 'Team Member'})
+• Reason / Notes: ${reason.trim() || 'Schedule adjustment requested for Project Manager review.'}`;
+
+    addTaskComment(taskId, commentBody);
+
+    // 3. Create real Notification for the Project Manager & Workspace Admins
+    const managerId = project?.managerId;
+    const managersAndAdmins = users.filter(
+      (u) => u.id === managerId || u.role === 'Admin' || (u.role === 'Project Manager' && (project?.members?.includes(u.id) || !project))
+    );
+
+    const targetUserIds = managersAndAdmins.length > 0 
+      ? Array.from(new Set(managersAndAdmins.map((u) => u.id)))
+      : (managerId ? [managerId] : []);
+
+    const newNotifs: Notification[] = targetUserIds.map((uid) => ({
+      id: `notif_req_${Date.now()}_${uid}`,
+      userId: uid,
+      title: `📅 Due Date Request: "${targetTask.title}"`,
+      message: `${currentUser?.name || 'Team Member'} requested changing due date to ${proposedDueDate}. Reason: "${reason.slice(0, 100)}"`,
+      type: 'date_request',
+      read: false,
+      taskId: targetTask.id,
+      projectId: targetTask.projectId,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        requestId,
+        proposedDueDate,
+        currentDueDate: targetTask.dueDate || '',
+        requesterName: currentUser?.name || 'Team Member',
+        requesterId: currentUser?.id,
+        reason
+      }
+    }));
+
+    if (newNotifs.length > 0) {
+      setNotifications((prev) => [...newNotifs, ...prev]);
+    }
+
+    // 4. Dispatch Email to Project Manager
+    const managerUser = users.find((u) => u.id === managerId);
+    if (managerUser?.email) {
+      dispatchEmailNotification({
+        toEmail: managerUser.email,
+        toName: managerUser.name,
+        subject: `[Approval Required] Due Date Extension Request for "${targetTask.title}"`,
+        body: `Hello ${managerUser.name},
+
+${currentUser?.name || 'A team member'} has submitted a due date change request for task "${targetTask.title}" in project "${project?.title || 'Project'}".
+
+• Current Due Date: ${targetTask.dueDate || 'None'}
+• Proposed Target Date: ${proposedDueDate}
+• Requester: ${currentUser?.name} (${currentUser?.role})
+• Reason: ${reason}
+
+Please open Dolphin Command Center to Approve or Decline this request.`,
+        category: 'Task Assignment'
+      });
+    }
+
+    logActivity(`requested due date extension for "${targetTask.title}" to`, proposedDueDate, 'task', targetTask.projectId, targetTask.id);
+  };
+
+  const approveDueDateChange = (taskId: string, reviewComment?: string) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask || !targetTask.dueDateRequest) return;
+    const req = targetTask.dueDateRequest;
+    const newDueDate = req.proposedDueDate;
+
+    const updatedRequest: DueDateRequest = {
+      ...req,
+      status: 'approved',
+      reviewedBy: currentUser?.id,
+      reviewedByName: currentUser?.name || 'Project Manager',
+      reviewedAt: new Date().toISOString(),
+      reviewComment: reviewComment || 'Approved by Project Manager.'
+    };
+
+    // 1. Update task with new due date & resolved request status
+    setAllTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              dueDate: newDueDate,
+              dueDateRequest: updatedRequest,
+              updatedAt: new Date().toISOString()
+            }
+          : t
+      )
+    );
+    updateTaskInFirestore(taskId, { dueDate: newDueDate, dueDateRequest: updatedRequest });
+
+    // 2. Post approval task comment
+    addTaskComment(
+      taskId,
+      `✅ [DUE DATE REQUEST APPROVED]
+Due date officially updated to ${newDueDate} by ${currentUser?.name || 'Project Manager'}.
+${reviewComment ? `Note: ${reviewComment}` : ''}`
+    );
+
+    // 3. Notify the requester
+    if (req.requestedBy) {
+      const requesterNotif: Notification = {
+        id: `notif_app_${Date.now()}`,
+        userId: req.requestedBy,
+        title: `✅ Due Date Extension Approved: "${targetTask.title}"`,
+        message: `Your request to change due date to ${newDueDate} was approved by ${currentUser?.name || 'Project Manager'}.`,
+        type: 'date_request',
+        read: false,
+        taskId: targetTask.id,
+        projectId: targetTask.projectId,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications((prev) => [requesterNotif, ...prev]);
+
+      if (req.requestedByEmail) {
+        dispatchEmailNotification({
+          toEmail: req.requestedByEmail,
+          toName: req.requestedByName,
+          subject: `✅ Approved: Due Date Change for "${targetTask.title}"`,
+          body: `Hello ${req.requestedByName},
+
+Your due date change request for task "${targetTask.title}" has been APPROVED by ${currentUser?.name || 'Project Manager'}.
+
+The task due date is now set to ${newDueDate}.`,
+          category: 'Task Assignment'
+        });
+      }
+    }
+
+    logActivity(`approved due date extension for "${targetTask.title}" to`, newDueDate, 'task', targetTask.projectId, targetTask.id);
+  };
+
+  const rejectDueDateChange = (taskId: string, rejectionReason?: string) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!targetTask || !targetTask.dueDateRequest) return;
+    const req = targetTask.dueDateRequest;
+
+    const updatedRequest: DueDateRequest = {
+      ...req,
+      status: 'rejected',
+      reviewedBy: currentUser?.id,
+      reviewedByName: currentUser?.name || 'Project Manager',
+      reviewedAt: new Date().toISOString(),
+      reviewComment: rejectionReason || 'Request declined. Existing schedule must be maintained.'
+    };
+
+    setAllTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              dueDateRequest: updatedRequest,
+              updatedAt: new Date().toISOString()
+            }
+          : t
+      )
+    );
+    updateTaskInFirestore(taskId, { dueDateRequest: updatedRequest });
+
+    addTaskComment(
+      taskId,
+      `❌ [DUE DATE REQUEST DECLINED]
+Due date request (${req.proposedDueDate}) was declined by ${currentUser?.name || 'Project Manager'}.
+Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`
+    );
+
+    if (req.requestedBy) {
+      const requesterNotif: Notification = {
+        id: `notif_rej_${Date.now()}`,
+        userId: req.requestedBy,
+        title: `❌ Due Date Request Declined: "${targetTask.title}"`,
+        message: `Your request for ${req.proposedDueDate} was declined by ${currentUser?.name || 'Project Manager'}. ${rejectionReason ? `Reason: ${rejectionReason}` : ''}`,
+        type: 'date_request',
+        read: false,
+        taskId: targetTask.id,
+        projectId: targetTask.projectId,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications((prev) => [requesterNotif, ...prev]);
+
+      if (req.requestedByEmail) {
+        dispatchEmailNotification({
+          toEmail: req.requestedByEmail,
+          toName: req.requestedByName,
+          subject: `Declined: Due Date Change Request for "${targetTask.title}"`,
+          body: `Hello ${req.requestedByName},
+
+Your due date change request for task "${targetTask.title}" was reviewed and DECLINED by ${currentUser?.name || 'Project Manager'}.
+
+Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
+          category: 'Task Assignment'
+        });
+      }
+    }
+
+    logActivity(`declined due date extension for "${targetTask.title}"`, rejectionReason || 'Schedule maintained', 'task', targetTask.projectId, targetTask.id);
+  };
+
   // Dependencies & Predecessors / Successors
   const addDependency = (taskId: string, dependsOnTaskId: string) => {
     if (taskId === dependsOnTaskId) return false;
@@ -3858,6 +4092,9 @@ Please log into your workspace dashboard to update task status or adjust target 
         addSubtask,
         toggleSubtask,
         addTaskComment,
+        requestDueDateChange,
+        approveDueDateChange,
+        rejectDueDateChange,
         addDependency,
         removeDependency,
         recalculateProjectTimeline,

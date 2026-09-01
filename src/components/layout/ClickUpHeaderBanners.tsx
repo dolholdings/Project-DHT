@@ -37,7 +37,7 @@ import { useApp } from '../../context/AppContext';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
 import { HeaderSearchInput } from './HeaderSearchInput';
-import { GlobalTimeTrackerWidget } from './GlobalTimeTrackerWidget';
+import { UserAvatar } from '../common/UserAvatar';
 import { startOnboardingTour, markUserTourCompleted } from '../../services/onboardingTour';
 
 export const ClickUpHeaderBanners: React.FC<{
@@ -54,7 +54,7 @@ export const ClickUpHeaderBanners: React.FC<{
   const [showPurpleBanner, setShowPurpleBanner] = useState(true);
 
   const viewTabs = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'team', label: 'Team', icon: Users },
     { id: 'workload', label: 'Workload', icon: UserCheck },
     { id: 'list', label: 'List', icon: List },
@@ -186,9 +186,6 @@ export const ClickUpHeaderBanners: React.FC<{
         <div className="flex items-center gap-2.5 text-xs font-medium">
           <HeaderSearchInput />
 
-          {/* Global Time Tracking Timer Widget */}
-          <GlobalTimeTrackerWidget />
-
           <button
             onClick={toggleTheme}
             className={`p-1.5 rounded-lg border transition-all ${
@@ -204,59 +201,6 @@ export const ClickUpHeaderBanners: React.FC<{
               <Moon className="w-3.5 h-3.5 text-indigo-600" />
             )}
           </button>
-
-          <button className="flex items-center gap-1 text-slate-400 hover:text-white">
-            <Bot className="w-3.5 h-3.5 text-[#3BC0BB]" />
-            <span className="hidden sm:inline">Agents</span>
-          </button>
-          <button className="flex items-center gap-1 text-slate-400 hover:text-white">
-            <Zap className="w-3.5 h-3.5 text-amber-400 fill-current" />
-            <span className="hidden sm:inline">Automate</span>
-          </button>
-          {onOpenEmailGateway && (
-            <button
-              onClick={onOpenEmailGateway}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold text-xs transition-all ${
-                theme === 'light'
-                  ? 'bg-[#0D9488]/10 hover:bg-[#0D9488]/20 border-[#0D9488]/30 text-[#0D9488]'
-                  : 'bg-[#0D9488]/20 hover:bg-[#0D9488]/30 border-[#0D9488]/40 text-[#3BC0BB]'
-              }`}
-              title="Open Transactional Email Notification Service & Gateway Logs"
-            >
-              <Mail className="w-3.5 h-3.5 text-[#3BC0BB]" />
-              <span className="hidden sm:inline">Email Service</span>
-            </button>
-          )}
-
-          {onOpenLoginModal && (
-            <button
-              onClick={onOpenLoginModal}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold text-xs transition-all ${
-                theme === 'light'
-                  ? 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 border-[#0773BB]/30 text-[#0773BB]'
-                  : 'bg-[#0773BB]/20 hover:bg-[#0773BB]/30 border-[#0773BB]/40 text-[#3BC0BB]'
-              }`}
-              title="Sign In with user created from Admin Panel"
-            >
-              <UserCheck className="w-3.5 h-3.5 text-[#3BC0BB]" />
-              <span className="hidden sm:inline">Sign In / Switch User</span>
-            </button>
-          )}
-
-          {currentUser?.role === 'Admin' && (
-            <button
-              onClick={() => {
-                if (window.confirm('Clear all demo/dummy data to start fresh for production entries? This will empty all sample tasks, subtasks, files, and activity logs.')) {
-                  clearAllData();
-                }
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold text-xs transition-all"
-              title="Clear all demo data for a clean fresh production workspace"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span className="hidden sm:inline">Clear Demo Data</span>
-            </button>
-          )}
 
           {/* Guided Tour Trigger Button */}
           <button
@@ -280,24 +224,14 @@ export const ClickUpHeaderBanners: React.FC<{
             <span className="hidden md:inline">Quick Tour</span>
           </button>
 
-          <button className={`flex items-center gap-1.5 px-3 py-1 rounded-xl border font-bold transition-all ${
-            theme === 'light'
-              ? 'bg-[#0D9488]/10 hover:bg-[#0D9488]/20 border-[#0D9488]/30 text-[#0D9488]'
-              : 'bg-[#3BC0BB]/10 hover:bg-[#3BC0BB]/20 border-[#3BC0BB]/30 text-[#3BC0BB]'
-          }`}>
-            <Share2 className="w-3.5 h-3.5" />
-            <span>Share</span>
-          </button>
-
           <div id="tour-user-menu" className="flex items-center gap-1.5">
-            <img
-              src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-              alt={currentUser?.name || 'User'}
-              onClick={onOpenLoginModal}
-              className={`w-7 h-7 rounded-full object-cover ring-2 cursor-pointer hover:opacity-80 transition-opacity ${
-                theme === 'light' ? 'ring-[#0D9488]' : 'ring-[#3BC0BB]'
-              }`}
-              title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'}) — Click to Switch User / Sign In`}
+            <UserAvatar
+              name={currentUser?.name}
+              email={currentUser?.email}
+              role={currentUser?.role}
+              size="sm"
+              theme={theme === 'light' ? 'light' : 'dark'}
+              title={`${currentUser?.name || 'User'} (${currentUser?.role || 'User'})`}
             />
 
             <button

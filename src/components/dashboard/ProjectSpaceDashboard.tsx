@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, Task } from '../../types';
+import { DueDateRequestsPanel } from './DueDateRequestsPanel';
 
 interface ProjectSpaceDashboardProps {
   onNavigateToTasks?: (listName?: string) => void;
@@ -386,7 +387,18 @@ export const ProjectSpaceDashboard: React.FC<ProjectSpaceDashboardProps> = ({
         )}
       </div>
 
-      {/* 4. Task Status & Team Workload in Space */}
+      {/* 4. Due Date Change Requests Panel for Space */}
+      <DueDateRequestsPanel
+        theme={theme}
+        projectId={currentProject.id}
+        onNavigateToTasks={(taskId) => {
+          if (taskId) {
+            onNavigateToTasks?.();
+          }
+        }}
+      />
+
+      {/* 5. Task Status & Team Workload in Space */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Task Breakdown Chart/List */}
         <div className={`p-6 rounded-2xl border ${isLight ? 'bg-white border-slate-200' : 'bg-[#121B26] border-[#233549]'}`}>

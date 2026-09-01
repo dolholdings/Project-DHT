@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { Project, ProjectStatus } from '../../types';
+import { UserAvatar } from '../common/UserAvatar';
 
 type ProjectSortField = 'code' | 'title' | 'companyId' | 'status' | 'progress' | 'dueDate' | 'budget';
 type SortDirection = 'asc' | 'desc';
@@ -488,7 +489,13 @@ export const ProjectsDataTable: React.FC<ProjectsDataTableProps> = ({
                       <td className="p-3.5">
                         {manager ? (
                           <div className="flex items-center gap-2">
-                            <img src={manager.avatar} alt={manager.name} className="w-5 h-5 rounded-full object-cover" />
+                            <UserAvatar
+                              name={manager.name}
+                              email={manager.email}
+                              role={manager.role}
+                              size="xs"
+                              theme={theme}
+                            />
                             <span className="font-medium text-slate-300">{manager.name}</span>
                           </div>
                         ) : (

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog, TaskComment } from '../../types';
+import { UserAvatar } from '../common/UserAvatar';
 
 export interface UnifiedActivityItem {
   id: string;
@@ -478,11 +479,13 @@ export const RecentActivityPanel: React.FC = () => {
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3 min-w-0">
                         {/* User Avatar */}
-                        <img
-                          src={item.userAvatar}
-                          alt={item.userName}
-                          className="w-8 h-8 rounded-full object-cover ring-2 ring-[#0773BB] shrink-0 mt-0.5"
-                        />
+                        <div className="shrink-0 mt-0.5">
+                          <UserAvatar
+                            name={item.userName}
+                            size="sm"
+                            theme={theme}
+                          />
+                        </div>
 
                         <div className="space-y-1 min-w-0">
                           {/* User & Action Header */}

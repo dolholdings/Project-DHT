@@ -41,7 +41,8 @@ import {
   Search,
   PieChart,
   BarChart2,
-  Gauge
+  Gauge,
+  CalendarClock
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Task, Project, TaskDependency, AIDailyBrief } from '../../types';
@@ -71,6 +72,7 @@ import { UrgentDependenciesWidget } from './UrgentDependenciesWidget';
 import { ProjectsHealthWidget } from './ProjectsHealthWidget';
 import { WorkloadSummaryWidget } from './WorkloadSummaryWidget';
 import { DomainWhitelistWidget } from './DomainWhitelistWidget';
+import { DueDateRequestsPanel } from './DueDateRequestsPanel';
 import { KPIOverviewRow } from './KPIOverviewRow';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
@@ -160,7 +162,7 @@ export interface DashboardWidgetConfig {
   id: string;
   name: string;
   description: string;
-  category: 'Overview' | 'Tasks' | 'Analytics' | 'Security' | 'AI Insights';
+  category: 'Dashboard' | 'Tasks' | 'Analytics' | 'Security' | 'AI Insights';
   pinned: boolean;
   order: number;
   colSpan?: 1 | 2 | 3;
@@ -177,12 +179,66 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     colSpan: 3,
   },
   {
+    id: 'task_status_distribution',
+    name: 'Task Status Distribution (Pie / Donut & Bar Charts)',
+    description: 'Interactive Recharts Donut, Pie & Bar charts showing task breakdown by status (Done, In Progress, To Do, Blocked, Review).',
+    category: 'Analytics',
+    pinned: true,
+    order: 1,
+    colSpan: 2,
+  },
+  {
+    id: 'priority_risk_distribution',
+    name: 'Priority & Risk Score Breakdown (Recharts Bar Chart)',
+    description: 'Recharts stacked & grouped bar chart evaluating priority levels (Urgent, High, Medium, Low) vs completed status and risk scores.',
+    category: 'Analytics',
+    pinned: true,
+    order: 2,
+    colSpan: 1,
+  },
+  {
+    id: 'projects_health',
+    name: 'Project Health Overview (Recharts Pie & Progress)',
+    description: 'Executive project health overview with Recharts pie chart visualizing task distribution and project health metrics.',
+    category: 'Dashboard',
+    pinned: true,
+    order: 3,
+    colSpan: 3,
+  },
+  {
+    id: 'burndown_chart',
+    name: 'Sprint Burn-Down Chart (Recharts Area/Line)',
+    description: 'Interactive Recharts area/line chart comparing actual remaining work scope vs ideal linear burn rate line.',
+    category: 'Analytics',
+    pinned: true,
+    order: 4,
+    colSpan: 2,
+  },
+  {
+    id: 'task_completion_trend',
+    name: 'Tasks Completion Rate (7-Day Bar Trend)',
+    description: 'Recharts summary card tracking 7-day completion rate velocity, completed task counts, and backlog metrics.',
+    category: 'Analytics',
+    pinned: true,
+    order: 5,
+    colSpan: 1,
+  },
+  {
+    id: 'due_date_requests',
+    name: 'Due Date Change Requests (PM Review Panel)',
+    description: 'Dedicated Project Manager panel to review, approve, or decline team member due date extension proposals with schedule shift impact.',
+    category: 'Tasks',
+    pinned: true,
+    order: 6,
+    colSpan: 3,
+  },
+  {
     id: 'quick_stats',
     name: 'KPI Overview Stats Cards',
     description: 'Summary indicators for Total Projects, In Progress, Completed, and Upcoming Deadlines with trend indicators.',
-    category: 'Overview',
+    category: 'Dashboard',
     pinned: true,
-    order: 1,
+    order: 7,
     colSpan: 3,
   },
   {
@@ -191,7 +247,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Personal task queue with calculated Priority Scores, quick status checkboxes, and filtering.',
     category: 'Tasks',
     pinned: true,
-    order: 2,
+    order: 8,
     colSpan: 2,
   },
   {
@@ -200,79 +256,16 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Real-time alert radar for critical path overdue tasks, urgent blockers, and high risk priorities.',
     category: 'Tasks',
     pinned: true,
-    order: 3,
-    colSpan: 1,
-  },
-  {
-    id: 'recent_activity',
-    name: 'Recent Team Activity Timeline',
-    description: 'Real-time timeline of team actions including task status changes, comments, and document updates.',
-    category: 'Overview',
-    pinned: true,
-    order: 4,
-    colSpan: 1,
-  },
-  {
-    id: 'urgent_deps',
-    name: 'Urgent Dependencies & Blockers',
-    description: 'Critical path tasks that block downstream work or have overdue deadlines.',
-    category: 'Tasks',
-    pinned: true,
-    order: 5,
-    colSpan: 1,
-  },
-  {
-    id: 'burndown_chart',
-    name: 'Sprint Burn-Down Chart (Recharts)',
-    description: 'Interactive Recharts area/line chart comparing actual remaining work scope vs ideal linear burn rate line.',
-    category: 'Analytics',
-    pinned: true,
-    order: 6,
-    colSpan: 3,
-  },
-  {
-    id: 'task_status_distribution',
-    name: 'Task Status Breakdown (Recharts Donut/Bar)',
-    description: 'Interactive Recharts Donut & Bar chart showing task breakdown by status (Done, In Progress, To Do, Blocked, Review).',
-    category: 'Analytics',
-    pinned: true,
-    order: 7,
-    colSpan: 2,
-  },
-  {
-    id: 'priority_risk_distribution',
-    name: 'Priority & Risk Score Breakdown (Recharts)',
-    description: 'Recharts stacked bar chart evaluating priority levels (Urgent, High, Medium, Low) vs completed status and risk scores.',
-    category: 'Analytics',
-    pinned: true,
-    order: 8,
-    colSpan: 2,
-  },
-  {
-    id: 'd3_team_velocity_gauge',
-    name: 'Team Capacity & Velocity Gauge (D3.js)',
-    description: 'Custom D3.js SVG arc gauge displaying overall team capacity utilization percentage and member workload velocity.',
-    category: 'Analytics',
-    pinned: true,
     order: 9,
-    colSpan: 1,
-  },
-  {
-    id: 'task_completion_trend',
-    name: 'Tasks Completion Rate (7-Day Trend)',
-    description: 'Recharts summary card tracking 7-day completion rate velocity, completed task counts, and backlog metrics.',
-    category: 'Analytics',
-    pinned: true,
-    order: 10,
     colSpan: 1,
   },
   {
     id: 'project_timeline',
     name: 'Project Timeline & Milestones',
     description: 'Visual timeline displaying project milestones and upcoming due dates in a scrollable horizontal format.',
-    category: 'Overview',
+    category: 'Dashboard',
     pinned: true,
-    order: 11,
+    order: 10,
     colSpan: 3,
   },
   {
@@ -281,17 +274,17 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Recharts visual analytics tracking cumulative spend, burn rates, and predicted budget vs timeline forecasts.',
     category: 'Analytics',
     pinned: true,
-    order: 12,
+    order: 11,
     colSpan: 3,
   },
   {
-    id: 'projects_health',
-    name: 'Project Health Overview (Recharts)',
-    description: 'Executive project health overview with a Recharts pie chart visualizing task distribution by status (Todo, In Progress, Completed, Review).',
-    category: 'Overview',
+    id: 'd3_team_velocity_gauge',
+    name: 'Team Capacity & Velocity Gauge (D3.js)',
+    description: 'Custom D3.js SVG arc gauge displaying overall team capacity utilization percentage and member workload velocity.',
+    category: 'Analytics',
     pinned: true,
-    order: 13,
-    colSpan: 3,
+    order: 12,
+    colSpan: 1,
   },
   {
     id: 'workload_summary',
@@ -299,7 +292,25 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Breakdown of logged hours, billable effort, and team workload capacity.',
     category: 'Analytics',
     pinned: true,
+    order: 13,
+    colSpan: 1,
+  },
+  {
+    id: 'recent_activity',
+    name: 'Recent Team Activity Timeline',
+    description: 'Real-time timeline of team actions including task status changes, comments, and document updates.',
+    category: 'Dashboard',
+    pinned: true,
     order: 14,
+    colSpan: 1,
+  },
+  {
+    id: 'urgent_deps',
+    name: 'Urgent Dependencies & Blockers',
+    description: 'Critical path tasks that block downstream work or have overdue deadlines.',
+    category: 'Tasks',
+    pinned: true,
+    order: 15,
     colSpan: 1,
   },
   {
@@ -308,7 +319,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Live audit trail showing recent team actions, updates, and timestamps.',
     category: 'Analytics',
     pinned: true,
-    order: 15,
+    order: 16,
     colSpan: 1,
   },
   {
@@ -317,7 +328,7 @@ const DEFAULT_WIDGETS: DashboardWidgetConfig[] = [
     description: 'Approved corporate email domain whitelist for workspace access control.',
     category: 'Security',
     pinned: true,
-    order: 16,
+    order: 17,
     colSpan: 1,
   },
 ];
@@ -431,6 +442,7 @@ export const DashboardView: React.FC = () => {
   const getWidgetIcon = (id: string) => {
     switch (id) {
       case 'daily_brief': return Sparkles;
+      case 'due_date_requests': return CalendarClock;
       case 'quick_stats': return TrendingUp;
       case 'my_tasks': return UserCheck;
       case 'high_priority_overdue': return Flame;
@@ -743,7 +755,7 @@ export const DashboardView: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-2.5">
               <h1 className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                Project Management
+                Executive Dashboard
               </h1>
               <span className="hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase font-mono bg-[#0773BB]/15 text-[#3BC0BB] border border-[#0773BB]/30">
                 {activeCompany?.code || 'DOLPHIN'}
@@ -919,6 +931,13 @@ export const DashboardView: React.FC = () => {
                       dailyBrief={dailyBrief}
                       briefLoading={briefLoading}
                       onRefresh={fetchDailyBrief}
+                    />
+                  );
+                case 'due_date_requests':
+                  return (
+                    <DueDateRequestsPanel
+                      theme={theme}
+                      onNavigateToTasks={() => setActiveTab('tasks')}
                     />
                   );
                 case 'quick_stats':

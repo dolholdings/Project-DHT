@@ -50,6 +50,7 @@ import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
 import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
+import { UserAvatar } from '../common/UserAvatar';
 
 type SortField = 'title' | 'status' | 'priority' | 'dueDate' | 'estimatedHours' | 'projectId' | 'priorityScore' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
@@ -1236,12 +1237,14 @@ export const TasksDataTable: React.FC<TasksDataTableProps> = ({ onSelectTask, se
                         {assignees.length > 0 ? (
                           <div className="flex items-center -space-x-1.5 overflow-hidden">
                             {assignees.map((u) => (
-                              <img
+                              <UserAvatar
                                 key={u.id}
-                                src={u.avatar}
-                                alt={u.name}
-                                title={`${u.name} (${u.role})`}
-                                className="w-6 h-6 rounded-full border-2 border-[#121B26] object-cover shrink-0"
+                                name={u.name}
+                                email={u.email}
+                                role={u.role}
+                                size="xs"
+                                theme={theme}
+                                showTooltip={true}
                               />
                             ))}
                           </div>

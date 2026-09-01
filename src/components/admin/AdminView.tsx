@@ -37,7 +37,10 @@ import {
   FolderKanban,
   Briefcase,
   Camera,
-  UserCog
+  UserCog,
+  Mail,
+  Send,
+  Sliders
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -59,6 +62,8 @@ import { AdminRecycleBin } from './AdminRecycleBin';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
+import { UserAvatar } from '../common/UserAvatar';
+import { TransactionalEmailGatewayModal } from '../notifications/TransactionalEmailGatewayModal';
 
 export const AdminView: React.FC = () => {
   const {
@@ -117,7 +122,8 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'audit_logs' | 'usage' | 'security' | 'recycle_bin'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'email_service' | 'audit_logs' | 'usage' | 'security' | 'recycle_bin'>('users');
+  const [isEmailGatewayModalOpen, setIsEmailGatewayModalOpen] = useState(false);
 
   // Search & Filter state for Users Tab
   const [userSearch, setUserSearch] = useState('');
@@ -447,6 +453,15 @@ export const AdminView: React.FC = () => {
 
         <div className="flex items-center gap-3">
           <button
+            onClick={() => setIsEmailGatewayModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-all shadow-md cursor-pointer"
+            title="Manage Transactional Email Gateway, SMTP & Notifications"
+          >
+            <Mail className="w-4 h-4" />
+            <span>Email Service</span>
+          </button>
+
+          <button
             onClick={() => setIsInviteModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs transition-all shadow-md"
           >
@@ -506,6 +521,20 @@ export const AdminView: React.FC = () => {
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
             {authorizedDomains.length}
           </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('email_service')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all shrink-0 ${
+            activeTab === 'email_service'
+              ? 'bg-[#0773BB] text-white shadow-md'
+              : isLight
+              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              : 'bg-[#16222F] text-slate-400 hover:text-white hover:bg-[#1C2C3D]'
+          }`}
+        >
+          <Mail className="w-4 h-4 text-teal-400" />
+          <span>Email Service & Gateway</span>
         </button>
 
         <button
@@ -704,16 +733,15 @@ export const AdminView: React.FC = () => {
                               <div
                                 onClick={() => setUserToEditProfile(u)}
                                 className="relative group cursor-pointer shrink-0"
-                                title="Click to change profile picture or edit user"
+                                title="Click to edit user profile"
                               >
-                                <img
-                                  src={u.avatar}
-                                  alt={u.name}
-                                  className="w-9 h-9 rounded-full object-cover border border-slate-400/40 shadow-sm group-hover:opacity-80 transition-opacity"
+                                <UserAvatar
+                                  name={u.name}
+                                  email={u.email}
+                                  role={u.role}
+                                  size="md"
+                                  theme={theme}
                                 />
-                                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Camera className="w-3 h-3" />
-                                </div>
                               </div>
                               <div>
                                 <div className={`font-bold text-xs flex items-center gap-1.5 ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -1420,6 +1448,115 @@ export const AdminView: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: EMAIL SERVICE & TRANSACTIONAL NOTIFICATIONS */}
+      {activeTab === 'email_service' && (
+        <div className={`p-6 rounded-2xl border space-y-6 animate-in fade-in shadow-xl ${
+          isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 border-slate-200 dark:border-[#233549]">
+            <div>
+              <div className="flex items-center gap-2">
+                <Mail className="w-5 h-5 text-teal-500" />
+                <h2 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Enterprise Transactional Email Service & SMTP Gateway
+                </h2>
+              </div>
+              <p className={`text-xs mt-1 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                Configure corporate automated notifications, task assignments, due date extension requests, and invite dispatches.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsEmailGatewayModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md transition-all shrink-0 cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>Launch Email Gateway Console</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`p-4 rounded-xl border ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Gateway Protocol
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono font-bold">
+                  Active
+                </span>
+              </div>
+              <div className={`text-base font-bold mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                SMTP & SendGrid API
+              </div>
+              <div className="text-xs text-slate-400 mt-1 font-mono">
+                relay.dolphingroup.ae:587
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Whitelisted Sender
+                </span>
+                <Globe className="w-4 h-4 text-[#0773BB]" />
+              </div>
+              <div className={`text-base font-bold mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                notifications@dolphingroup.ae
+              </div>
+              <div className="text-xs text-slate-400 mt-1 font-mono">
+                DKIM / SPF Verified
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-[11px] font-bold uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Trigger Events
+                </span>
+                <Zap className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className={`text-base font-bold mt-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                6 Active Automation Triggers
+              </div>
+              <div className="text-xs text-slate-400 mt-1">
+                Tasks, Due Dates, Invites & Reports
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center justify-between gap-4 ${
+            isLight ? 'bg-teal-50/70 border-teal-200' : 'bg-teal-950/20 border-teal-800/40'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+                <Sliders className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className={`text-xs font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                  Transactional Notification Dispatcher & Simulation Console
+                </h4>
+                <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Test email dispatch templates, configure recipient overrides, review delivery logs, and simulate real-time SMTP triggers.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsEmailGatewayModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shadow-md transition-all shrink-0 cursor-pointer"
+            >
+              Open Email Gateway Console
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TAB 4: SYSTEM HEALTH & STATUS */}
       {activeTab === 'security' && (
         <div className="space-y-6 animate-in fade-in">
@@ -1699,10 +1836,12 @@ export const AdminView: React.FC = () => {
                 isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#182738] border-[#223548]'
               }`}>
                 <div className="flex items-center gap-3">
-                  <img
-                    src={spaceAccessUser.avatar}
-                    alt={spaceAccessUser.name}
-                    className="w-10 h-10 rounded-full object-cover border border-slate-300 dark:border-slate-700"
+                  <UserAvatar
+                    name={spaceAccessUser.name}
+                    email={spaceAccessUser.email}
+                    role={spaceAccessUser.role}
+                    size="lg"
+                    theme={theme}
                   />
                   <div>
                     <div className={`text-xs font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -1976,6 +2115,12 @@ export const AdminView: React.FC = () => {
           theme={theme}
         />
       )}
+
+      {/* Transactional Email Service Gateway Modal */}
+      <TransactionalEmailGatewayModal
+        isOpen={isEmailGatewayModalOpen}
+        onClose={() => setIsEmailGatewayModalOpen(false)}
+      />
     </div>
   );
 };

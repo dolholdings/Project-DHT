@@ -28,6 +28,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Task, Priority } from '../../types';
 import { isAbortError } from '../../lib/errorUtils';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface VoiceMessage {
   id: string;
@@ -454,7 +455,13 @@ export const TeamChatView: React.FC = () => {
         <div className="flex-1 overflow-y-auto space-y-4 pr-2">
           {messages.map((m) => (
             <div key={m.id} className="flex items-start gap-3">
-              <img src={m.avatar} alt={m.sender} className="w-9 h-9 rounded-full object-cover ring-2 ring-[#0773BB] shrink-0" />
+              <div className="shrink-0 mt-0.5">
+                <UserAvatar
+                  name={m.sender}
+                  size="sm"
+                  theme={theme}
+                />
+              </div>
               <div className="space-y-2 max-w-2xl w-full">
                 <div className="flex items-center gap-2 text-xs">
                   <span className="font-bold text-white">{m.sender}</span>

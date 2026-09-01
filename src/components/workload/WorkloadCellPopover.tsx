@@ -5,6 +5,7 @@ import { Clock, AlertTriangle, CheckCircle2, Plus, ArrowRight, Sparkles, User as
 import { getPriorityBadgeStyle } from '../../lib/priorityUtils';
 import { getStatusBadgeStyle } from '../../lib/statusUtils';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface WorkloadCellPopoverProps {
   user: User;
@@ -40,11 +41,15 @@ export const WorkloadCellPopover: React.FC<WorkloadCellPopoverProps> = ({
       {/* Header with User and Date */}
       <div className="flex items-center justify-between gap-2 border-b pb-2 border-slate-700/20">
         <div className="flex items-center gap-2 min-w-0">
-          <img
-            src={user.avatar}
-            alt={user.name}
-            className="w-6 h-6 rounded-full object-cover ring-1 ring-teal-500 shrink-0"
-          />
+          <div className="shrink-0">
+            <UserAvatar
+              name={user.name}
+              email={user.email}
+              role={user.role}
+              size="xs"
+              theme={isLight ? 'light' : 'dark'}
+            />
+          </div>
           <div className="min-w-0">
             <div className="font-bold truncate text-xs">{user.name}</div>
             <div className="text-[10px] text-slate-400">

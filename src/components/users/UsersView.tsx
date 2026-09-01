@@ -48,6 +48,7 @@ import { canCreateUser, canDeleteUser, canViewUsersDirectory } from '../../lib/p
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { PermissionGuard } from '../common/PermissionGuard';
+import { UserAvatar } from '../common/UserAvatar';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
 import { CompanyIconBadge } from '../common/CompanyLogo';
@@ -1083,18 +1084,15 @@ export const UsersView: React.FC = () => {
                               <div
                                 onClick={() => handleOpenEditUserModal(u)}
                                 className="relative shrink-0 group cursor-pointer"
-                                title="Click to edit profile picture or details"
+                                title="Click to edit user profile or details"
                               >
-                                <img
-                                  src={u.avatar}
-                                  alt={u.name}
-                                  className={`w-9 h-9 rounded-full object-cover ring-2 group-hover:opacity-80 transition-opacity ${
-                                    isOnline ? 'ring-emerald-500/80' : 'ring-slate-400/50'
-                                  }`}
+                                <UserAvatar
+                                  name={u.name}
+                                  email={u.email}
+                                  role={u.role}
+                                  size="md"
+                                  theme={theme}
                                 />
-                                <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Camera className="w-3 h-3" />
-                                </div>
                                 <span
                                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white dark:ring-[#16222F] ${
                                     isOnline ? 'bg-emerald-500' : 'bg-slate-400'
@@ -1423,10 +1421,12 @@ export const UsersView: React.FC = () => {
                     return (
                       <tr key={u.id} className={isLight ? 'hover:bg-slate-50 transition-colors' : 'hover:bg-[#1A2838] transition-colors'}>
                         <td className={`py-3.5 px-4 font-bold flex items-center gap-3 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                          <img
-                            src={u.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                            alt={u.name}
-                            className="w-8 h-8 rounded-full object-cover ring-2 ring-[#3BC0BB]/40"
+                          <UserAvatar
+                            name={u.name}
+                            email={u.email}
+                            role={u.role}
+                            size="sm"
+                            theme={theme}
                           />
                           <div>
                             <p className="font-bold">{u.name}</p>
@@ -2654,7 +2654,13 @@ export const UsersView: React.FC = () => {
                             }}
                             className="rounded text-[#0773BB] focus:ring-[#0773BB] w-4 h-4"
                           />
-                          <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                          <UserAvatar
+                            name={u.name}
+                            email={u.email}
+                            role={u.role}
+                            size="xs"
+                            theme={theme}
+                          />
                           <div>
                             <span className="font-bold">{u.name}</span>
                             <span className="text-[10px] text-slate-400 font-mono ml-2">({u.email})</span>

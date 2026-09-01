@@ -120,6 +120,23 @@ export interface Sprint {
   updatedAt: string;
 }
 
+export interface DueDateRequest {
+  id: string;
+  proposedDueDate: string;
+  currentDueDate?: string;
+  reason: string;
+  requestedBy: string;
+  requestedByName: string;
+  requestedByEmail?: string;
+  requestedByRole?: string;
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedAt?: string;
+  reviewComment?: string;
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -132,6 +149,7 @@ export interface Task {
   reporterId: string;
   startDate: string;
   dueDate: string;
+  dueDateRequest?: DueDateRequest | null;
   estimatedHours: number;
   loggedHours: number;
   tags: string[];
@@ -251,13 +269,14 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: 'assignment' | 'completion' | 'due_reminder' | 'overdue' | 'system';
+  type: 'assignment' | 'completion' | 'due_reminder' | 'overdue' | 'date_request' | 'system';
   read: boolean;
   link?: string;
   taskId?: string;
   projectId?: string;
   snoozedUntil?: string;
   createdAt: string;
+  metadata?: Record<string, any>;
 }
 
 export interface AutomationRule {

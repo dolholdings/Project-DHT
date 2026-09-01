@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog } from '../../types';
+import { UserAvatar } from '../common/UserAvatar';
 
 export const LiveActivityStream: React.FC = () => {
   const {
@@ -338,10 +339,10 @@ export const LiveActivityStream: React.FC = () => {
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {/* User Avatar */}
                     <div className="relative shrink-0 mt-0.5">
-                      <img
-                        src={log.userAvatar}
-                        alt={log.userName}
-                        className="w-8 h-8 rounded-full object-cover ring-2 ring-[#233549]"
+                      <UserAvatar
+                        name={log.userName}
+                        size="sm"
+                        theme="dark"
                       />
                       <span
                         className={`absolute -bottom-1 -right-1 p-0.5 rounded-full text-slate-950 ${

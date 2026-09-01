@@ -78,7 +78,7 @@ const MainLayout: React.FC = () => {
   const activeViewTab = React.useMemo(() => {
     switch (activeTab) {
       case 'dashboard':
-        return 'overview';
+        return 'dashboard';
       case 'tasks':
         return 'list';
       case 'kanban':
@@ -123,7 +123,7 @@ const MainLayout: React.FC = () => {
   }
 
   const handleViewTabChange = (tabId: string) => {
-    if (tabId === 'overview') setActiveTab('dashboard');
+    if (tabId === 'dashboard' || tabId === 'overview') setActiveTab('dashboard');
     else if (tabId === 'list' || tabId === 'table') setActiveTab('tasks');
     else if (tabId === 'board') setActiveTab('kanban');
     else if (tabId === 'team' || tabId === 'workload') setActiveTab('workload');

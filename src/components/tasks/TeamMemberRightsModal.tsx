@@ -38,7 +38,7 @@ export const TeamMemberRightsModal: React.FC<TeamMemberRightsModalProps> = ({
   initialTab = 'overview',
   restrictedActionAttempted = null
 }) => {
-  const { currentUser, addTaskComment, users, theme } = useApp();
+  const { currentUser, requestDueDateChange, users, theme } = useApp();
   const isLight = theme === 'light';
 
   const [activeTab, setActiveTab] = useState<'overview' | 'request_date' | 'roles'>(
@@ -66,13 +66,7 @@ export const TeamMemberRightsModal: React.FC<TeamMemberRightsModalProps> = ({
     e.preventDefault();
     if (!task) return;
 
-    const commentBody = `📅 [DUE DATE CHANGE REQUEST]
-• Proposed Target Date: ${proposedDueDate}
-• Current Due Date: ${task.dueDate || 'None'}
-• Requested By: ${currentUser?.name || 'Team Member'} (${currentRole})
-• Reason / Notes: ${requestReason.trim() || 'Schedule adjustment requested for review.'}`;
-
-    addTaskComment(task.id, commentBody);
+    requestDueDateChange(task.id, proposedDueDate, requestReason.trim() || 'Schedule adjustment requested for review.');
     setIsSubmitted(true);
     setTimeout(() => {
       setIsSubmitted(false);

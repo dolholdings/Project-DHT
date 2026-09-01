@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User } from '../../types';
 import { UserPlus, Check, Search, X, User as UserIcon } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface AssigneePickerProps {
   assigneeIds: string[];
@@ -96,15 +97,13 @@ export const AssigneePicker: React.FC<AssigneePickerProps> = ({
           <div className="flex items-center gap-1.5 flex-wrap">
             <div className="flex -space-x-2 overflow-hidden">
               {assignedUsers.slice(0, 3).map((user) => (
-                <img
+                <UserAvatar
                   key={user.id}
-                  src={user.avatar}
-                  alt={user.name}
-                  className={`inline-block rounded-full object-cover ring-2 border ${
-                    size === 'sm' ? 'w-6 h-6' : 'w-7 h-7'
-                  } ${
-                    isLight ? 'ring-white border-slate-200' : 'ring-[#0D1520] border-[#3BC0BB]/40'
-                  }`}
+                  name={user.name}
+                  email={user.email}
+                  role={user.role}
+                  size={size === 'sm' ? 'sm' : 'md'}
+                  theme={theme}
                   title={user.name}
                 />
               ))}
@@ -242,10 +241,12 @@ export const AssigneePicker: React.FC<AssigneePickerProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-300 dark:border-slate-700"
+                      <UserAvatar
+                        name={user.name}
+                        email={user.email}
+                        role={user.role}
+                        size="sm"
+                        theme={theme}
                       />
                       <div className="min-w-0">
                         <div className="truncate text-xs">{user.name}</div>

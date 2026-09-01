@@ -24,6 +24,7 @@ import {
   GripVertical
 } from 'lucide-react';
 import { getHeatColor } from './WorkloadHeatmapUtils';
+import { UserAvatar } from '../common/UserAvatar';
 
 export const WorkloadView: React.FC = () => {
   const { users, tasks, projects, updateTask, addTask, updateUser, theme, currentUser } = useApp();
@@ -288,13 +289,15 @@ export const WorkloadView: React.FC = () => {
                   )}
 
                   <div className={`flex items-start gap-3 ${isOverloaded ? 'pt-3' : ''}`}>
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className={`w-11 h-11 rounded-xl object-cover ring-2 ${
-                        isOverloaded ? 'ring-rose-500' : 'ring-teal-500'
-                      }`}
-                    />
+                    <div className="shrink-0">
+                      <UserAvatar
+                        name={user.name}
+                        email={user.email}
+                        role={user.role}
+                        size="md"
+                        theme={theme}
+                      />
+                    </div>
 
                     <div className="flex-1 min-w-0">
                       <h4 className={`text-xs font-bold truncate ${isLight ? 'text-slate-900' : 'text-white'}`}>
@@ -354,11 +357,15 @@ export const WorkloadView: React.FC = () => {
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-10 h-10 rounded-xl object-cover ring-2 ring-teal-500"
-                      />
+                      <div className="shrink-0">
+                        <UserAvatar
+                          name={user.name}
+                          email={user.email}
+                          role={user.role}
+                          size="md"
+                          theme={theme}
+                        />
+                      </div>
                       <div>
                         <h4 className="font-bold text-xs text-slate-200 dark:text-white flex items-center gap-2">
                           <span>{user.name}</span>

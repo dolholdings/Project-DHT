@@ -241,7 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       : 'bg-[#00AEA9]/20 text-[#00AEA9] border border-[#00AEA9]/40 shadow-md ring-2 ring-[#00AEA9]/30'
                     : 'text-white/70 hover:text-white hover:bg-white/10 active:bg-white/20'
                 }`}
-                title="Home & Command Center"
+                title="Dashboard & Command Center"
               >
                 <Home className="w-5 h-5" />
               </button>
@@ -515,6 +515,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
               {/* Quick ClickUp Menu Items */}
               <div className="space-y-0.5 text-xs font-medium">
+                <button
+                  onClick={() => handleTabClick('dashboard')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all ${
+                    activeTab === 'dashboard'
+                      ? 'bg-[#00AEA9] text-white font-extrabold shadow-sm'
+                      : theme === 'light'
+                      ? 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+                      : 'text-slate-300 hover:text-white hover:bg-[#16222F]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Home className={`w-4 h-4 ${activeTab === 'dashboard' ? 'text-white' : theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`} />
+                    <span>Dashboard</span>
+                  </div>
+                </button>
+
                 <button
                   onClick={() => handleTabClick('email')}
                   className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg transition-all ${

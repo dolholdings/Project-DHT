@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { getPriorityBadgeStyle } from '../../lib/priorityUtils';
 import { getDisplayTaskTitle } from '../../lib/taskUtils';
+import { UserAvatar } from '../common/UserAvatar';
 
 interface DayTaskDrawerProps {
   isOpen: boolean;
@@ -92,10 +93,12 @@ export const DayTaskDrawer: React.FC<DayTaskDrawerProps> = ({
           }`}
         >
           <div className="flex items-center gap-3">
-            <img
-              src={user.avatar}
-              alt={user.name}
-              className="w-10 h-10 rounded-full object-cover ring-2 ring-teal-500 shadow"
+            <UserAvatar
+              name={user.name}
+              email={user.email}
+              role={user.role}
+              size="md"
+              theme={isLight ? 'light' : 'dark'}
             />
             <div>
               <h3 className="font-bold text-base flex items-center gap-2">

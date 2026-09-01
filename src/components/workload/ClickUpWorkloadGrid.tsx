@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { User, Task } from '../../types';
 import { WorkloadDayColumn, UserWorkloadStats, DayAllocation } from './types';
 import { WorkloadCellPopover } from './WorkloadCellPopover';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   Eye,
   ChevronDown,
@@ -218,14 +219,12 @@ export const ClickUpWorkloadGrid: React.FC<ClickUpWorkloadGridProps> = ({
                     {/* User Avatar + Name + Hours */}
                     <div className="flex items-center gap-2.5">
                       <div className="relative shrink-0">
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className={`w-8 h-8 rounded-full object-cover ring-2 ${
-                            isOverloaded
-                              ? 'ring-rose-500 ring-offset-1 ring-offset-rose-950'
-                              : 'ring-teal-500'
-                          }`}
+                        <UserAvatar
+                          name={user.name}
+                          email={user.email}
+                          role={user.role}
+                          size="md"
+                          theme={isLight ? 'light' : 'dark'}
                         />
                         {isOverloaded && (
                           <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-600 rounded-full border-2 border-white animate-pulse" />

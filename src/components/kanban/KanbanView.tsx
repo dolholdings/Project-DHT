@@ -25,6 +25,7 @@ import { getDisplayTaskTitle, getTaskSubtext } from '../../lib/taskUtils';
 import { EmptyStateCard } from '../common/EmptyStateCard';
 import { ProjectCsvImportModal } from '../projects/ProjectCsvImportModal';
 import { AssigneeFilterDropdown } from '../common/AssigneeFilterDropdown';
+import { UserAvatar } from '../common/UserAvatar';
 import {
   normalizeTaskStatus,
   getStatusBadgeStyle,
@@ -656,23 +657,21 @@ export const KanbanView: React.FC = () => {
                             <div className="flex items-center -space-x-1.5 overflow-hidden">
                               {taskAssignees.length > 0 ? (
                                 taskAssignees.slice(0, 3).map((u) => (
-                                  <div
+                                  <UserAvatar
                                     key={u.id}
-                                    className="w-5 h-5 rounded-full ring-1 ring-[#0D9488] bg-[#0773BB] text-white flex items-center justify-center text-[9px] font-bold overflow-hidden shrink-0"
-                                    title={u.name}
-                                  >
-                                    {u.avatar ? (
-                                      <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      u.name.slice(0, 2).toUpperCase()
-                                    )}
-                                  </div>
+                                    name={u.name}
+                                    email={u.email}
+                                    role={u.role}
+                                    size="xs"
+                                    theme={theme}
+                                    showTooltip={true}
+                                  />
                                 ))
                               ) : (
                                 <span className="text-[10px] text-slate-400 italic">Unassigned</span>
                               )}
                               {taskAssignees.length > 3 && (
-                                <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[8px] font-bold flex items-center justify-center">
+                                <span className="w-5 h-5 rounded-full bg-slate-700 text-white text-[8px] font-bold flex items-center justify-center ring-1 ring-white dark:ring-[#16222F]">
                                   +{taskAssignees.length - 3}
                                 </span>
                               )}

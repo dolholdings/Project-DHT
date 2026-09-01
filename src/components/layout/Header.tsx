@@ -40,6 +40,7 @@ import { CompanyIconBadge } from '../common/CompanyLogo';
 import { useLogo } from '../../context/LogoContext';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
 import { DolphinLogo } from '../common/DolphinLogo';
+import { UserAvatar } from '../common/UserAvatar';
 
 export const Header: React.FC = () => {
   const {
@@ -254,12 +255,9 @@ export const Header: React.FC = () => {
           </button>
         </div>
 
-        {/* Center: Global Search Input & Timer */}
+        {/* Center: Global Search Input */}
         <div className="flex items-center gap-3 flex-1 max-w-md mx-4">
           <HeaderSearchInput />
-
-          {/* Active Global Time Tracking Widget */}
-          <GlobalTimeTrackerWidget />
         </div>
 
         {/* Right: Theme Toggle, Export ZIP, Android App Install, Notifications, User Profile */}
@@ -391,10 +389,12 @@ export const Header: React.FC = () => {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-2.5 p-1.5 rounded-xl bg-[#0D1520] hover:bg-[#1A2838] border border-[#233549] transition-all group cursor-pointer"
             >
-              <img
-                src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                alt={currentUser?.name || 'User'}
-                className="w-8 h-8 rounded-lg object-cover ring-2 ring-[#0773BB]/50"
+              <UserAvatar
+                name={currentUser?.name}
+                email={currentUser?.email}
+                role={currentUser?.role}
+                size="sm"
+                theme={theme === 'light' ? 'light' : 'dark'}
               />
               <div className="hidden md:block text-left">
                 <div className="text-xs font-semibold text-white flex items-center gap-1">
@@ -418,14 +418,13 @@ export const Header: React.FC = () => {
                     setShowUserMenu(false);
                     setShowProfileModal(true);
                   }}>
-                    <img
-                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                      alt={currentUser?.name}
-                      className="w-11 h-11 rounded-xl object-cover ring-2 ring-[#0773BB] group-hover:opacity-85 transition-opacity"
+                    <UserAvatar
+                      name={currentUser?.name}
+                      email={currentUser?.email}
+                      role={currentUser?.role}
+                      size="lg"
+                      theme={theme === 'light' ? 'light' : 'dark'}
                     />
-                    <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-[#0773BB] text-white shadow-xs" title="Change Profile Picture">
-                      <Camera className="w-2.5 h-2.5" />
-                    </div>
                   </div>
                   <div className="overflow-hidden flex-1">
                     <p className="font-extrabold text-white text-sm truncate">{currentUser?.name}</p>

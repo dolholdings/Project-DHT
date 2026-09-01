@@ -1,6 +1,7 @@
 import React from 'react';
 import { Users, Clock } from 'lucide-react';
 import { User, Task, TimeEntry } from '../../types';
+import { UserAvatar } from '../common/UserAvatar';
 
 export interface WorkloadSummaryWidgetProps {
   theme?: 'dark' | 'light';
@@ -54,10 +55,12 @@ export const WorkloadSummaryWidget: React.FC<WorkloadSummaryWidgetProps> = ({
                 theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
               }`}
             >
-              <img
-                src={user.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-                alt={user.name}
-                className="w-8 h-8 rounded-full object-cover ring-1 ring-[#0773BB]"
+              <UserAvatar
+                name={user.name}
+                email={user.email}
+                role={user.role}
+                size="sm"
+                theme={theme}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between text-xs">
