@@ -74,7 +74,8 @@ export const UsersView: React.FC = () => {
     logActivity,
     currentUser,
     setActiveTab,
-    syncAllUsersToFirestore
+    syncAllUsersToFirestore,
+    deduplicateAndSyncAllUsers
   } = useApp();
 
   const [isSyncingFirebase, setIsSyncingFirebase] = useState(false);
@@ -597,11 +598,11 @@ export const UsersView: React.FC = () => {
                 setIsSyncingFirebase(true);
                 setFirebaseSyncMessage(null);
                 try {
-                  const res = await syncAllUsersToFirestore();
+                  const res = await deduplicateAndSyncAllUsers();
                   if (res.success) {
                     setFirebaseSyncMessage({
                       type: 'success',
-                      text: `Successfully synced ${res.count} users directly to Firebase Firestore database!`
+                      text: `Successfully synced ${res.count} users directly to Firebase Firestore! (Cleaned ${res.removedCount} duplicate records)`
                     });
                   } else {
                     setFirebaseSyncMessage({
@@ -625,14 +626,14 @@ export const UsersView: React.FC = () => {
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'bg-emerald-600/90 hover:bg-emerald-600 text-white'
               } disabled:opacity-50`}
-              title="Push all local & cached users directly into Firebase Firestore users collection"
+              title="Deduplicate user records and push clean accounts with passwords directly into Firebase Firestore"
             >
               {isSyncingFirebase ? (
                 <RefreshCw className="w-4 h-4 animate-spin" />
               ) : (
                 <UploadCloud className="w-4 h-4" />
               )}
-              <span>{isSyncingFirebase ? 'Syncing...' : 'Sync All to Firebase'}</span>
+              <span>{isSyncingFirebase ? 'Deduplicating & Syncing...' : 'Deduplicate & Sync Firebase'}</span>
             </button>
 
             <button

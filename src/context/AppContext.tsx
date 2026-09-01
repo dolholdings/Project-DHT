@@ -87,8 +87,14 @@ import {
   subscribeToUsers,
   createUserInFirestore,
   updateUserInFirestore,
+  softDeleteUserInFirestore,
+  restoreUserInFirestore,
   deleteUserFromFirestore,
+  purgeExpiredUsersFromFirestore,
   syncAllLocalUsersToFirestore,
+  cleanAndDeduplicateFirestoreUsers,
+  deduplicateUserList,
+  saveUserPasswordInFirestore,
   seedInitialFirestoreData,
   clearAllFirestoreData,
   forceRestoreFirestoreData,
@@ -125,9 +131,17 @@ interface AppContextType {
   updateCompany: (id: string, updates: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
   users: User[];
+  allUsers: User[];
+  deletedUsers: User[];
   updateUser: (userId: string, updates: Partial<User>) => void;
   deleteUser: (userId: string) => void;
+  restoreUser: (userId: string) => void;
+  bulkRestoreUsers: (userIds: string[]) => void;
+  purgeUser: (userId: string) => void;
+  bulkPurgeUsers: (userIds: string[]) => void;
+  purgeExpiredUsers: () => Promise<number>;
   syncAllUsersToFirestore: () => Promise<{ success: boolean; count: number; error?: string }>;
+  deduplicateAndSyncAllUsers: () => Promise<{ success: boolean; removedCount: number; count: number; error?: string }>;
 
   // Email Control & Domain Validation
   authorizedDomains: string[];
@@ -494,35 +508,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const dhtCompany = (storedCompanies || INITIAL_COMPANIES).find((c) => c.id === 'comp_dht') || INITIAL_COMPANIES[3];
     return storedActive || dhtCompany || INITIAL_COMPANIES[0];
   });
-  const [deletedUserIds, setDeletedUserIds] = useState<string[]>(() =>
-    loadFromStorage('dolphin_deleted_user_ids', [])
-  );
   const [users, setUsers] = useState<User[]>(() => {
-    const deleted: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
     const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
-    const legacyEmails = [
-      'tareq.aldolphin@dolphingroup.ae',
-      'parvez.khan@dolphingroup.ae',
-      'suhail.ahmed@dolrad.ae',
-      'fatima.zohra@dolheat.ae',
-      'rashed.m@dolcool.ae',
-      'elena.rostova@dolheat.ae',
-      'omar.mansoor@dolphingroup.ae',
-      'sys_analyst@dolrad.ae',
-      'proj@dolheat.ae',
-      'prog.mgr@dolheat.ae'
-    ];
-    
-    const valid = loaded.filter((u) => !deleted.includes(u.id) && !legacyEmails.includes((u?.email || '').toLowerCase()));
-    const merged = [...valid];
-    INITIAL_USERS.forEach((iu) => {
-      if (!merged.some((u) => (u?.email || '').toLowerCase() === (iu?.email || '').toLowerCase())) {
-        merged.push(iu);
-      }
-    });
-
-    saveToStorage('dolphin_users', merged);
-    return merged;
+    const cleanUsers = deduplicateUserList([...INITIAL_USERS, ...loaded]);
+    saveToStorage('dolphin_users', cleanUsers);
+    return cleanUsers;
   });
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const loaded = loadFromStorage<User>('dolphin_current_user', INITIAL_USERS[0]);
@@ -645,6 +635,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return merged;
   });
 
+  // Active users (excluding soft-deleted accounts)
+  const activeUsers = useMemo(() => users.filter((u) => !u.isDeleted), [users]);
+  // Soft-deleted users for Recycle Bin (180-day retention)
+  const deletedUsers = useMemo(() => users.filter((u) => !!u.isDeleted), [users]);
+
   // Active tasks (excluding soft-deleted items)
   const tasks = useMemo(() => allTasks.filter((t) => !t.isDeleted), [allTasks]);
   // Soft-deleted tasks for Recycle Bin
@@ -734,50 +729,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Subscribe to real-time Firestore updates for Users
     const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
-      const currentDeletedIds: string[] = loadFromStorage('dolphin_deleted_user_ids', []);
-      const legacyEmails = [
-        'tareq.aldolphin@dolphingroup.ae',
-        'parvez.khan@dolphingroup.ae',
-        'suhail.ahmed@dolrad.ae',
-        'fatima.zohra@dolheat.ae',
-        'rashed.m@dolcool.ae',
-        'elena.rostova@dolheat.ae',
-        'omar.mansoor@dolphingroup.ae',
-        'sys_analyst@dolrad.ae',
-        'proj@dolheat.ae',
-        'prog.mgr@dolheat.ae'
-      ];
-
-      const validRemote = (remoteUsers || []).filter(
-        (u) => u && !currentDeletedIds.includes(u.id) && !legacyEmails.includes((u.email || '').toLowerCase())
-      );
+      const cleanRemote = deduplicateUserList(remoteUsers || []);
 
       setUsers((prev) => {
-        const userMap = new Map<string, User>();
-        
-        INITIAL_USERS.forEach((u) => {
-          if (u && !currentDeletedIds.includes(u.id)) {
-            userMap.set(u.id, u);
-          }
-        });
-
-        prev.forEach((u) => {
-          if (u && !currentDeletedIds.includes(u.id) && !legacyEmails.includes((u.email || '').toLowerCase())) {
-            userMap.set(u.id, u);
-          }
-        });
-
-        validRemote.forEach((u) => {
-          userMap.set(u.id, u);
-        });
-
-        const updatedList = Array.from(userMap.values());
-        saveToStorage('dolphin_users', updatedList);
-        return updatedList;
+        const unified = deduplicateUserList([...INITIAL_USERS, ...prev, ...cleanRemote]);
+        saveToStorage('dolphin_users', unified);
+        return unified;
       });
 
       if (currentUser?.id) {
-        const matchedRemote = validRemote.find((ru) => ru.id === currentUser.id);
+        const matchedRemote = cleanRemote.find(
+          (ru) => ru.id === currentUser.id || (ru.email && currentUser.email && ru.email.toLowerCase() === currentUser.email.toLowerCase())
+        );
         if (matchedRemote?.theme) {
           const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
           saveToStorage(userThemeKey, matchedRemote.theme);
@@ -1296,6 +1259,11 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       return { success: false, error: val.error };
     }
 
+    const cleanEmail = email.toLowerCase().trim();
+    const existingUser = users.find(
+      (u) => (u?.email || '').toLowerCase().trim() === cleanEmail
+    );
+
     const assignedPassword = (password && password.trim()) || generateSecureCompliantPassword();
     const pwdValidation = validatePasswordPolicy(assignedPassword);
     if (!pwdValidation.isValid) {
@@ -1305,10 +1273,38 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       };
     }
 
+    if (existingUser) {
+      // User already exists: update record and assign new password without creating duplicate ID
+      const updatedUser: User = {
+        ...existingUser,
+        name: name || existingUser.name,
+        role: role || existingUser.role,
+        companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : existingUser.companyId),
+        department: department || existingUser.department,
+        status: 'Active',
+        isDeleted: false,
+        password: assignedPassword
+      };
+
+      setUsers((prev) => {
+        const nextUsers = prev.map((u) => (u.id === existingUser.id ? updatedUser : u));
+        const deduplicated = deduplicateUserList(nextUsers);
+        saveToStorage('dolphin_users', deduplicated);
+        return deduplicated;
+      });
+
+      updateUserInFirestore(existingUser.id, updatedUser);
+      saveUserPasswordInFirestore(existingUser.id, assignedPassword);
+
+      logActivity('updated user account credentials', `${name} (${cleanEmail})`, 'user');
+
+      return { success: true, user: updatedUser };
+    }
+
     const newUser: User = {
       id: `usr_${Date.now()}`,
       name,
-      email,
+      email: cleanEmail,
       role,
       companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp'),
       avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 1000000)}?auto=format&fit=crop&q=80&w=150`,
@@ -1320,7 +1316,7 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     };
 
     setUsers((prev) => {
-      const nextUsers = [...prev, newUser];
+      const nextUsers = deduplicateUserList([...prev, newUser]);
       saveToStorage('dolphin_users', nextUsers);
       return nextUsers;
     });
@@ -1394,8 +1390,10 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     const existingUser = users.find((x) => x.id === userId);
     const oldRole = existingUser?.role;
 
-    if (updates.password !== undefined && updates.password !== '') {
-      const pwdValidation = validatePasswordPolicy(updates.password);
+    const cleanUpdates = { ...updates };
+    if (cleanUpdates.password !== undefined && cleanUpdates.password !== '') {
+      cleanUpdates.password = cleanUpdates.password.trim();
+      const pwdValidation = validatePasswordPolicy(cleanUpdates.password);
       if (!pwdValidation.isValid) {
         console.warn('Password update rejected due to complexity failure:', pwdValidation.errors);
         return {
@@ -1404,12 +1402,15 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         };
       }
     }
+    if (cleanUpdates.email) {
+      cleanUpdates.email = cleanUpdates.email.trim().toLowerCase();
+    }
 
     setUsers((prev) => {
       const nextUsers = prev.map((u) => {
-        if (u.id === userId) {
-          const updated = { ...u, ...updates };
-          if (currentUser && currentUser.id === userId) {
+        if (u.id === userId || (cleanUpdates.email && (u.email || '').toLowerCase().trim() === cleanUpdates.email)) {
+          const updated = { ...u, ...cleanUpdates };
+          if (currentUser && (currentUser.id === userId || (currentUser.email && u.email && currentUser.email.toLowerCase().trim() === u.email.toLowerCase().trim()))) {
             setCurrentUser(updated);
             saveToStorage('dolphin_current_user', updated);
           }
@@ -1417,13 +1418,20 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         }
         return u;
       });
-      saveToStorage('dolphin_users', nextUsers);
-      return nextUsers;
+      const deduplicated = deduplicateUserList(nextUsers);
+      saveToStorage('dolphin_users', deduplicated);
+      return deduplicated;
     });
 
-    updateUserInFirestore(userId, updates).catch((err) => {
+    updateUserInFirestore(userId, cleanUpdates).catch((err) => {
       console.warn('Could not sync user update to firestore:', err);
     });
+
+    if (cleanUpdates.password) {
+      saveUserPasswordInFirestore(userId, cleanUpdates.password).catch((err) => {
+        console.warn('Could not sync password update to firestore:', err);
+      });
+    }
 
     const u = existingUser;
     
@@ -1467,27 +1475,184 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
 
     const u = users.find((x) => x.id === userId);
+    const nowIso = new Date().toISOString();
 
-    // Save ID to deleted list in state and localStorage
-    setDeletedUserIds((prev) => {
-      const next = prev.includes(userId) ? prev : [...prev, userId];
-      saveToStorage('dolphin_deleted_user_ids', next);
-      return next;
+    // Soft delete user in state
+    setUsers((prev) => {
+      const updated = prev.map((x) =>
+        x.id === userId
+          ? {
+              ...x,
+              isDeleted: true,
+              deletedAt: nowIso,
+              deletedBy: currentUser?.id || 'admin',
+              deletedByName: currentUser?.name || 'Administrator',
+              status: 'Offline' as const
+            }
+          : x
+      );
+      saveToStorage('dolphin_users', updated);
+      return updated;
     });
 
-    // Update users state and localStorage
+    // Soft delete in Firestore
+    softDeleteUserInFirestore(userId, currentUser?.id || 'admin', currentUser?.name || 'Administrator');
+
+    if (u) {
+      logActivity(
+        'moved user to Recycle Bin (180-day retention)',
+        `${u.name} (${u.email})`,
+        'permission',
+        undefined,
+        undefined,
+        `User "${u.name}" moved to Recycle Bin by ${currentUser?.name || 'Admin'} (Retained for 180 days)`,
+        'warning'
+      );
+    }
+  };
+
+  const restoreUser = (userId: string) => {
+    if (!canDeleteUser(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can restore users.');
+      return;
+    }
+
+    const u = users.find((x) => x.id === userId);
+    setUsers((prev) => {
+      const updated = prev.map((x) =>
+        x.id === userId
+          ? {
+              ...x,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined,
+              status: 'Active' as const
+            }
+          : x
+      );
+      saveToStorage('dolphin_users', updated);
+      return updated;
+    });
+
+    restoreUserInFirestore(userId);
+
+    if (u) {
+      logActivity(
+        'restored user from Recycle Bin',
+        `${u.name} (${u.email})`,
+        'permission',
+        undefined,
+        undefined,
+        `User "${u.name}" account restored by ${currentUser?.name || 'Admin'}`,
+        'info'
+      );
+    }
+  };
+
+  const bulkRestoreUsers = (userIds: string[]) => {
+    if (!canDeleteUser(currentUser) || !userIds || userIds.length === 0) return;
+
+    setUsers((prev) => {
+      const updated = prev.map((x) =>
+        userIds.includes(x.id)
+          ? {
+              ...x,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined,
+              status: 'Active' as const
+            }
+          : x
+      );
+      saveToStorage('dolphin_users', updated);
+      return updated;
+    });
+
+    userIds.forEach((id) => restoreUserInFirestore(id));
+
+    logActivity(
+      'bulk restored users from Recycle Bin',
+      `${userIds.length} user account(s) restored`,
+      'permission',
+      undefined,
+      undefined,
+      `Restored ${userIds.length} user(s) by ${currentUser?.name || 'Admin'}`,
+      'info'
+    );
+  };
+
+  const purgeUser = (userId: string) => {
+    if (!canDeleteUser(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can permanently purge users.');
+      return;
+    }
+
+    const u = users.find((x) => x.id === userId);
     setUsers((prev) => {
       const updated = prev.filter((x) => x.id !== userId);
       saveToStorage('dolphin_users', updated);
       return updated;
     });
 
-    // Delete from Firestore
     deleteUserFromFirestore(userId);
 
     if (u) {
-      logActivity('deactivated tenant user', `${u.name} (${u.email})`, 'permission', undefined, undefined, 'User account removed from tenant directory', 'warning');
+      logActivity(
+        'permanently purged user account',
+        `${u.name} (${u.email})`,
+        'permission',
+        undefined,
+        undefined,
+        `User account "${u.name}" permanently erased from database by ${currentUser?.name || 'Admin'}`,
+        'critical'
+      );
     }
+  };
+
+  const bulkPurgeUsers = (userIds: string[]) => {
+    if (!canDeleteUser(currentUser) || !userIds || userIds.length === 0) return;
+
+    setUsers((prev) => {
+      const updated = prev.filter((x) => !userIds.includes(x.id));
+      saveToStorage('dolphin_users', updated);
+      return updated;
+    });
+
+    userIds.forEach((id) => deleteUserFromFirestore(id));
+
+    logActivity(
+      'bulk purged user accounts',
+      `${userIds.length} user account(s) permanently erased`,
+      'permission',
+      undefined,
+      undefined,
+      `Permanently purged ${userIds.length} user account(s) by ${currentUser?.name || 'Admin'}`,
+      'critical'
+    );
+  };
+
+  const purgeExpiredUsers = async (): Promise<number> => {
+    const purgedIds = await purgeExpiredUsersFromFirestore(users);
+    if (purgedIds.length > 0) {
+      setUsers((prev) => {
+        const updated = prev.filter((x) => !purgedIds.includes(x.id));
+        saveToStorage('dolphin_users', updated);
+        return updated;
+      });
+
+      logActivity(
+        'auto-purged expired users (>180 days)',
+        `${purgedIds.length} user account(s) permanently cleaned up from Recycle Bin`,
+        'system',
+        undefined,
+        undefined,
+        `Purged ${purgedIds.length} expired user account(s) older than 180 days retention window`,
+        'info'
+      );
+    }
+    return purgedIds.length;
   };
 
   const syncAllUsersToFirestore = async (): Promise<{ success: boolean; count: number; error?: string }> => {
@@ -1501,6 +1666,33 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       return { success: true, count: res.count };
     } catch (err: any) {
       return { success: false, count: 0, error: err?.message || String(err) };
+    }
+  };
+
+  const deduplicateAndSyncAllUsers = async (): Promise<{ success: boolean; removedCount: number; count: number; error?: string }> => {
+    try {
+      const currentList = deduplicateUserList([...INITIAL_USERS, ...users]);
+      const res = await cleanAndDeduplicateFirestoreUsers(currentList);
+      const unified = deduplicateUserList([...currentList, ...(res.unifiedUsers || [])]);
+      setUsers(unified);
+      saveToStorage('dolphin_users', unified);
+      logActivity(
+        'cleaned duplicate accounts and synchronized passwords',
+        `Deduplicated ${res.removedCount} duplicate user records and synchronized ${unified.length} active accounts to Firebase`,
+        'system'
+      );
+      return {
+        success: true,
+        removedCount: res.removedCount,
+        count: unified.length
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        removedCount: 0,
+        count: users.length,
+        error: err?.message || String(err)
+      };
     }
   };
 
@@ -4053,10 +4245,18 @@ Please log into your workspace dashboard to update task status or adjust target 
         addCompany,
         updateCompany,
         deleteCompany,
-        users,
+        users: activeUsers,
+        allUsers: users,
+        deletedUsers,
         updateUser,
         deleteUser,
+        restoreUser,
+        bulkRestoreUsers,
+        purgeUser,
+        bulkPurgeUsers,
+        purgeExpiredUsers,
         syncAllUsersToFirestore,
+        deduplicateAndSyncAllUsers,
         validateDomain,
         inviteUser,
         dispatchEmailNotification,

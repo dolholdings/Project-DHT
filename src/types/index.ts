@@ -40,6 +40,11 @@ export interface User {
   password?: string;
   lastActive?: string;
   theme?: DolphinTheme;
+  // Soft-Delete & 180-Day Retention Fields
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedByName?: string;
 }
 
 export type ProjectStatus = 'Planning' | 'In Progress' | 'On Hold' | 'In Review' | 'Completed';

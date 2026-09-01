@@ -18,7 +18,7 @@ import {
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import { useApp } from '../../context/AppContext';
-import { saveUserPasswordInFirestore, updateUserInFirestore } from '../../services/dataService';
+import { saveUserPasswordInFirestore, updateUserInFirestore, deduplicateUserList } from '../../services/dataService';
 import {
   getCompanyByEmail,
   validatePasswordPolicy,
@@ -219,39 +219,37 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
-    // Look up user in state, local storage, and INITIAL_USERS fallback
-    let targetUsersList = [...users];
+    // Look up user in unified deduplicated users list
+    let localStoredUsers: User[] = [];
     try {
       const stored = localStorage.getItem('dolphin_users');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          targetUsersList = [...parsed, ...targetUsersList];
+          localStoredUsers = parsed;
         }
       }
     } catch (e) {
       // fallback
     }
 
-    INITIAL_USERS.forEach((iu) => {
-      if (!targetUsersList.some((u) => (u?.email || '').toLowerCase() === (iu?.email || '').toLowerCase() || u?.id === iu?.id)) {
-        targetUsersList.push(iu);
-      }
-    });
+    const targetUsersList = deduplicateUserList([...INITIAL_USERS, ...users, ...localStoredUsers]);
 
-    // Match by email, username prefix, or full name
+    // Match by email, username prefix, full name, or user ID
     const matchedUser = targetUsersList.find(
       (u) => {
         if (!u) return false;
-        const uEmail = (u.email || '').toLowerCase();
-        const uName = (u.name || '').toLowerCase();
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uName = (u.name || '').toLowerCase().trim();
         const uPrefix = uEmail.split('@')[0] || '';
+        const uId = (u.id || '').toLowerCase().trim();
         return (
           uEmail === targetInput ||
           uName === targetInput ||
           uPrefix === targetInput ||
-          (targetInput === 'admin' && uEmail === 'admin@dolrad.ae') ||
-          (targetInput.includes('admin') && u.role === 'Admin') ||
+          uId === targetInput ||
+          (targetInput === 'admin' && (uEmail === 'admin@dolrad.ae' || u.role === 'Admin')) ||
+          (targetInput.includes('superadmin') && (uEmail.includes('superadmin') || u.role === 'Admin')) ||
           (targetInput.includes('prog.mgr') && uEmail.includes('proj.mgr')) ||
           (targetInput.includes('proj.mgr') && uEmail.includes('prog.mgr'))
         );
@@ -273,21 +271,21 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     }
 
     // Check account active status
-    if (matchedUser.status === 'On Leave' || (matchedUser as any).status === 'Suspended' || (matchedUser as any).status === 'Inactive') {
+    if (matchedUser.status === 'On Leave' || (matchedUser as any).status === 'Suspended' || (matchedUser as any).status === 'Inactive' || matchedUser.isDeleted) {
       setErrorMsg('This account is deactivated or suspended. Please contact your Workspace Administrator.');
       return;
     }
 
-    // Check exact password match
+    // Check exact password match (with whitespace trimming)
     let isPasswordCorrect = false;
-    if (matchedUser.password && enteredPassword === matchedUser.password) {
+    if (matchedUser.password && enteredPassword === matchedUser.password.trim()) {
       isPasswordCorrect = true;
-    } else if (!matchedUser.password) {
-      // Fallback for demo initial accounts if password hasn't been set or synced yet
+    } else {
+      // Fallback for initial demo accounts
       const initialMatch = INITIAL_USERS.find(
-        (iu) => iu.email.toLowerCase() === matchedUser.email.toLowerCase() || iu.id === matchedUser.id
+        (iu) => iu.email.toLowerCase().trim() === (matchedUser.email || '').toLowerCase().trim() || iu.id === matchedUser.id
       );
-      if (initialMatch?.password && enteredPassword === initialMatch.password) {
+      if (initialMatch?.password && enteredPassword === initialMatch.password.trim()) {
         isPasswordCorrect = true;
       }
     }
@@ -306,9 +304,15 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       return;
     }
 
+    // If matchedUser password is missing in state, backfill it
+    if (!matchedUser.password && enteredPassword) {
+      updateUser(matchedUser.id, { password: enteredPassword });
+    }
+
     // Authentication verified! Role is automatically determined strictly from User Master record
     const verifiedUser: User = {
       ...matchedUser,
+      password: matchedUser.password || enteredPassword,
       isEmailVerified: true
     };
 

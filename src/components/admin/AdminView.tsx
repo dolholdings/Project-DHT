@@ -77,6 +77,7 @@ export const AdminView: React.FC = () => {
     inviteUser,
     tasks,
     deletedTasks,
+    deletedUsers,
     projects,
     updateProject,
     activityLogs,
@@ -87,10 +88,13 @@ export const AdminView: React.FC = () => {
     theme,
     currentUser,
     logActivity,
-    setActiveTab: setGlobalTab
+    setActiveTab: setGlobalTab,
+    deduplicateAndSyncAllUsers
   } = useApp();
 
   const isLight = theme === 'light';
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
+  const [dedupStatusMsg, setDedupStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Strict role-based guard: only Admin role can access Admin Portal and User Master governance
   if (currentUser?.role !== 'Admin') {
@@ -124,6 +128,7 @@ export const AdminView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'users' | 'matrix' | 'permissions' | 'companies' | 'email_service' | 'audit_logs' | 'usage' | 'security' | 'recycle_bin'>('users');
   const [isEmailGatewayModalOpen, setIsEmailGatewayModalOpen] = useState(false);
+  const [userToSoftDelete, setUserToSoftDelete] = useState<User | null>(null);
 
   // Search & Filter state for Users Tab
   const [userSearch, setUserSearch] = useState('');
@@ -613,9 +618,9 @@ export const AdminView: React.FC = () => {
         >
           <Trash2 className="w-4 h-4 text-rose-400" />
           <span>Recycle Bin</span>
-          {deletedTasks.length > 0 && (
+          {(deletedTasks.length + deletedUsers.length) > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-600 dark:text-rose-300 font-mono text-[10px] font-bold border border-rose-500/30">
-              {deletedTasks.length}
+              {deletedTasks.length + deletedUsers.length}
             </span>
           )}
         </button>
@@ -692,8 +697,62 @@ export const AdminView: React.FC = () => {
                   <option value="In Meeting">In Meeting</option>
                   <option value="On Leave">On Leave</option>
                 </select>
+
+                <button
+                  onClick={async () => {
+                    setIsDeduplicating(true);
+                    setDedupStatusMsg(null);
+                    try {
+                      const res = await deduplicateAndSyncAllUsers();
+                      if (res.success) {
+                        setDedupStatusMsg({
+                          type: 'success',
+                          text: `Deduplication complete: ${res.count} active accounts synchronized with Firebase Firestore (${res.removedCount} duplicate entries cleaned).`
+                        });
+                      } else {
+                        setDedupStatusMsg({
+                          type: 'error',
+                          text: res.error || 'Failed to deduplicate accounts.'
+                        });
+                      }
+                    } catch (err: any) {
+                      setDedupStatusMsg({
+                        type: 'error',
+                        text: err?.message || 'Error occurred during deduplication.'
+                      });
+                    } finally {
+                      setIsDeduplicating(false);
+                      setTimeout(() => setDedupStatusMsg(null), 7000);
+                    }
+                  }}
+                  disabled={isDeduplicating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow transition-all disabled:opacity-50"
+                  title="Remove duplicate user entries in Firebase and synchronize passwords"
+                >
+                  {isDeduplicating ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isDeduplicating ? 'Cleaning & Syncing...' : 'Deduplicate & Sync Accounts'}</span>
+                </button>
               </div>
             </div>
+
+            {dedupStatusMsg && (
+              <div className={`p-3 rounded-xl text-xs flex items-center gap-2 animate-in fade-in ${
+                dedupStatusMsg.type === 'success'
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400'
+              }`}>
+                {dedupStatusMsg.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                )}
+                <span>{dedupStatusMsg.text}</span>
+              </div>
+            )}
           </div>
 
           {/* User List Table */}
@@ -925,13 +984,9 @@ export const AdminView: React.FC = () => {
 
                                 {u.id !== currentUser.id && (
                                   <button
-                                    onClick={() => {
-                                      if (window.confirm(`Deactivate user "${u.name}" (${u.email})?`)) {
-                                        deleteUser(u.id);
-                                      }
-                                    }}
-                                    className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-lg text-xs transition-all"
-                                    title="Deactivate User"
+                                    onClick={() => setUserToSoftDelete(u)}
+                                    className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 rounded-lg text-xs transition-all cursor-pointer"
+                                    title="Move User to Recycle Bin (180-Day Retention)"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -2102,6 +2157,83 @@ export const AdminView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Soft-Delete User Confirmation (180-Day Retention) */}
+      {userToSoftDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-500 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-rose-500">
+                  Move User to Recycle Bin?
+                </h3>
+                <p className="text-xs text-slate-400">
+                  180-Day Retention Policy Applied
+                </p>
+              </div>
+            </div>
+
+            <div className={`p-4 rounded-xl border space-y-2 ${
+              isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+            }`}>
+              <div className="flex items-center gap-3">
+                <UserAvatar
+                  name={userToSoftDelete.name}
+                  email={userToSoftDelete.email}
+                  role={userToSoftDelete.role}
+                  size="md"
+                  theme={isLight ? 'light' : 'dark'}
+                />
+                <div>
+                  <h4 className="font-bold text-xs">{userToSoftDelete.name}</h4>
+                  <p className="text-[11px] text-slate-400 font-mono">{userToSoftDelete.email}</p>
+                  <p className="text-[10px] text-[#0773BB] font-semibold">{userToSoftDelete.role} • {userToSoftDelete.department}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className={`p-3 rounded-xl border text-xs leading-relaxed space-y-1.5 ${
+              isLight ? 'bg-amber-50/80 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+            }`}>
+              <div className="flex items-center gap-1.5 font-bold text-amber-600 dark:text-amber-400">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>Safe Soft Deletion Guarantee</span>
+              </div>
+              <p className="text-[11px]">
+                This account will be deactivated and preserved in the <strong>Recycle Bin for 180 days</strong>. You can restore this user account at any time with all space permissions and project history intact.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToSoftDelete(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteUser(userToSoftDelete.id);
+                  setUserToSoftDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-lg shadow-rose-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Move to Recycle Bin</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
