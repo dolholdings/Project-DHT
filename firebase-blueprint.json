@@ -118,6 +118,167 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["globalEnabled", "areas"]
+    },
+    "Subtask": {
+      "title": "Subtask",
+      "description": "Subtask checklist items for tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "taskId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "completed": { "type": "boolean" },
+        "assignedTo": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "taskId", "title"]
+    },
+    "TaskComment": {
+      "title": "TaskComment",
+      "description": "Discussion comments on tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "taskId": { "type": "string", "maxLength": 64 },
+        "userId": { "type": "string", "maxLength": 64 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "userAvatar": { "type": "string", "maxLength": 524288 },
+        "content": { "type": "string", "maxLength": 4096 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "taskId", "userId", "content"]
+    },
+    "TaskDependency": {
+      "title": "TaskDependency",
+      "description": "Prerequisite dependency between tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "taskId": { "type": "string", "maxLength": 64 },
+        "dependsOnTaskId": { "type": "string", "maxLength": 64 },
+        "type": { "type": "string", "enum": ["finish_to_start", "start_to_start"] }
+      },
+      "required": ["id", "taskId", "dependsOnTaskId"]
+    },
+    "TimeEntry": {
+      "title": "TimeEntry",
+      "description": "Time logging and worklog record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "taskId": { "type": "string", "maxLength": 64 },
+        "projectId": { "type": "string", "maxLength": 64 },
+        "userId": { "type": "string", "maxLength": 64 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "hours": { "type": "number" },
+        "date": { "type": "string", "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 1024 },
+        "billable": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "taskId", "userId", "hours"]
+    },
+    "CustomFieldDefinition": {
+      "title": "CustomFieldDefinition",
+      "description": "Custom attribute schema for project tasks",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "type": { "type": "string", "enum": ["text", "number", "dropdown", "checkbox", "date", "rating"] },
+        "options": { "type": "array" },
+        "required": { "type": "boolean" },
+        "description": { "type": "string", "maxLength": 256 }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "Sprint": {
+      "title": "Sprint",
+      "description": "Sprint iteration milestone",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "projectId": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "goal": { "type": "string", "maxLength": 512 },
+        "status": { "type": "string", "enum": ["active", "future", "completed"] },
+        "startDate": { "type": "string", "maxLength": 32 },
+        "endDate": { "type": "string", "maxLength": 32 }
+      },
+      "required": ["id", "projectId", "name", "status"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "System audit and activity log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "companyId": { "type": "string", "maxLength": 64 },
+        "userId": { "type": "string", "maxLength": 64 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 256 },
+        "target": { "type": "string", "maxLength": 256 },
+        "timestamp": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "companyId", "userId", "action"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app alerts and notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "userId": { "type": "string", "maxLength": 64 },
+        "title": { "type": "string", "maxLength": 256 },
+        "message": { "type": "string", "maxLength": 1024 },
+        "type": { "type": "string", "maxLength": 64 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "userId", "title", "message"]
+    },
+    "AutomationRule": {
+      "title": "AutomationRule",
+      "description": "Workflow automation triggers and actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "companyId": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "trigger": { "type": "string", "maxLength": 64 },
+        "condition": { "type": "string", "maxLength": 256 },
+        "action": { "type": "string", "maxLength": 64 },
+        "actionTarget": { "type": "string", "maxLength": 256 },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "companyId", "name", "trigger", "action"]
+    },
+    "EmailThread": {
+      "title": "EmailThread",
+      "description": "Corporate email conversation thread",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "senderName": { "type": "string", "maxLength": 128 },
+        "senderEmail": { "type": "string", "maxLength": 128 },
+        "recipientEmail": { "type": "string", "maxLength": 128 },
+        "subject": { "type": "string", "maxLength": 256 },
+        "body": { "type": "string", "maxLength": 8192 },
+        "timestamp": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "senderEmail", "recipientEmail", "subject"]
+    },
+    "ProjectTemplate": {
+      "title": "ProjectTemplate",
+      "description": "Reusable project template definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 1024 },
+        "createdBy": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["id", "name", "createdBy"]
     }
   },
   "firestore": {
@@ -137,9 +298,53 @@
       "schema": "Task",
       "description": "Collection of tasks"
     },
+    "/subtasks/{subtaskId}": {
+      "schema": "Subtask",
+      "description": "Collection of subtask items"
+    },
+    "/task_comments/{commentId}": {
+      "schema": "TaskComment",
+      "description": "Collection of task comments"
+    },
+    "/dependencies/{dependencyId}": {
+      "schema": "TaskDependency",
+      "description": "Collection of task dependencies"
+    },
     "/files/{fileId}": {
       "schema": "ProjectFile",
       "description": "Collection of project document files and version histories"
+    },
+    "/time_entries/{entryId}": {
+      "schema": "TimeEntry",
+      "description": "Collection of logged work hours"
+    },
+    "/custom_fields/{fieldId}": {
+      "schema": "CustomFieldDefinition",
+      "description": "Collection of custom fields"
+    },
+    "/sprints/{sprintId}": {
+      "schema": "Sprint",
+      "description": "Collection of agile sprints"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Collection of enterprise activity logs"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Collection of user notifications"
+    },
+    "/automations/{automationId}": {
+      "schema": "AutomationRule",
+      "description": "Collection of workflow automations"
+    },
+    "/email_threads/{threadId}": {
+      "schema": "EmailThread",
+      "description": "Collection of email threads"
+    },
+    "/project_templates/{templateId}": {
+      "schema": "ProjectTemplate",
+      "description": "Collection of project templates"
     },
     "/settings/{settingId}": {
       "schema": "BrandingSettings",

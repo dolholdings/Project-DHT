@@ -109,6 +109,9 @@ export const UsersView: React.FC = () => {
   const [role, setRole] = useState<Role>('Team Member');
   const [department, setDepartment] = useState('Engineering');
   const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id || 'comp_5');
+  const [accessScope, setAccessScope] = useState<'all' | 'specific'>('all');
+  const [selectedAllowedCompanyIds, setSelectedAllowedCompanyIds] = useState<string[]>([]);
+  const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
 
   // Custom company option state
   const [isCustomCompany, setIsCustomCompany] = useState(false);
@@ -140,6 +143,9 @@ export const UsersView: React.FC = () => {
   const [editUserDepartment, setEditUserDepartment] = useState('');
   const [editUserRole, setEditUserRole] = useState<Role>('Team Member');
   const [editUserCompanyId, setEditUserCompanyId] = useState('');
+  const [editUserAccessScope, setEditUserAccessScope] = useState<'all' | 'specific'>('all');
+  const [editUserAllowedCompanyIds, setEditUserAllowedCompanyIds] = useState<string[]>([]);
+  const [editUserIsSuperAdmin, setEditUserIsSuperAdmin] = useState(false);
   const [editUserHourlyRate, setEditUserHourlyRate] = useState(100);
   const [editUserMaxHours, setEditUserMaxHours] = useState(40);
   const [editUserStatus, setEditUserStatus] = useState<'Active' | 'Offline' | 'In Meeting' | 'On Leave'>('Active');
@@ -167,6 +173,9 @@ export const UsersView: React.FC = () => {
 
   // Filtered Users computation
   const filteredUsers = users.filter((u) => {
+    // Exclude soft-deleted users from active list
+    if (u.isDeleted) return false;
+
     // Company filter
     if (companyFilter === 'internal') {
       const c = companies.find((comp) => comp.id === u.companyId);
@@ -257,6 +266,13 @@ export const UsersView: React.FC = () => {
     setEditUserDepartment(u.department || 'Engineering');
     setEditUserRole(u.role);
     setEditUserCompanyId(u.companyId || companies[0]?.id || 'comp_5');
+    setEditUserAccessScope(u.companyAccessScope || (u.isSuperAdmin || u.role === 'Admin' ? 'all' : 'specific'));
+    setEditUserAllowedCompanyIds(
+      u.allowedCompanyIds && u.allowedCompanyIds.length > 0
+        ? u.allowedCompanyIds
+        : [u.companyId || companies[0]?.id || 'comp_5']
+    );
+    setEditUserIsSuperAdmin(!!u.isSuperAdmin || u.role === 'Admin');
     setEditUserHourlyRate(u.hourlyRate || 100);
     setEditUserMaxHours(u.maxWeeklyHours || 40);
     setEditUserStatus(u.status || 'Active');
@@ -273,6 +289,14 @@ export const UsersView: React.FC = () => {
       department: editUserDepartment,
       role: editUserRole,
       companyId: editUserCompanyId,
+      companyAccessScope: editUserAccessScope,
+      allowedCompanyIds:
+        editUserAccessScope === 'all' || editUserIsSuperAdmin || editUserRole === 'Admin'
+          ? ['all']
+          : editUserAllowedCompanyIds.length > 0
+          ? editUserAllowedCompanyIds
+          : [editUserCompanyId],
+      isSuperAdmin: editUserIsSuperAdmin || editUserRole === 'Admin',
       hourlyRate: Number(editUserHourlyRate) || 100,
       maxWeeklyHours: Number(editUserMaxHours) || 40,
       status: editUserStatus
@@ -342,14 +366,45 @@ export const UsersView: React.FC = () => {
       return;
     }
 
-    const res = inviteUser(name, email, role, department, targetCompanyId, finalPassword, selectedSpaceIds);
+    const finalAllowedCompanyIds =
+      accessScope === 'all' || isSuperAdminUser || role === 'Admin'
+        ? ['all']
+        : selectedAllowedCompanyIds.length > 0
+        ? selectedAllowedCompanyIds
+        : [targetCompanyId];
+
+    const finalIsSuperAdmin =
+      isSuperAdminUser ||
+      role === 'Admin' ||
+      cleanEmail === 'dolphingroup786@gmail.com' ||
+      cleanEmail === 'admin@dolrad.ae' ||
+      cleanEmail === 'ceo@dolphingroup.ae';
+
+    const res = inviteUser(
+      name,
+      email,
+      role,
+      department,
+      targetCompanyId,
+      finalPassword,
+      selectedSpaceIds,
+      finalAllowedCompanyIds,
+      finalIsSuperAdmin
+    );
 
     if (!res.success) {
       setInviteError(res.error || 'Failed to add user.');
     } else {
       const targetComp = companies.find((c) => c.id === targetCompanyId) || { name: customCompanyName || 'Specified Entity' };
+      // Switch to users sub-tab and reset filters so the newly created user is immediately visible in the table
+      setActiveSubTab('users');
+      setUserSearchQuery('');
+      setCompanyFilter('all');
+      setRoleFilter('all');
+      setStatusFilter('all');
+
       setInviteSuccess(
-        `User "${name}" (${email}) added successfully with assigned password "${finalPassword}" and ${selectedSpaceIds.length} space(s) assigned!`
+        `User "${name}" (${email}) added successfully with assigned password "${finalPassword}", ${finalIsSuperAdmin ? 'Super Admin / All-Company Access' : `${finalAllowedCompanyIds.length} company access`}, and ${selectedSpaceIds.length} space(s) assigned!`
       );
       setTimeout(() => {
         setShowInviteModal(false);
@@ -358,6 +413,9 @@ export const UsersView: React.FC = () => {
         setAssignedPassword('');
         setRole('Team Member');
         setDepartment('Engineering');
+        setAccessScope('all');
+        setSelectedAllowedCompanyIds([]);
+        setIsSuperAdminUser(false);
         setIsCustomCompany(false);
         setCustomCompanyName('');
         setCustomCompanyDomain('');
@@ -1709,20 +1767,21 @@ export const UsersView: React.FC = () => {
       {/* MODAL 1: Add User & Grant Access Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in zoom-in-95 border ${
+          <div className={`rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col shadow-2xl animate-in zoom-in-95 border ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
           }`}>
-            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+            <div className={`flex items-center justify-between border-b p-5 pb-4 shrink-0 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
               <div>
                 <h2 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
                   <UserPlus className="w-5 h-5 text-[#0773BB]" />
                   <span>Add New User & Assign Access Level</span>
                 </h2>
-                <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  Manually add a team member or partner user, specify their company, and assign their access permissions.
+                <p className={`text-xs mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                  Create team members or partners, configure domain access, and assign multi-company permissions.
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowInviteModal(false)}
                 className={isLight ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'}
               >
@@ -1730,13 +1789,13 @@ export const UsersView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleAddUser} className="space-y-4 text-xs">
+            <form onSubmit={handleAddUser} className="space-y-4 text-xs p-5 overflow-y-auto flex-1">
               <div>
                 <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Full Name *</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g., Hamdan Al-Nuaimi"
+                  placeholder="e.g., Hamdan Al-Nuaimi or System Analyst"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className={`w-full rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
@@ -1752,7 +1811,7 @@ export const UsersView: React.FC = () => {
                 <input
                   type="email"
                   required
-                  placeholder="e.g., hamdan@company.com"
+                  placeholder="e.g., sys_analyst@dolrad.ae or user@company.com"
                   value={email}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -1769,6 +1828,30 @@ export const UsersView: React.FC = () => {
                     isLight ? 'bg-slate-50 border border-slate-300 text-slate-900' : 'bg-[#0D1520] border border-[#233549] text-white'
                   }`}
                 />
+
+                {email.includes('@') && (
+                  <div className={`mt-2 p-2.5 rounded-xl text-xs flex items-center gap-2 border ${
+                    isLight ? 'bg-sky-50 border-sky-200 text-sky-900' : 'bg-[#0773BB]/10 border-[#0773BB]/30 text-sky-300'
+                  }`}>
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div className="flex-1">
+                      <span className="font-semibold">Domain Recognized: </span>
+                      <span className="font-mono font-bold">@{email.split('@')[1]}</span>
+                      {(() => {
+                        const dom = (email.split('@')[1] || '').toLowerCase().trim();
+                        const matched = companies.find((c) => (c.domain || '').toLowerCase() === dom);
+                        if (matched) {
+                          return (
+                            <span className="ml-1 font-medium text-emerald-700 dark:text-emerald-400">
+                              — Matched to <span className="font-bold">{matched.name}</span> ({matched.code})
+                            </span>
+                          );
+                        }
+                        return <span className="ml-1 text-slate-500">— Will be automatically whitelisted for secure login</span>;
+                      })()}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Password Setting Field */}
@@ -1802,10 +1885,10 @@ export const UsersView: React.FC = () => {
                 />
               </div>
 
-              {/* Company Selection or Custom Company Entry */}
+              {/* Primary Company Selection or Custom Company Entry */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Company Entity *</label>
+                  <label className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Primary Company Entity *</label>
                   <button
                     type="button"
                     onClick={() => setIsCustomCompany(!isCustomCompany)}
@@ -1875,13 +1958,194 @@ export const UsersView: React.FC = () => {
                 )}
               </div>
 
+              {/* Multi-Company & Super Admin Access Scope Section */}
+              <div className={`p-3.5 rounded-xl border space-y-3 ${
+                isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <label className={`font-bold flex items-center gap-1.5 text-xs ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                    <Building2 className="w-4 h-4 text-[#0773BB]" />
+                    <span>Company & Dashboard Access Scope</span>
+                  </label>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                    accessScope === 'all'
+                      ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+                      : 'bg-[#0773BB]/20 text-[#0773BB] border border-[#0773BB]/30'
+                  }`}>
+                    {accessScope === 'all' ? 'All Companies' : 'Specific Entities'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccessScope('all');
+                      setSelectedAllowedCompanyIds([]);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      accessScope === 'all'
+                        ? isLight
+                          ? 'bg-amber-50 border-amber-400 shadow-sm'
+                          : 'bg-amber-500/10 border-amber-500/50 shadow-sm'
+                        : isLight
+                        ? 'bg-white border-slate-200 hover:bg-slate-100'
+                        : 'bg-[#16222F] border-[#233549] hover:bg-[#1f2d3d]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <ShieldCheck className="w-4 h-4 text-amber-500" />
+                      <span className="font-bold text-xs">All Companies (Super Admin)</span>
+                    </div>
+                    <p className={`text-[10px] leading-tight ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      Access dashboards and spaces across all Dolphin entities & partners.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccessScope('specific');
+                      if (selectedAllowedCompanyIds.length === 0) {
+                        setSelectedAllowedCompanyIds([selectedCompanyId]);
+                      }
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      accessScope === 'specific'
+                        ? isLight
+                          ? 'bg-sky-50 border-[#0773BB] shadow-sm'
+                          : 'bg-[#0773BB]/10 border-[#0773BB]/60 shadow-sm'
+                        : isLight
+                        ? 'bg-white border-slate-200 hover:bg-slate-100'
+                        : 'bg-[#16222F] border-[#233549] hover:bg-[#1f2d3d]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Building2 className="w-4 h-4 text-[#0773BB]" />
+                      <span className="font-bold text-xs">Specific Companies</span>
+                    </div>
+                    <p className={`text-[10px] leading-tight ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      Limit user visibility strictly to selected company entities only.
+                    </p>
+                  </button>
+                </div>
+
+                {/* Specific Companies Checkbox Selector */}
+                {accessScope === 'specific' && (
+                  <div className="space-y-2 pt-1 animate-in fade-in">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                        Allowed Companies ({selectedAllowedCompanyIds.length} of {companies.length} selected):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAllowedCompanyIds(companies.map((c) => c.id))}
+                          className="text-[#0773BB] hover:underline font-bold"
+                        >
+                          Select All
+                        </button>
+                        <span>•</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAllowedCompanyIds([selectedCompanyId])}
+                          className="text-[#0773BB] hover:underline font-bold"
+                        >
+                          Primary Only
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={`max-h-36 overflow-y-auto p-2 rounded-xl border space-y-1.5 ${
+                      isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+                    }`}>
+                      {companies.map((c) => {
+                        const isChecked = selectedAllowedCompanyIds.includes(c.id);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                              isChecked
+                                ? isLight
+                                  ? 'bg-sky-50 text-slate-900 font-bold border border-sky-200'
+                                  : 'bg-[#0773BB]/20 text-white font-bold border border-[#0773BB]/40'
+                                : isLight
+                                ? 'hover:bg-slate-50 text-slate-700'
+                                : 'hover:bg-[#0D1520] text-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedAllowedCompanyIds((prev) => [...prev, c.id]);
+                                  } else {
+                                    setSelectedAllowedCompanyIds((prev) => prev.filter((id) => id !== c.id));
+                                  }
+                                }}
+                                className="rounded text-[#0773BB] focus:ring-[#0773BB]"
+                              />
+                              <span>{c.name}</span>
+                              <span className="text-[10px] font-mono text-slate-400">({c.domain})</span>
+                            </div>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-500/10 font-mono text-slate-400">
+                              {c.code}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Super Admin Explicit Flag */}
+                <label className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer transition-colors ${
+                  isLight ? 'hover:bg-slate-200/60' : 'hover:bg-[#16222F]'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={isSuperAdminUser || role === 'Admin'}
+                    disabled={role === 'Admin'}
+                    onChange={(e) => {
+                      setIsSuperAdminUser(e.target.checked);
+                      if (e.target.checked) {
+                        setAccessScope('all');
+                      }
+                    }}
+                    className="rounded text-amber-500 focus:ring-amber-500"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`font-bold text-xs ${isLight ? 'text-slate-900' : 'text-white'}`}>
+                        Grant Super Administrator Privileges
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                        Full Group Bypass
+                      </span>
+                    </div>
+                    <p className={`text-[10px] ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                      Super Admins can see all company projects, metrics, and manage user authorizations globally.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
               {/* Role & Department */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Access Level (Role) *</label>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value as Role)}
+                    onChange={(e) => {
+                      const newRole = e.target.value as Role;
+                      setRole(newRole);
+                      if (newRole === 'Admin') {
+                        setAccessScope('all');
+                        setIsSuperAdminUser(true);
+                      }
+                    }}
                     className={`w-full rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
                       isLight ? 'bg-slate-50 border border-slate-300 text-slate-900' : 'bg-[#0D1520] border border-[#233549] text-white'
                     }`}
@@ -1902,7 +2166,7 @@ export const UsersView: React.FC = () => {
                     className={`w-full rounded-xl px-3 py-2 ${
                       isLight ? 'bg-slate-50 border border-slate-300 text-slate-900' : 'bg-[#0D1520] border border-[#233549] text-white'
                     }`}
-                    placeholder="e.g. Thermal Design, QA/QC"
+                    placeholder="e.g. Thermal Design, Systems Analysis, QA/QC"
                   />
                 </div>
               </div>
@@ -1932,7 +2196,9 @@ export const UsersView: React.FC = () => {
                   </button>
                 </div>
                 <p className={`text-[11px] mb-2 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                  Non-admin users can ONLY view spaces assigned to them. If no spaces are checked, the user will not see any spaces upon login until assigned.
+                  {isSuperAdminUser || role === 'Admin' || accessScope === 'all'
+                    ? 'Super Admins & Group Admins automatically enjoy global visibility over all workspace spaces, but you can also explicitly assign them here.'
+                    : 'Non-admin users can ONLY view spaces assigned to them.'}
                 </p>
                 <div className={`max-h-36 overflow-y-auto p-2 rounded-xl border space-y-1.5 ${
                   isLight ? 'bg-slate-50 border-slate-300' : 'bg-[#0D1520] border-[#233549]'
@@ -2245,238 +2511,6 @@ export const UsersView: React.FC = () => {
                   className="px-5 py-2 rounded-xl bg-[#0773BB] text-white font-medium shadow-lg"
                 >
                   Register & Whitelist Domain
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Invite User Modal */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className={`border rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl relative ${isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#16222F] border-[#233549] text-white'}`}>
-            <div className={`flex items-center justify-between border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
-              <div>
-                <h2 className={`text-base font-bold flex items-center gap-2 ${isLight ? 'text-slate-900' : 'text-white'}`}>
-                  <UserPlus className="w-5 h-5 text-[#0773BB]" />
-                  <span>Add New User & Assign Access Level</span>
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Manually add a team member or partner user, specify their company, and assign their access permissions.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowInviteModal(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddUser} className="space-y-4 text-xs">
-              <div>
-                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Hamdan Al-Nuaimi"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                  }`}
-                />
-              </div>
-
-              <div>
-                <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                  Corporate Email Address *
-                </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="e.g., hamdan@company.com"
-                  value={email}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setEmail(val);
-                    if (val.includes('@') && !isCustomCompany) {
-                      const dom = (val.split('@')[1] || '').toLowerCase().trim();
-                      const matchedComp = companies.find((c) => (c?.domain || '').toLowerCase() === dom);
-                      if (matchedComp) {
-                        setSelectedCompanyId(matchedComp.id);
-                      }
-                    }
-                  }}
-                  className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-[#0773BB] ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                  }`}
-                />
-              </div>
-
-              {/* Password Setting Field */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className={`font-semibold flex items-center gap-1.5 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-                    <Lock className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Assigned Password *</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const randPass = generateSecureCompliantPassword();
-                      setAssignedPassword(randPass);
-                    }}
-                    className="text-[11px] text-[#3BC0BB] hover:underline font-bold flex items-center gap-1"
-                  >
-                    <Key className="w-3 h-3" /> Auto-Generate Secure Password
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  placeholder="e.g., Dolphin@2026 (or leave blank for auto Dolphin@123)"
-                  value={assignedPassword}
-                  onChange={(e) => setAssignedPassword(e.target.value)}
-                  className={`w-full border rounded-xl px-3 py-2 font-mono focus:outline-none focus:border-[#0773BB] ${
-                    isLight ? 'bg-slate-50 border-slate-300 text-amber-600 font-bold' : 'bg-[#0D1520] border-[#233549] text-amber-300'
-                  }`}
-                />
-              </div>
-
-              {/* Company Selection or Custom Company Entry */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className={`font-semibold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Company Entity *</label>
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomCompany(!isCustomCompany)}
-                    className="text-[11px] text-[#3BC0BB] hover:underline font-bold"
-                  >
-                    {isCustomCompany ? '← Choose Existing Company' : '+ Enter Custom Company Name'}
-                  </button>
-                </div>
-
-                {isCustomCompany ? (
-                  <div className={`space-y-2 p-3 rounded-xl border border-[#0773BB]/50 animate-in fade-in ${
-                    isLight ? 'bg-slate-50' : 'bg-[#0D1520]'
-                  }`}>
-                    <div>
-                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Company Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Dolphin Cooling Systems LLC"
-                        value={customCompanyName}
-                        onChange={(e) => setCustomCompanyName(e.target.value)}
-                        className={`w-full border rounded-lg px-2.5 py-1.5 ${
-                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
-                        }`}
-                        required={isCustomCompany}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Company Domain (Optional)</label>
-                      <input
-                        type="text"
-                        placeholder="e.g., dolcool.ae"
-                        value={customCompanyDomain}
-                        onChange={(e) => setCustomCompanyDomain(e.target.value)}
-                        className={`w-full border rounded-lg px-2.5 py-1.5 font-mono ${
-                          isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <select
-                    value={selectedCompanyId}
-                    onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  >
-                    <optgroup label="Internal Dolphin Entities">
-                      {companies
-                        .filter((c) => !c.isExternal)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} ({c.domain})
-                          </option>
-                        ))}
-                    </optgroup>
-                    <optgroup label="Registered External Partners & Clients">
-                      {companies
-                        .filter((c) => c.isExternal)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} - {c.type} ({c.domain})
-                          </option>
-                        ))}
-                    </optgroup>
-                  </select>
-                )}
-              </div>
-
-              {/* Role & Department */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Access Level (Role) *</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as Role)}
-                    className={`w-full border rounded-xl px-3 py-2 focus:outline-none focus:border-[#0773BB] ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                  >
-                    <option value="Viewer">Viewer (Read-Only Access)</option>
-                    <option value="Team Member">Team Member (Standard Member)</option>
-                    <option value="Project Manager">Project Manager (PM Access)</option>
-                    <option value="Admin">Admin (Full System Governance)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={`block font-semibold mb-1 ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>Department</label>
-                  <input
-                    type="text"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className={`w-full border rounded-xl px-3 py-2 ${
-                      isLight ? 'bg-slate-50 border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
-                    }`}
-                    placeholder="e.g. Thermal Design, QA/QC"
-                  />
-                </div>
-              </div>
-
-              {inviteError && (
-                <div className="p-3 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 text-xs flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
-                  <span>{inviteError}</span>
-                </div>
-              )}
-
-              {inviteSuccess && (
-                <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold text-center">
-                  {inviteSuccess}
-                </div>
-              )}
-
-              <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
-                <button
-                  type="button"
-                  onClick={() => setShowInviteModal(false)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                    isLight ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' : 'bg-[#0D1520] text-slate-300'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold shadow-lg transition-all"
-                >
-                  Save & Add User
                 </button>
               </div>
             </form>

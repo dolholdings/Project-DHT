@@ -1,4 +1,4 @@
-import { User, Project, Task, SpaceRole } from '../types';
+import { User, Project, Task, SpaceRole, Company } from '../types';
 
 export type PermissionAction =
   | 'create_user'
@@ -20,10 +20,61 @@ export function normalizeRole(role?: string | null): string {
 }
 
 /**
+ * Checks if a user has Super Admin or Group-Wide Full Access privileges.
+ */
+export function isUserSuperAdmin(user: User | null): boolean {
+  if (!user) return false;
+  const role = normalizeRole(user.role);
+  if (role === 'admin' || user.isSuperAdmin === true) return true;
+  const email = (user.email || '').toLowerCase().trim();
+  if (
+    email === 'dolphingroup786@gmail.com' ||
+    email === 'admin@dolrad.ae' ||
+    email === 'ceo@dolphingroup.ae' ||
+    email.startsWith('sys_analyst@') ||
+    email.startsWith('sysadmin@')
+  ) {
+    return true;
+  }
+  if (
+    user.companyAccessScope === 'all' ||
+    (user.allowedCompanyIds &&
+      (user.allowedCompanyIds.includes('all') ||
+        user.allowedCompanyIds.includes('*') ||
+        user.allowedCompanyIds.includes('comp_corp')))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Checks if a user has access to a specific company/workspace entity.
+ */
+export function canAccessCompany(user: User | null, companyId: string): boolean {
+  if (!user) return false;
+  if (isUserSuperAdmin(user)) return true;
+  if (user.companyId === companyId) return true;
+  if (user.allowedCompanyIds && user.allowedCompanyIds.includes(companyId)) return true;
+  return false;
+}
+
+/**
+ * Filters a list of companies so users only see entities they have permission to access.
+ */
+export function getAccessibleCompanies(user: User | null, companies: Company[]): Company[] {
+  if (!user) return [];
+  if (isUserSuperAdmin(user)) return companies;
+  return companies.filter((c) => canAccessCompany(user, c.id));
+}
+
+/**
  * Resolves the SpaceRole ('Admin' | 'Editor' | 'Viewer') for a given user in a project space.
  */
 export function getSpaceRole(user: User | null, project: Project | null): SpaceRole | null {
   if (!user || !project) return null;
+
+  if (isUserSuperAdmin(user)) return 'Admin';
 
   const normalizedUserRole = normalizeRole(user.role);
 
@@ -54,6 +105,11 @@ export function getSpaceRole(user: User | null, project: Project | null): SpaceR
         if (typeof key === 'string' && key.toLowerCase() === userEmailLower) return roleVal as SpaceRole;
       }
     }
+  }
+
+  // If user has company-wide access to this project's company
+  if (user.allowedCompanyIds && user.allowedCompanyIds.includes(project.companyId)) {
+    return normalizedUserRole === 'project manager' ? 'Admin' : 'Editor';
   }
 
   return null;
@@ -88,7 +144,7 @@ export function isViewerOnly(user: User | null, project: Project | null): boolea
  */
 export function canAccessProject(user: User | null, project: Project | null): boolean {
   if (!user || !project) return false;
-  if (normalizeRole(user.role) === 'admin') return true;
+  if (isUserSuperAdmin(user)) return true;
   return getSpaceRole(user, project) !== null;
 }
 
@@ -97,7 +153,7 @@ export function canAccessProject(user: User | null, project: Project | null): bo
  */
 export function getAccessibleProjects(user: User | null, projects: Project[]): Project[] {
   if (!user) return [];
-  if (normalizeRole(user.role) === 'admin') return projects;
+  if (isUserSuperAdmin(user)) return projects;
   return projects.filter((p) => canAccessProject(user, p));
 }
 
@@ -106,7 +162,7 @@ export function getAccessibleProjects(user: User | null, projects: Project[]): P
  */
 export function getAccessibleTasks(user: User | null, tasks: Task[], projects: Project[]): Task[] {
   if (!user) return [];
-  if (normalizeRole(user.role) === 'admin') return tasks;
+  if (isUserSuperAdmin(user)) return tasks;
 
   const accessibleProjectIds = new Set(getAccessibleProjects(user, projects).map((p) => p.id));
   return tasks.filter((t) => {
@@ -119,32 +175,29 @@ export function getAccessibleTasks(user: User | null, tasks: Task[], projects: P
 
 /**
  * Checks if the user has permission to create or invite new users.
- * Strictly restricted to Workspace Administrators.
+ * Strictly restricted to Workspace Administrators and Super Admins.
  */
 export function canCreateUser(user: User | null): boolean {
   if (!user) return false;
-  const role = normalizeRole(user.role);
-  return role === 'admin';
+  return isUserSuperAdmin(user);
 }
 
 /**
  * Checks if the user has permission to view the organization user profiles directory (Users master view).
- * Strictly restricted to Workspace Administrators (Team Members, Viewers, and Project Managers are blocked).
+ * Strictly restricted to Workspace Administrators and Super Admins.
  */
 export function canViewUsersDirectory(user: User | null): boolean {
   if (!user) return false;
-  const role = normalizeRole(user.role);
-  return role === 'admin';
+  return isUserSuperAdmin(user);
 }
 
 /**
  * Checks if the user has permission to remove or delete users.
- * Team Members, Viewers, and Project Managers are NOT allowed to delete users. Only Admins can.
+ * Strictly restricted to Workspace Administrators.
  */
 export function canDeleteUser(user: User | null): boolean {
   if (!user) return false;
-  const role = normalizeRole(user.role);
-  return role === 'admin';
+  return isUserSuperAdmin(user);
 }
 
 /**

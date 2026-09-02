@@ -31,6 +31,9 @@ export interface User {
   email: string;
   role: Role;
   companyId: string;
+  allowedCompanyIds?: string[]; // e.g. ['all'] or list of company IDs like ['comp_dml', 'comp_dht']
+  companyAccessScope?: 'all' | 'specific';
+  isSuperAdmin?: boolean;
   avatar: string;
   department: string;
   hourlyRate: number;

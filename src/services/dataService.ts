@@ -10,15 +10,44 @@ import {
   query
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Project, Task, ProjectFile, User, Company } from '../types';
+import {
+  Project,
+  Task,
+  ProjectFile,
+  User,
+  Company,
+  Subtask,
+  TaskComment,
+  TaskDependency,
+  TimeEntry,
+  CustomFieldDefinition,
+  Sprint,
+  ActivityLog,
+  Notification,
+  AutomationRule,
+  EmailThread,
+  ProjectTemplate
+} from '../types';
 
 const COMPANIES_COLLECTION = 'companies';
 const PROJECTS_COLLECTION = 'projects';
 const TASKS_COLLECTION = 'tasks';
+const SUBTASKS_COLLECTION = 'subtasks';
+const TASK_COMMENTS_COLLECTION = 'task_comments';
+const DEPENDENCIES_COLLECTION = 'dependencies';
 const FILES_COLLECTION = 'files';
 const USERS_COLLECTION = 'users';
+const TIME_ENTRIES_COLLECTION = 'time_entries';
+const CUSTOM_FIELDS_COLLECTION = 'custom_fields';
+const SPRINTS_COLLECTION = 'sprints';
+const ACTIVITY_LOGS_COLLECTION = 'activity_logs';
+const NOTIFICATIONS_COLLECTION = 'notifications';
+const AUTOMATIONS_COLLECTION = 'automations';
+const EMAIL_THREADS_COLLECTION = 'email_threads';
+const PROJECT_TEMPLATES_COLLECTION = 'project_templates';
 const SETTINGS_COLLECTION = 'settings';
 const BRANDING_DOC_ID = 'branding';
+const AUTH_DOMAINS_DOC_ID = 'auth_domains';
 
 // ==================== SANITIZATION FOR FIRESTORE ====================
 
@@ -394,25 +423,12 @@ export async function fetchUsersFromFirestore(): Promise<User[]> {
 }
 
 export function deduplicateUserList(usersList: (User | undefined | null)[]): User[] {
-  const legacyEmails = new Set([
-    'tareq.aldolphin@dolphingroup.ae',
-    'parvez.khan@dolphingroup.ae',
-    'suhail.ahmed@dolrad.ae',
-    'fatima.zohra@dolheat.ae',
-    'rashed.m@dolcool.ae',
-    'elena.rostova@dolheat.ae',
-    'omar.mansoor@dolphingroup.ae',
-    'sys_analyst@dolrad.ae',
-    'proj@dolheat.ae',
-    'prog.mgr@dolheat.ae'
-  ]);
-
   const mapByEmail = new Map<string, User>();
 
   for (const raw of usersList) {
     if (!raw || !raw.email) continue;
     const cleanEmail = String(raw.email).trim().toLowerCase();
-    if (!cleanEmail || legacyEmails.has(cleanEmail)) continue;
+    if (!cleanEmail) continue;
 
     const existing = mapByEmail.get(cleanEmail);
     if (!existing) {
@@ -449,6 +465,9 @@ export function deduplicateUserList(usersList: (User | undefined | null)[]): Use
         role: raw.role || existing.role,
         department: raw.department || existing.department,
         companyId: raw.companyId || existing.companyId,
+        allowedCompanyIds: raw.allowedCompanyIds !== undefined ? raw.allowedCompanyIds : existing.allowedCompanyIds,
+        companyAccessScope: raw.companyAccessScope !== undefined ? raw.companyAccessScope : existing.companyAccessScope,
+        isSuperAdmin: raw.isSuperAdmin !== undefined ? raw.isSuperAdmin : existing.isSuperAdmin,
         avatar: raw.avatar || existing.avatar,
         password: mergedPassword,
         status,
@@ -857,7 +876,12 @@ export async function seedInitialFirestoreData(
   initialTasks: Task[],
   initialFiles: ProjectFile[] = [],
   initialUsers: User[] = [],
-  initialCompanies: Company[] = []
+  initialCompanies: Company[] = [],
+  initialSubtasks: Subtask[] = [],
+  initialDependencies: TaskDependency[] = [],
+  initialCustomFields: CustomFieldDefinition[] = [],
+  initialTemplates: ProjectTemplate[] = [],
+  initialSprints: Sprint[] = []
 ): Promise<void> {
   try {
     // 1. Companies / Workspaces seeding
@@ -907,6 +931,56 @@ export async function seedInitialFirestoreData(
     if (existingFiles.length === 0 && initialFiles.length > 0) {
       for (const f of initialFiles) {
         await createFileInFirestore(f);
+      }
+    }
+
+    // 6. Subtasks seeding
+    if (initialSubtasks.length > 0) {
+      const existingSubtasks = await fetchSubtasksFromFirestore();
+      if (existingSubtasks.length === 0) {
+        for (const st of initialSubtasks) {
+          await createSubtaskInFirestore(st);
+        }
+      }
+    }
+
+    // 7. Dependencies seeding
+    if (initialDependencies.length > 0) {
+      const existingDeps = await fetchDependenciesFromFirestore();
+      if (existingDeps.length === 0) {
+        for (const d of initialDependencies) {
+          await createDependencyInFirestore(d);
+        }
+      }
+    }
+
+    // 8. Custom Fields seeding
+    if (initialCustomFields.length > 0) {
+      const existingFields = await fetchCustomFieldsFromFirestore();
+      if (existingFields.length === 0) {
+        for (const cf of initialCustomFields) {
+          await createCustomFieldInFirestore(cf);
+        }
+      }
+    }
+
+    // 9. Project Templates seeding
+    if (initialTemplates.length > 0) {
+      const existingTpls = await fetchProjectTemplatesFromFirestore();
+      if (existingTpls.length === 0) {
+        for (const tpl of initialTemplates) {
+          await createProjectTemplateInFirestore(tpl);
+        }
+      }
+    }
+
+    // 10. Sprints seeding
+    if (initialSprints.length > 0) {
+      const existingSprints = await fetchSprintsFromFirestore();
+      if (existingSprints.length === 0) {
+        for (const sp of initialSprints) {
+          await createSprintInFirestore(sp);
+        }
       }
     }
   } catch (error) {
@@ -962,6 +1036,717 @@ export function subscribeToBrandingSettings(
         return;
       }
       console.warn('Firestore branding snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+// ==================== SUBTASKS CRUD ====================
+
+export async function fetchSubtasksFromFirestore(): Promise<Subtask[]> {
+  try {
+    const colRef = collection(db, SUBTASKS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const subtasks: Subtask[] = [];
+    snapshot.forEach((docSnap) => {
+      subtasks.push({ id: docSnap.id, ...docSnap.data() } as Subtask);
+    });
+    return subtasks;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, SUBTASKS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToSubtasks(onUpdate: (subtasks: Subtask[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, SUBTASKS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const subtasks: Subtask[] = [];
+      snapshot.forEach((docSnap) => {
+        subtasks.push({ id: docSnap.id, ...docSnap.data() } as Subtask);
+      });
+      onUpdate(subtasks);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore subtasks snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createSubtaskInFirestore(subtask: Subtask): Promise<void> {
+  const docRef = doc(db, SUBTASKS_COLLECTION, subtask.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(subtask));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `subtasks/${subtask.id}`);
+  }
+}
+
+export async function updateSubtaskInFirestore(id: string, updates: Partial<Subtask>): Promise<void> {
+  const docRef = doc(db, SUBTASKS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `subtasks/${id}`);
+  }
+}
+
+export async function deleteSubtaskFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, SUBTASKS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `subtasks/${id}`);
+  }
+}
+
+// ==================== TASK COMMENTS CRUD ====================
+
+export async function fetchTaskCommentsFromFirestore(): Promise<TaskComment[]> {
+  try {
+    const colRef = collection(db, TASK_COMMENTS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const comments: TaskComment[] = [];
+    snapshot.forEach((docSnap) => {
+      comments.push({ id: docSnap.id, ...docSnap.data() } as TaskComment);
+    });
+    return comments;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, TASK_COMMENTS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToTaskComments(onUpdate: (comments: TaskComment[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, TASK_COMMENTS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const comments: TaskComment[] = [];
+      snapshot.forEach((docSnap) => {
+        comments.push({ id: docSnap.id, ...docSnap.data() } as TaskComment);
+      });
+      onUpdate(comments);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore comments snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createTaskCommentInFirestore(comment: TaskComment): Promise<void> {
+  const docRef = doc(db, TASK_COMMENTS_COLLECTION, comment.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(comment));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `task_comments/${comment.id}`);
+  }
+}
+
+export async function deleteTaskCommentFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, TASK_COMMENTS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `task_comments/${id}`);
+  }
+}
+
+// ==================== TASK DEPENDENCIES CRUD ====================
+
+export async function fetchDependenciesFromFirestore(): Promise<TaskDependency[]> {
+  try {
+    const colRef = collection(db, DEPENDENCIES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const deps: TaskDependency[] = [];
+    snapshot.forEach((docSnap) => {
+      deps.push({ id: docSnap.id, ...docSnap.data() } as TaskDependency);
+    });
+    return deps;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, DEPENDENCIES_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToDependencies(onUpdate: (deps: TaskDependency[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, DEPENDENCIES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const deps: TaskDependency[] = [];
+      snapshot.forEach((docSnap) => {
+        deps.push({ id: docSnap.id, ...docSnap.data() } as TaskDependency);
+      });
+      onUpdate(deps);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore dependencies snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createDependencyInFirestore(dependency: TaskDependency): Promise<void> {
+  const docRef = doc(db, DEPENDENCIES_COLLECTION, dependency.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(dependency));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `dependencies/${dependency.id}`);
+  }
+}
+
+export async function deleteDependencyFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, DEPENDENCIES_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `dependencies/${id}`);
+  }
+}
+
+// ==================== TIME ENTRIES CRUD ====================
+
+export async function fetchTimeEntriesFromFirestore(): Promise<TimeEntry[]> {
+  try {
+    const colRef = collection(db, TIME_ENTRIES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const entries: TimeEntry[] = [];
+    snapshot.forEach((docSnap) => {
+      entries.push({ id: docSnap.id, ...docSnap.data() } as TimeEntry);
+    });
+    return entries;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, TIME_ENTRIES_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToTimeEntries(onUpdate: (entries: TimeEntry[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, TIME_ENTRIES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const entries: TimeEntry[] = [];
+      snapshot.forEach((docSnap) => {
+        entries.push({ id: docSnap.id, ...docSnap.data() } as TimeEntry);
+      });
+      onUpdate(entries);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore time_entries snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createTimeEntryInFirestore(entry: TimeEntry): Promise<void> {
+  const docRef = doc(db, TIME_ENTRIES_COLLECTION, entry.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(entry));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `time_entries/${entry.id}`);
+  }
+}
+
+export async function deleteTimeEntryFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, TIME_ENTRIES_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `time_entries/${id}`);
+  }
+}
+
+// ==================== CUSTOM FIELDS CRUD ====================
+
+export async function fetchCustomFieldsFromFirestore(): Promise<CustomFieldDefinition[]> {
+  try {
+    const colRef = collection(db, CUSTOM_FIELDS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const fields: CustomFieldDefinition[] = [];
+    snapshot.forEach((docSnap) => {
+      fields.push({ id: docSnap.id, ...docSnap.data() } as CustomFieldDefinition);
+    });
+    return fields;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, CUSTOM_FIELDS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToCustomFields(onUpdate: (fields: CustomFieldDefinition[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, CUSTOM_FIELDS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const fields: CustomFieldDefinition[] = [];
+      snapshot.forEach((docSnap) => {
+        fields.push({ id: docSnap.id, ...docSnap.data() } as CustomFieldDefinition);
+      });
+      onUpdate(fields);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore custom_fields snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createCustomFieldInFirestore(field: CustomFieldDefinition): Promise<void> {
+  const docRef = doc(db, CUSTOM_FIELDS_COLLECTION, field.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(field));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `custom_fields/${field.id}`);
+  }
+}
+
+export async function updateCustomFieldInFirestore(id: string, updates: Partial<CustomFieldDefinition>): Promise<void> {
+  const docRef = doc(db, CUSTOM_FIELDS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `custom_fields/${id}`);
+  }
+}
+
+export async function deleteCustomFieldFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, CUSTOM_FIELDS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `custom_fields/${id}`);
+  }
+}
+
+// ==================== SPRINTS CRUD ====================
+
+export async function fetchSprintsFromFirestore(): Promise<Sprint[]> {
+  try {
+    const colRef = collection(db, SPRINTS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const sprints: Sprint[] = [];
+    snapshot.forEach((docSnap) => {
+      sprints.push({ id: docSnap.id, ...docSnap.data() } as Sprint);
+    });
+    return sprints;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, SPRINTS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToSprints(onUpdate: (sprints: Sprint[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, SPRINTS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const sprints: Sprint[] = [];
+      snapshot.forEach((docSnap) => {
+        sprints.push({ id: docSnap.id, ...docSnap.data() } as Sprint);
+      });
+      onUpdate(sprints);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore sprints snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createSprintInFirestore(sprint: Sprint): Promise<void> {
+  const docRef = doc(db, SPRINTS_COLLECTION, sprint.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(sprint));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `sprints/${sprint.id}`);
+  }
+}
+
+export async function updateSprintInFirestore(id: string, updates: Partial<Sprint>): Promise<void> {
+  const docRef = doc(db, SPRINTS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `sprints/${id}`);
+  }
+}
+
+export async function deleteSprintFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, SPRINTS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `sprints/${id}`);
+  }
+}
+
+// ==================== ACTIVITY & AUDIT LOGS CRUD ====================
+
+export async function fetchActivityLogsFromFirestore(): Promise<ActivityLog[]> {
+  try {
+    const colRef = collection(db, ACTIVITY_LOGS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const logs: ActivityLog[] = [];
+    snapshot.forEach((docSnap) => {
+      logs.push({ id: docSnap.id, ...docSnap.data() } as ActivityLog);
+    });
+    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, ACTIVITY_LOGS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToActivityLogs(onUpdate: (logs: ActivityLog[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, ACTIVITY_LOGS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const logs: ActivityLog[] = [];
+      snapshot.forEach((docSnap) => {
+        logs.push({ id: docSnap.id, ...docSnap.data() } as ActivityLog);
+      });
+      const sorted = logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      onUpdate(sorted);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore activity_logs snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createActivityLogInFirestore(log: ActivityLog): Promise<void> {
+  const docRef = doc(db, ACTIVITY_LOGS_COLLECTION, log.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(log));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `activity_logs/${log.id}`);
+  }
+}
+
+// ==================== NOTIFICATIONS CRUD ====================
+
+export async function fetchNotificationsFromFirestore(): Promise<Notification[]> {
+  try {
+    const colRef = collection(db, NOTIFICATIONS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const notifs: Notification[] = [];
+    snapshot.forEach((docSnap) => {
+      notifs.push({ id: docSnap.id, ...docSnap.data() } as Notification);
+    });
+    return notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, NOTIFICATIONS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToNotifications(onUpdate: (notifs: Notification[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, NOTIFICATIONS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const notifs: Notification[] = [];
+      snapshot.forEach((docSnap) => {
+        notifs.push({ id: docSnap.id, ...docSnap.data() } as Notification);
+      });
+      const sorted = notifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onUpdate(sorted);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore notifications snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createNotificationInFirestore(notif: Notification): Promise<void> {
+  const docRef = doc(db, NOTIFICATIONS_COLLECTION, notif.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(notif));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `notifications/${notif.id}`);
+  }
+}
+
+export async function updateNotificationInFirestore(id: string, updates: Partial<Notification>): Promise<void> {
+  const docRef = doc(db, NOTIFICATIONS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `notifications/${id}`);
+  }
+}
+
+export async function deleteNotificationFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, NOTIFICATIONS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `notifications/${id}`);
+  }
+}
+
+// ==================== AUTOMATIONS CRUD ====================
+
+export async function fetchAutomationsFromFirestore(): Promise<AutomationRule[]> {
+  try {
+    const colRef = collection(db, AUTOMATIONS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const automations: AutomationRule[] = [];
+    snapshot.forEach((docSnap) => {
+      automations.push({ id: docSnap.id, ...docSnap.data() } as AutomationRule);
+    });
+    return automations;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, AUTOMATIONS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToAutomations(onUpdate: (automations: AutomationRule[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, AUTOMATIONS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const automations: AutomationRule[] = [];
+      snapshot.forEach((docSnap) => {
+        automations.push({ id: docSnap.id, ...docSnap.data() } as AutomationRule);
+      });
+      onUpdate(automations);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore automations snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createAutomationInFirestore(rule: AutomationRule): Promise<void> {
+  const docRef = doc(db, AUTOMATIONS_COLLECTION, rule.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(rule));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `automations/${rule.id}`);
+  }
+}
+
+export async function updateAutomationInFirestore(id: string, updates: Partial<AutomationRule>): Promise<void> {
+  const docRef = doc(db, AUTOMATIONS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `automations/${id}`);
+  }
+}
+
+export async function deleteAutomationFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, AUTOMATIONS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `automations/${id}`);
+  }
+}
+
+// ==================== EMAIL THREADS CRUD ====================
+
+export async function fetchEmailThreadsFromFirestore(): Promise<EmailThread[]> {
+  try {
+    const colRef = collection(db, EMAIL_THREADS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const threads: EmailThread[] = [];
+    snapshot.forEach((docSnap) => {
+      threads.push({ id: docSnap.id, ...docSnap.data() } as EmailThread);
+    });
+    return threads.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, EMAIL_THREADS_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToEmailThreads(onUpdate: (threads: EmailThread[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, EMAIL_THREADS_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const threads: EmailThread[] = [];
+      snapshot.forEach((docSnap) => {
+        threads.push({ id: docSnap.id, ...docSnap.data() } as EmailThread);
+      });
+      const sorted = threads.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      onUpdate(sorted);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore email_threads snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createEmailThreadInFirestore(thread: EmailThread): Promise<void> {
+  const docRef = doc(db, EMAIL_THREADS_COLLECTION, thread.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(thread));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `email_threads/${thread.id}`);
+  }
+}
+
+export async function updateEmailThreadInFirestore(id: string, updates: Partial<EmailThread>): Promise<void> {
+  const docRef = doc(db, EMAIL_THREADS_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `email_threads/${id}`);
+  }
+}
+
+export async function deleteEmailThreadFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, EMAIL_THREADS_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `email_threads/${id}`);
+  }
+}
+
+// ==================== PROJECT TEMPLATES CRUD ====================
+
+export async function fetchProjectTemplatesFromFirestore(): Promise<ProjectTemplate[]> {
+  try {
+    const colRef = collection(db, PROJECT_TEMPLATES_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    const templates: ProjectTemplate[] = [];
+    snapshot.forEach((docSnap) => {
+      templates.push({ id: docSnap.id, ...docSnap.data() } as ProjectTemplate);
+    });
+    return templates;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, PROJECT_TEMPLATES_COLLECTION);
+    return [];
+  }
+}
+
+export function subscribeToProjectTemplates(onUpdate: (templates: ProjectTemplate[]) => void, onError?: (error: unknown) => void) {
+  const colRef = collection(db, PROJECT_TEMPLATES_COLLECTION);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const templates: ProjectTemplate[] = [];
+      snapshot.forEach((docSnap) => {
+        templates.push({ id: docSnap.id, ...docSnap.data() } as ProjectTemplate);
+      });
+      onUpdate(templates);
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore project_templates snapshot error:', error);
+      if (onError) onError(error);
+    }
+  );
+}
+
+export async function createProjectTemplateInFirestore(template: ProjectTemplate): Promise<void> {
+  const docRef = doc(db, PROJECT_TEMPLATES_COLLECTION, template.id);
+  try {
+    await setDoc(docRef, sanitizeForFirestore(template));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `project_templates/${template.id}`);
+  }
+}
+
+export async function updateProjectTemplateInFirestore(id: string, updates: Partial<ProjectTemplate>): Promise<void> {
+  const docRef = doc(db, PROJECT_TEMPLATES_COLLECTION, id);
+  try {
+    await updateDoc(docRef, sanitizeForFirestore(updates));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `project_templates/${id}`);
+  }
+}
+
+export async function deleteProjectTemplateFromFirestore(id: string): Promise<void> {
+  const docRef = doc(db, PROJECT_TEMPLATES_COLLECTION, id);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `project_templates/${id}`);
+  }
+}
+
+// ==================== AUTHORIZED DOMAINS CRUD ====================
+
+export async function fetchAuthorizedDomainsFromFirestore(): Promise<string[] | null> {
+  try {
+    const docRef = doc(db, SETTINGS_COLLECTION, AUTH_DOMAINS_DOC_ID);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return docSnap.data().domains || [];
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `${SETTINGS_COLLECTION}/${AUTH_DOMAINS_DOC_ID}`);
+    return null;
+  }
+}
+
+export async function saveAuthorizedDomainsToFirestore(domains: string[]): Promise<void> {
+  const docRef = doc(db, SETTINGS_COLLECTION, AUTH_DOMAINS_DOC_ID);
+  try {
+    await setDoc(docRef, sanitizeForFirestore({
+      domains,
+      updatedAt: new Date().toISOString()
+    }), { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `${SETTINGS_COLLECTION}/${AUTH_DOMAINS_DOC_ID}`);
+  }
+}
+
+export function subscribeToAuthorizedDomains(onUpdate: (domains: string[]) => void, onError?: (error: unknown) => void) {
+  const docRef = doc(db, SETTINGS_COLLECTION, AUTH_DOMAINS_DOC_ID);
+  return onSnapshot(
+    docRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const domains = docSnap.data().domains;
+        if (Array.isArray(domains)) {
+          onUpdate(domains);
+        }
+      }
+    },
+    (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
+      if (msg.includes('closing') || msg.includes('hidden') || msg.includes('offline')) return;
+      console.warn('Firestore auth_domains snapshot error:', error);
       if (onError) onError(error);
     }
   );

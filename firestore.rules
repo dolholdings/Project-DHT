@@ -22,12 +22,67 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Subtasks Collection
+    match /subtasks/{subtaskId} {
+      allow read, write: if true;
+    }
+
+    // Task Comments Collection
+    match /task_comments/{commentId} {
+      allow read, write: if true;
+    }
+
+    // Dependencies Collection
+    match /dependencies/{dependencyId} {
+      allow read, write: if true;
+    }
+
     // Files Collection
     match /files/{fileId} {
       allow read, write: if true;
     }
 
-    // Settings Collection (Branding, App Config)
+    // Time Entries Collection
+    match /time_entries/{entryId} {
+      allow read, write: if true;
+    }
+
+    // Custom Fields Collection
+    match /custom_fields/{fieldId} {
+      allow read, write: if true;
+    }
+
+    // Sprints Collection
+    match /sprints/{sprintId} {
+      allow read, write: if true;
+    }
+
+    // Activity & Audit Logs Collection
+    match /activity_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Automations Collection
+    match /automations/{automationId} {
+      allow read, write: if true;
+    }
+
+    // Email Threads Collection
+    match /email_threads/{threadId} {
+      allow read, write: if true;
+    }
+
+    // Project Templates Collection
+    match /project_templates/{templateId} {
+      allow read, write: if true;
+    }
+
+    // Settings Collection (Branding, App Config, Domains)
     match /settings/{settingId} {
       allow read, write: if true;
     }
@@ -43,4 +98,5 @@ service cloud.firestore {
     }
   }
 }
+
 

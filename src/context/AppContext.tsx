@@ -46,7 +46,8 @@ import {
   canDeleteUser,
   canCreateSpace,
   canDeleteSpace,
-  canDeleteTask
+  canDeleteTask,
+  isUserSuperAdmin
 } from '../lib/permissions';
 import {
   INITIAL_COMPANIES,
@@ -101,6 +102,47 @@ import {
   seedInitialFirestoreData,
   clearAllFirestoreData,
   forceRestoreFirestoreData,
+  subscribeToSubtasks,
+  createSubtaskInFirestore,
+  updateSubtaskInFirestore,
+  deleteSubtaskFromFirestore,
+  subscribeToTaskComments,
+  createTaskCommentInFirestore,
+  deleteTaskCommentFromFirestore,
+  subscribeToDependencies,
+  createDependencyInFirestore,
+  deleteDependencyFromFirestore,
+  subscribeToTimeEntries,
+  createTimeEntryInFirestore,
+  deleteTimeEntryFromFirestore,
+  subscribeToCustomFields,
+  createCustomFieldInFirestore,
+  updateCustomFieldInFirestore,
+  deleteCustomFieldFromFirestore,
+  subscribeToSprints,
+  createSprintInFirestore,
+  updateSprintInFirestore,
+  deleteSprintFromFirestore,
+  subscribeToActivityLogs,
+  createActivityLogInFirestore,
+  subscribeToNotifications,
+  createNotificationInFirestore,
+  updateNotificationInFirestore,
+  deleteNotificationFromFirestore,
+  subscribeToAutomations,
+  createAutomationInFirestore,
+  updateAutomationInFirestore,
+  deleteAutomationFromFirestore,
+  subscribeToEmailThreads,
+  createEmailThreadInFirestore,
+  updateEmailThreadInFirestore,
+  deleteEmailThreadFromFirestore,
+  subscribeToProjectTemplates,
+  createProjectTemplateInFirestore,
+  updateProjectTemplateInFirestore,
+  deleteProjectTemplateFromFirestore,
+  subscribeToAuthorizedDomains,
+  saveAuthorizedDomainsToFirestore,
 } from '../services/dataService';
 import { sendTransactionalEmail } from '../services/emailNotificationService';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../config/auth';
@@ -151,7 +193,17 @@ interface AppContextType {
   addAuthorizedDomain: (domain: string) => void;
   removeAuthorizedDomain: (domain: string) => void;
   validateDomain: (email: string, targetCompanyId?: string) => { valid: boolean; error?: string; domain?: string; isDolphinDomain?: boolean; registeredCompany?: Company };
-  inviteUser: (name: string, email: string, role: User['role'], department: string, companyId?: string, password?: string, assignedSpaceIds?: string[]) => { success: boolean; error?: string; user?: User };
+  inviteUser: (
+    name: string,
+    email: string,
+    role: User['role'],
+    department: string,
+    companyId?: string,
+    password?: string,
+    assignedSpaceIds?: string[],
+    allowedCompanyIds?: string[],
+    isSuperAdmin?: boolean
+  ) => { success: boolean; error?: string; user?: User };
   dispatchEmailNotification: (params: {
     toEmail: string;
     toName?: string;
@@ -478,6 +530,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = [...authorizedDomains, clean];
       setAuthorizedDomains(updated);
       saveToStorage('pm_auth_domains', updated);
+      saveAuthorizedDomainsToFirestore(updated);
     }
   };
 
@@ -486,6 +539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updated = authorizedDomains.filter((d) => d !== clean);
     setAuthorizedDomains(updated);
     saveToStorage('pm_auth_domains', updated);
+    saveAuthorizedDomainsToFirestore(updated);
   };
 
   const [companies, setCompanies] = useState<Company[]>(() => {
@@ -526,19 +580,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [currentUser, setCurrentUser] = useState<User>(() => {
     const loaded = loadFromStorage<User>('dolphin_current_user', INITIAL_USERS[0]);
-    const legacyEmails = [
-      'tareq.aldolphin@dolphingroup.ae',
-      'parvez.khan@dolphingroup.ae',
-      'suhail.ahmed@dolrad.ae',
-      'fatima.zohra@dolheat.ae',
-      'rashed.m@dolcool.ae',
-      'elena.rostova@dolheat.ae',
-      'omar.mansoor@dolphingroup.ae',
-      'sys_analyst@dolrad.ae',
-      'proj@dolheat.ae',
-      'prog.mgr@dolheat.ae'
-    ];
-    if (!loaded?.email || legacyEmails.includes((loaded.email || '').toLowerCase())) {
+    if (!loaded?.email) {
       saveToStorage('dolphin_current_user', INITIAL_USERS[0]);
       return INITIAL_USERS[0];
     }
@@ -719,7 +761,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Seed initial data to Firestore and sync all local users to Firestore
     const localUsersOnBoot = loadFromStorage<User[]>('dolphin_users', INITIAL_USERS);
-    seedInitialFirestoreData(INITIAL_PROJECTS, INITIAL_TASKS, INITIAL_FILES, localUsersOnBoot, INITIAL_COMPANIES);
+    seedInitialFirestoreData(
+      INITIAL_PROJECTS,
+      INITIAL_TASKS,
+      INITIAL_FILES,
+      localUsersOnBoot,
+      INITIAL_COMPANIES,
+      INITIAL_SUBTASKS,
+      INITIAL_DEPENDENCIES,
+      INITIAL_CUSTOM_FIELDS,
+      INITIAL_TEMPLATES,
+      INITIAL_SPRINTS
+    );
     syncAllLocalUsersToFirestore(localUsersOnBoot);
 
     // Subscribe to real-time Firestore updates for Companies/Workspaces
@@ -792,6 +845,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Subscribe to real-time Firestore updates for Subtasks
+    const unsubscribeSubtasks = subscribeToSubtasks((remoteSubtasks) => {
+      if (remoteSubtasks && remoteSubtasks.length > 0) {
+        setSubtasks(remoteSubtasks);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Task Comments
+    const unsubscribeComments = subscribeToTaskComments((remoteComments) => {
+      if (remoteComments && remoteComments.length > 0) {
+        setTaskComments(remoteComments);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Task Dependencies
+    const unsubscribeDeps = subscribeToDependencies((remoteDeps) => {
+      if (remoteDeps && remoteDeps.length > 0) {
+        setDependencies(remoteDeps);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Time Entries
+    const unsubscribeTimeEntries = subscribeToTimeEntries((remoteEntries) => {
+      if (remoteEntries && remoteEntries.length > 0) {
+        setTimeEntries(remoteEntries);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Custom Fields
+    const unsubscribeCustomFields = subscribeToCustomFields((remoteFields) => {
+      if (remoteFields && remoteFields.length > 0) {
+        const hiddenIds = new Set(['cf_cost_center', 'cf_risk_rating', 'cf_audit_id', 'cf_approved_qa']);
+        const hiddenNames = new Set(['cost center code', 'cost center', 'risk level', 'audit reference no', 'qa approved']);
+        setCustomFields(remoteFields.filter(
+          (cf) => !hiddenIds.has(cf.id) && !hiddenNames.has(cf.name?.toLowerCase()?.trim())
+        ));
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Sprints
+    const unsubscribeSprints = subscribeToSprints((remoteSprints) => {
+      if (remoteSprints && remoteSprints.length > 0) {
+        setSprints(remoteSprints);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Activity Logs
+    const unsubscribeActivityLogs = subscribeToActivityLogs((remoteLogs) => {
+      if (remoteLogs && remoteLogs.length > 0) {
+        const cleanLogs = remoteLogs.filter(
+          (l) => !l.id?.startsWith('log_audit_') && l.userName !== 'Rohan (Admin)' && l.userName !== 'Tariq Al-Mansoor'
+        );
+        setActivityLogs(cleanLogs);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Notifications
+    const unsubscribeNotifications = subscribeToNotifications((remoteNotifs) => {
+      if (remoteNotifs && remoteNotifs.length > 0) {
+        setNotifications(remoteNotifs);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Automations
+    const unsubscribeAutomations = subscribeToAutomations((remoteRules) => {
+      if (remoteRules && remoteRules.length > 0) {
+        setAutomations(remoteRules);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Email Threads
+    const unsubscribeEmailThreads = subscribeToEmailThreads((remoteEmails) => {
+      if (remoteEmails && remoteEmails.length > 0) {
+        setEmailThreads(remoteEmails);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Project Templates
+    const unsubscribeProjectTemplates = subscribeToProjectTemplates((remoteTemplates) => {
+      if (remoteTemplates && remoteTemplates.length > 0) {
+        setProjectTemplates(remoteTemplates);
+      }
+    });
+
+    // Subscribe to real-time Firestore updates for Authorized Domains
+    const unsubscribeAuthDomains = subscribeToAuthorizedDomains((remoteDomains) => {
+      if (remoteDomains && remoteDomains.length > 0) {
+        setAuthorizedDomains(remoteDomains);
+      }
+    });
+
     return () => {
       unsubscribeAuth();
       unsubscribeCompanies();
@@ -799,6 +943,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubscribeProjects();
       unsubscribeTasks();
       unsubscribeFiles();
+      unsubscribeSubtasks();
+      unsubscribeComments();
+      unsubscribeDeps();
+      unsubscribeTimeEntries();
+      unsubscribeCustomFields();
+      unsubscribeSprints();
+      unsubscribeActivityLogs();
+      unsubscribeNotifications();
+      unsubscribeAutomations();
+      unsubscribeEmailThreads();
+      unsubscribeProjectTemplates();
+      unsubscribeAuthDomains();
     };
   }, []);
 
@@ -1031,8 +1187,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanEmail = email.toLowerCase().trim();
     const domain = cleanEmail.split('@')[1];
     
-    // Check if domain is in authorized list or APPROVED_DOMAINS
-    const isDomainAuthorized = authorizedDomains.includes(domain) || APPROVED_DOMAINS.includes(domain);
+    // Check if domain is in authorized list or APPROVED_DOMAINS or matches any company domain
+    const isDomainAuthorized =
+      authorizedDomains.map((d) => d.toLowerCase()).includes(domain) ||
+      APPROVED_DOMAINS.map((d) => d.toLowerCase()).includes(domain) ||
+      companies.some((c) => (c?.domain || '').toLowerCase() === domain);
 
     // Check if user is registered in users list
     const registeredUser = users.find((u) => (u?.email || '').toLowerCase() === cleanEmail);
@@ -1042,8 +1201,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       companies.find((c) => (c?.domain || '').toLowerCase() === domain) ||
       (targetCompanyId ? companies.find((c) => c.id === targetCompanyId) : undefined);
 
-    if (isDomainAuthorized || registeredUser || registeredCompany) {
-      return { valid: true, domain, isDolphinDomain: isDomainAuthorized, registeredCompany };
+    // Admins and Super Admins can add any corporate or partner domain seamlessly
+    if (isUserSuperAdmin(currentUser) || isDomainAuthorized || registeredUser || registeredCompany) {
+      return { valid: true, domain, isDolphinDomain: true, registeredCompany };
     }
 
     return {
@@ -1083,6 +1243,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setActivityLogs((prev) => [newLog, ...prev.slice(0, 199)]);
+    createActivityLogInFirestore(newLog);
   }, [activeCompany?.id, currentUser?.id, currentUser?.name, currentUser?.avatar]);
 
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState(false);
@@ -1251,7 +1412,7 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     }
   }, [activeCompany, emailConfig, users, logActivity]);
 
-  // Invite User with Domain & Company Association and optional assigned spaces
+  // Invite User with Domain & Company Association, multi-company access, and optional assigned spaces
   const inviteUser = (
     name: string,
     email: string,
@@ -1259,7 +1420,9 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
     department: string,
     companyId?: string,
     password?: string,
-    assignedSpaceIds?: string[]
+    assignedSpaceIds?: string[],
+    allowedCompanyIds?: string[],
+    isSuperAdmin?: boolean
   ) => {
     if (!canCreateUser(currentUser)) {
       return {
@@ -1268,14 +1431,32 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       };
     }
 
-    const targetComp = companyId ? companies.find((c) => c.id === companyId) : undefined;
-
-    const val = validateDomain(email, companyId);
-    if (!val.valid) {
-      return { success: false, error: val.error };
+    if (!email || !email.includes('@')) {
+      return { success: false, error: 'Please enter a valid corporate email address.' };
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const domain = cleanEmail.split('@')[1] || '';
+
+    // Clear from any purged emails cache so remote sync and state do not drop it
+    const purgedEmails = loadFromStorage<string[]>('dolphin_purged_user_emails', []);
+    if (purgedEmails.some((e) => e.toLowerCase().trim() === cleanEmail)) {
+      const filteredPurged = purgedEmails.filter((e) => e.toLowerCase().trim() !== cleanEmail);
+      saveToStorage('dolphin_purged_user_emails', filteredPurged);
+    }
+
+    // Auto-authorize domain if creating/inviting a user
+    if (domain && !authorizedDomains.map((d) => d.toLowerCase()).includes(domain)) {
+      addAuthorizedDomain(domain);
+    }
+
+    const targetComp = companyId ? companies.find((c) => c.id === companyId) : undefined;
+
+    const val = validateDomain(cleanEmail, companyId);
+    if (!val.valid && !isUserSuperAdmin(currentUser)) {
+      return { success: false, error: val.error };
+    }
+
     const existingUser = users.find(
       (u) => (u?.email || '').toLowerCase().trim() === cleanEmail
     );
@@ -1289,6 +1470,25 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       };
     }
 
+    const determinedIsSuperAdmin =
+      isSuperAdmin === true ||
+      role === 'Admin' ||
+      cleanEmail === 'dolphingroup786@gmail.com' ||
+      cleanEmail === 'admin@dolrad.ae' ||
+      cleanEmail === 'ceo@dolphingroup.ae';
+
+    const determinedScope: 'all' | 'specific' =
+      determinedIsSuperAdmin || (allowedCompanyIds && allowedCompanyIds.includes('all'))
+        ? 'all'
+        : 'specific';
+
+    const determinedAllowedCompanies =
+      determinedScope === 'all'
+        ? ['all']
+        : allowedCompanyIds && allowedCompanyIds.length > 0
+        ? allowedCompanyIds
+        : [targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp')];
+
     if (existingUser) {
       // User already exists: update record and assign new password without creating duplicate ID
       const updatedUser: User = {
@@ -1296,6 +1496,9 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
         name: name || existingUser.name,
         role: role || existingUser.role,
         companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : existingUser.companyId),
+        allowedCompanyIds: determinedAllowedCompanies,
+        companyAccessScope: determinedScope,
+        isSuperAdmin: determinedIsSuperAdmin,
         department: department || existingUser.department,
         status: 'Active',
         isDeleted: false,
@@ -1312,7 +1515,24 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       updateUserInFirestore(existingUser.id, updatedUser);
       saveUserPasswordInFirestore(existingUser.id, assignedPassword);
 
-      logActivity('updated user account credentials', `${name} (${cleanEmail})`, 'user');
+      // Assign spaces to the user if specified
+      if (assignedSpaceIds && assignedSpaceIds.length > 0) {
+        setProjects((prev) =>
+          prev.map((p) => {
+            if (assignedSpaceIds.includes(p.id)) {
+              const currentMembers = p.members || [];
+              if (!currentMembers.includes(existingUser.id)) {
+                const updatedMembers = [...currentMembers, existingUser.id];
+                updateProjectInFirestore(p.id, { members: updatedMembers });
+                return { ...p, members: updatedMembers };
+              }
+            }
+            return p;
+          })
+        );
+      }
+
+      logActivity('updated user account credentials & access scope', `${name} (${cleanEmail})`, 'user');
 
       return { success: true, user: updatedUser };
     }
@@ -1323,6 +1543,9 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       email: cleanEmail,
       role,
       companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp'),
+      allowedCompanyIds: determinedAllowedCompanies,
+      companyAccessScope: determinedScope,
+      isSuperAdmin: determinedIsSuperAdmin,
       avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 1000000)}?auto=format&fit=crop&q=80&w=150`,
       department: department || (targetComp?.isExternal ? 'External Collaborator' : 'Engineering'),
       hourlyRate: role === 'Admin' ? 200 : role === 'Project Manager' ? 120 : 90,
@@ -2012,6 +2235,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       };
 
       setProjectTemplates((prev) => [newTemplate, ...prev]);
+      createProjectTemplateInFirestore(newTemplate);
       logActivity('saved project as template', `${newTemplate.name} (${initialVer})`, 'project', proj.id);
       return newTemplate;
     }
@@ -2049,6 +2273,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     };
 
     setProjectTemplates((prev) => [newTemplate, ...prev]);
+    createProjectTemplateInFirestore(newTemplate);
     logActivity('created project template', newTemplate.name, 'project');
     return newTemplate;
   };
@@ -2057,6 +2282,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     setProjectTemplates((prev) =>
       prev.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t))
     );
+    updateProjectTemplateInFirestore(id, updates);
     logActivity('updated project template', updates.name || id, 'project');
   };
 
@@ -2082,6 +2308,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     };
 
     setProjectTemplates((prev) => [clonedTemplate, ...prev]);
+    createProjectTemplateInFirestore(clonedTemplate);
     logActivity('duplicated project template', clonedTemplate.name, 'project');
     return clonedTemplate;
   };
@@ -2273,17 +2500,27 @@ ${currentUser?.name || 'Workspace Administrator'}`,
         if (t.id !== templateId) return t;
         const newUsage = (t.usageCount || 0) + 1;
         const newTotalSpawned = (t.totalTasksSpawned || 0) + createdTasks.length;
-        return {
+        const updated = {
           ...t,
           usageCount: newUsage,
           lastUsedAt: new Date().toISOString(),
           totalTasksSpawned: newTotalSpawned,
           updatedAt: new Date().toISOString()
         };
+        updateProjectTemplateInFirestore(templateId, {
+          usageCount: newUsage,
+          lastUsedAt: updated.lastUsedAt,
+          totalTasksSpawned: newTotalSpawned,
+          updatedAt: updated.updatedAt
+        });
+        return updated;
       })
     );
 
     createProjectInFirestore(newProject);
+    createdTasks.forEach((t) => createTaskInFirestore(t));
+    createdSubtasks.forEach((st) => createSubtaskInFirestore(st));
+    createdDependencies.forEach((dep) => createDependencyInFirestore(dep));
 
     return newProject;
   };
@@ -2313,7 +2550,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
 
         const restoredVersionStr = `${targetRecord.version}-restored`;
 
-        return {
+        const updatedTpl = {
           ...tpl,
           name: targetRecord.name,
           description: targetRecord.description,
@@ -2324,6 +2561,8 @@ ${currentUser?.name || 'Workspace Administrator'}`,
           dependencies: [...targetRecord.dependencies],
           versionHistory: [currentSnapshot, ...(tpl.versionHistory || [])]
         };
+        updateProjectTemplateInFirestore(templateId, updatedTpl);
+        return updatedTpl;
       })
     );
     logActivity('restored template version', `Template ${templateId} rolled back to version record ${versionRecordId}`, 'project');
@@ -2331,6 +2570,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
 
   const deleteProjectTemplate = (templateId: string) => {
     setProjectTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    deleteProjectTemplateFromFirestore(templateId);
     logActivity('deleted project template', templateId, 'project');
   };
 
@@ -2559,6 +2799,7 @@ Log into your workspace dashboard to review the task details.`,
       id: `cf_${Date.now()}`
     };
     setCustomFields((prev) => [...prev, newField]);
+    createCustomFieldInFirestore(newField);
     logActivity('created custom field', `Created custom field "${newField.name}" (${newField.type})`, 'task');
   };
 
@@ -2566,12 +2807,14 @@ Log into your workspace dashboard to review the task details.`,
     setCustomFields((prev) =>
       prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
     );
+    updateCustomFieldInFirestore(id, updates);
     logActivity('updated custom field', `Updated custom field configuration`, 'task');
   };
 
   const deleteCustomField = (id: string) => {
     const target = customFields.find((f) => f.id === id);
     setCustomFields((prev) => prev.filter((f) => f.id !== id));
+    deleteCustomFieldFromFirestore(id);
     if (target) {
       logActivity('deleted custom field', `Deleted custom field "${target.name}"`, 'task');
     }
@@ -2590,6 +2833,7 @@ Log into your workspace dashboard to review the task details.`,
       saveToStorage('dolphin_sprints', updated);
       return updated;
     });
+    createSprintInFirestore(newSprint);
     logActivity('created sprint', `Created sprint "${newSprint.name}"`, 'project', newSprint.projectId);
     return newSprint;
   };
@@ -2600,6 +2844,7 @@ Log into your workspace dashboard to review the task details.`,
       saveToStorage('dolphin_sprints', updated);
       return updated;
     });
+    updateSprintInFirestore(id, updates);
     logActivity('updated sprint', `Updated sprint details`, 'project');
   };
 
@@ -2612,6 +2857,7 @@ Log into your workspace dashboard to review the task details.`,
     });
     // Move tasks linked to this sprint to backlog
     setAllTasks((prev) => prev.map((t) => (t.sprintId === id ? { ...t, sprintId: null } : t)));
+    deleteSprintFromFirestore(id);
     if (s) {
       logActivity('deleted sprint', `Deleted sprint "${s.name}" (tasks moved to backlog)`, 'project', s.projectId);
     }
@@ -2855,12 +3101,18 @@ Log into your workspace dashboard to review the task details.`,
       assignedTo,
     };
     setSubtasks((prev) => [...prev, newSub]);
+    createSubtaskInFirestore(newSub);
   };
 
   const toggleSubtask = (subtaskId: string) => {
-    setSubtasks((prev) =>
-      prev.map((s) => (s.id === subtaskId ? { ...s, completed: !s.completed } : s))
-    );
+    setSubtasks((prev) => {
+      const updated = prev.map((s) => (s.id === subtaskId ? { ...s, completed: !s.completed } : s));
+      const target = updated.find((s) => s.id === subtaskId);
+      if (target) {
+        updateSubtaskInFirestore(subtaskId, { completed: target.completed });
+      }
+      return updated;
+    });
   };
 
   const addTaskComment = (taskId: string, content: string) => {
@@ -2874,6 +3126,7 @@ Log into your workspace dashboard to review the task details.`,
       createdAt: new Date().toISOString()
     };
     setTaskComments((prev) => [...prev, newComment]);
+    createTaskCommentInFirestore(newComment);
     logActivity('added task comment', content.slice(0, 30), 'task', undefined, taskId);
   };
 
@@ -3129,6 +3382,7 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
       type: 'finish_to_start',
     };
     setDependencies((prev) => [...prev, newDep]);
+    createDependencyInFirestore(newDep);
 
     // Update task object fields for predecessors and successors
     setAllTasks((prev) =>
@@ -3136,11 +3390,15 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
         if (t.id === taskId) {
           const preds = Array.from(new Set([...(t.predecessors || []), dependsOnTaskId]));
           const deps = Array.from(new Set([...(t.dependencies || []), dependsOnTaskId]));
-          return { ...t, predecessors: preds, dependencies: deps, updatedAt: new Date().toISOString() };
+          const updatedTask = { ...t, predecessors: preds, dependencies: deps, updatedAt: new Date().toISOString() };
+          updateTaskInFirestore(t.id, { predecessors: preds, dependencies: deps });
+          return updatedTask;
         }
         if (t.id === dependsOnTaskId) {
           const succs = Array.from(new Set([...(t.successors || []), taskId]));
-          return { ...t, successors: succs, updatedAt: new Date().toISOString() };
+          const updatedTask = { ...t, successors: succs, updatedAt: new Date().toISOString() };
+          updateTaskInFirestore(t.id, { successors: succs });
+          return updatedTask;
         }
         return t;
       })
@@ -3153,6 +3411,7 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
   const removeDependency = (depId: string) => {
     const dep = dependencies.find((d) => d.id === depId);
     setDependencies((prev) => prev.filter((d) => d.id !== depId));
+    deleteDependencyFromFirestore(depId);
 
     if (dep) {
       const { taskId, dependsOnTaskId } = dep;
@@ -3161,10 +3420,12 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
           if (t.id === taskId) {
             const preds = (t.predecessors || []).filter((id) => id !== dependsOnTaskId);
             const deps = (t.dependencies || []).filter((id) => id !== dependsOnTaskId);
+            updateTaskInFirestore(t.id, { predecessors: preds, dependencies: deps });
             return { ...t, predecessors: preds, dependencies: deps, updatedAt: new Date().toISOString() };
           }
           if (t.id === dependsOnTaskId) {
             const succs = (t.successors || []).filter((id) => id !== taskId);
+            updateTaskInFirestore(t.id, { successors: succs });
             return { ...t, successors: succs, updatedAt: new Date().toISOString() };
           }
           return t;
@@ -3363,6 +3624,7 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
       };
 
       setTimeEntries((prev) => [newEntry, ...prev]);
+      createTimeEntryInFirestore(newEntry);
       updateTask(task.id, { loggedHours: (task.loggedHours || 0) + hours });
       logActivity('logged time', `${hours} hrs on "${task.title}"`, 'task', task.projectId, task.id);
     }
@@ -3397,6 +3659,7 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
         updateTask(task.id, { loggedHours: Math.max(0, Math.round(((task.loggedHours || 0) - target.hours) * 100) / 100) });
       }
       setTimeEntries((prev) => prev.filter((e) => e.id !== id));
+      deleteTimeEntryFromFirestore(id);
       logActivity('deleted time log entry', `${target.hours} hrs`, 'task', target.projectId, target.taskId);
     }
   };
@@ -3419,6 +3682,7 @@ Reason: ${rejectionReason || 'Existing project deadline must be maintained.'}`,
     };
 
     setTimeEntries((prev) => [newEntry, ...prev]);
+    createTimeEntryInFirestore(newEntry);
     updateTask(taskId, { loggedHours: (task.loggedHours || 0) + hours });
     logActivity('logged manual time', `${hours} hrs on "${task.title}"`, 'task', task.projectId, taskId);
   };
@@ -4025,9 +4289,14 @@ Please log into your workspace dashboard to update task status or adjust target 
 
   // Automations
   const toggleAutomation = (id: string) => {
-    setAutomations((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, active: !a.active } : a))
-    );
+    setAutomations((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, active: !a.active } : a));
+      const target = updated.find((a) => a.id === id);
+      if (target) {
+        updateAutomationInFirestore(id, { active: target.active });
+      }
+      return updated;
+    });
   };
 
   const addAutomation = (ruleData: Omit<AutomationRule, 'id'>) => {
@@ -4036,6 +4305,7 @@ Please log into your workspace dashboard to update task status or adjust target 
       id: `auto_${Date.now()}`,
     };
     setAutomations((prev) => [...prev, newRule]);
+    createAutomationInFirestore(newRule);
     logActivity('configured new automation rule', newRule.name, 'automation');
   };
 
@@ -4172,18 +4442,21 @@ Please log into your workspace dashboard to update task status or adjust target 
       timestamp: nowIso
     };
 
-    setEmailThreads((prev) =>
-      prev.map((e) => {
+    setEmailThreads((prev) => {
+      const updated = prev.map((e) => {
         if (e.id === emailId) {
+          const nextReplies = [...(e.replies || []), newReply];
+          updateEmailThreadInFirestore(emailId, { isUnread: false, replies: nextReplies });
           return {
             ...e,
             isUnread: false,
-            replies: [...(e.replies || []), newReply]
+            replies: nextReplies
           };
         }
         return e;
-      })
-    );
+      });
+      return updated;
+    });
 
     const email = emailThreads.find((e) => e.id === emailId);
     logActivity('sent email reply', `Replied to thread "${email?.subject || emailId}"`, 'system');
@@ -4200,24 +4473,40 @@ Please log into your workspace dashboard to update task status or adjust target 
     };
 
     setEmailThreads((prev) => [created, ...prev]);
+    createEmailThreadInFirestore(created);
     logActivity('sent company email', `Sent email to ${created.recipientEmail} (${created.subject})`, 'system');
     return created;
   };
 
   const toggleStarEmail = (emailId: string) => {
     setEmailThreads((prev) =>
-      prev.map((e) => (e.id === emailId ? { ...e, isStarred: !e.isStarred } : e))
+      prev.map((e) => {
+        if (e.id === emailId) {
+          const nextStarred = !e.isStarred;
+          updateEmailThreadInFirestore(emailId, { isStarred: nextStarred });
+          return { ...e, isStarred: nextStarred };
+        }
+        return e;
+      })
     );
   };
 
   const toggleUnreadEmail = (emailId: string) => {
     setEmailThreads((prev) =>
-      prev.map((e) => (e.id === emailId ? { ...e, isUnread: !e.isUnread } : e))
+      prev.map((e) => {
+        if (e.id === emailId) {
+          const nextUnread = !e.isUnread;
+          updateEmailThreadInFirestore(emailId, { isUnread: nextUnread });
+          return { ...e, isUnread: nextUnread };
+        }
+        return e;
+      })
     );
   };
 
   const deleteEmailThread = (emailId: string) => {
     setEmailThreads((prev) => prev.filter((e) => e.id !== emailId));
+    deleteEmailThreadFromFirestore(emailId);
     logActivity('deleted email thread', emailId, 'system');
   };
 

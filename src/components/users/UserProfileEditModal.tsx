@@ -41,6 +41,9 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
   const [department, setDepartment] = useState('');
   const [role, setRole] = useState<Role>('Team Member');
   const [companyId, setCompanyId] = useState('');
+  const [companyAccessScope, setCompanyAccessScope] = useState<'all' | 'specific'>('specific');
+  const [allowedCompanyIds, setAllowedCompanyIds] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [hourlyRate, setHourlyRate] = useState<number>(100);
   const [maxWeeklyHours, setMaxWeeklyHours] = useState<number>(40);
   const [status, setStatus] = useState<'Active' | 'Offline' | 'In Meeting' | 'On Leave'>('Active');
@@ -60,6 +63,13 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
       setDepartment(user.department || 'Engineering');
       setRole(user.role || 'Team Member');
       setCompanyId(user.companyId || companies[0]?.id || 'comp_5');
+      setCompanyAccessScope(user.companyAccessScope || (user.isSuperAdmin || user.role === 'Admin' ? 'all' : 'specific'));
+      setAllowedCompanyIds(
+        user.allowedCompanyIds && user.allowedCompanyIds.length > 0
+          ? user.allowedCompanyIds
+          : [user.companyId || companies[0]?.id || 'comp_5']
+      );
+      setIsSuperAdmin(!!user.isSuperAdmin || user.role === 'Admin');
       setHourlyRate(user.hourlyRate || 100);
       setMaxWeeklyHours(user.maxWeeklyHours || 40);
       setStatus(user.status || 'Active');
@@ -72,8 +82,20 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
 
   if (!isOpen || !user) return null;
 
-  const isAdmin = currentUser?.role === 'Admin';
+  const isAdmin = currentUser?.role === 'Admin' || !!currentUser?.isSuperAdmin;
   const isEditingSelf = currentUser?.id === user.id;
+
+  const handleToggleCompanyAllowed = (cId: string) => {
+    setAllowedCompanyIds((prev) => {
+      const exists = prev.includes(cId);
+      if (exists) {
+        const next = prev.filter((id) => id !== cId);
+        return next.length > 0 ? next : [companyId || companies[0]?.id || 'comp_5'];
+      } else {
+        return [...prev, cId];
+      }
+    });
+  };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,10 +111,18 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
       bio: bio.trim()
     };
 
-    // Role, company, and billing adjustments can only be made by Workspace Admins or if already existing
+    // Role, company, access scope, and billing adjustments can only be made by Workspace Admins
     if (isAdmin) {
       updates.role = role;
       updates.companyId = companyId;
+      updates.companyAccessScope = companyAccessScope;
+      updates.allowedCompanyIds =
+        companyAccessScope === 'all' || isSuperAdmin || role === 'Admin'
+          ? ['all']
+          : allowedCompanyIds.length > 0
+          ? allowedCompanyIds
+          : [companyId];
+      updates.isSuperAdmin = isSuperAdmin || role === 'Admin';
       updates.hourlyRate = Number(hourlyRate) || 100;
       updates.maxWeeklyHours = Number(maxWeeklyHours) || 40;
     }
@@ -342,16 +372,23 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
               </div>
             </div>
 
-            {/* Admin-Only Settings: Role & Billing Rates */}
+            {/* Admin-Only Settings: Role, Company Scope, and Billing Rates */}
             {isAdmin && (
               <div
-                className={`p-4 rounded-xl border space-y-3 ${
+                className={`p-4 rounded-xl border space-y-4 ${
                   isLight ? 'bg-amber-50/50 border-amber-200' : 'bg-amber-500/5 border-amber-500/20'
                 }`}
               >
-                <div className="flex items-center gap-2 text-xs font-bold text-amber-500">
-                  <Shield className="w-4 h-4" />
-                  <span>Admin Privilege & Capacity Controls</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-500">
+                    <Shield className="w-4 h-4" />
+                    <span>Admin Privilege & Access Governance</span>
+                  </div>
+                  {isSuperAdmin && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      👑 Super Admin Active
+                    </span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -361,7 +398,14 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
                     </label>
                     <select
                       value={role}
-                      onChange={(e) => setRole(e.target.value as Role)}
+                      onChange={(e) => {
+                        const newR = e.target.value as Role;
+                        setRole(newR);
+                        if (newR === 'Admin') {
+                          setCompanyAccessScope('all');
+                          setIsSuperAdmin(true);
+                        }
+                      }}
                       className={`w-full text-xs font-semibold rounded-xl p-2 border focus:outline-none focus:border-amber-500 ${
                         isLight ? 'bg-white border-slate-300 text-slate-900' : 'bg-[#0D1520] border-[#233549] text-white'
                       }`}
@@ -403,6 +447,125 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
                       }`}
                     />
                   </div>
+                </div>
+
+                {/* Company Access Scope Controls */}
+                <div className={`p-3 rounded-xl border text-xs space-y-2.5 ${
+                  isLight ? 'bg-white border-slate-200' : 'bg-[#0D1520] border-[#233549]'
+                }`}>
+                  <label className={`block text-[11px] font-bold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    Company & Workspace Dashboard Access Scope
+                  </label>
+
+                  {/* Scope Selection Radios */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompanyAccessScope('all');
+                        setIsSuperAdmin(true);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        companyAccessScope === 'all' || isSuperAdmin
+                          ? 'bg-amber-500/15 border-amber-500/50 text-amber-800 dark:text-amber-300 ring-1 ring-amber-500/30'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-[#16222F] border-[#233549] text-slate-300 hover:bg-[#1C2C3D]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <span>👑 All Companies & Spaces</span>
+                        {(companyAccessScope === 'all' || isSuperAdmin) && (
+                          <span className="text-[10px] px-1.5 py-0.2 bg-amber-500/30 rounded font-black">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                        Super Admin access to all company dashboards, workspaces, and project spaces across Dolphin Group.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompanyAccessScope('specific');
+                        setIsSuperAdmin(false);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        companyAccessScope === 'specific' && !isSuperAdmin
+                          ? 'bg-[#0773BB]/15 border-[#0773BB]/50 text-[#0773BB] dark:text-[#38BDF8] ring-1 ring-[#0773BB]/30'
+                          : isLight
+                          ? 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          : 'bg-[#16222F] border-[#233549] text-slate-300 hover:bg-[#1C2C3D]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <span>🏢 Specific Companies</span>
+                        {companyAccessScope === 'specific' && !isSuperAdmin && (
+                          <span className="text-[10px] px-1.5 py-0.2 bg-[#0773BB]/30 rounded font-black">Active</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                        Restrict access to selected corporate entities or external partners only.
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Multi-Company Checkboxes if Specific */}
+                  {companyAccessScope === 'specific' && !isSuperAdmin && (
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Select Allowed Companies ({allowedCompanyIds.length} selected)
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAllowedCompanyIds(companies.map((c) => c.id))}
+                            className="text-[10px] font-bold text-[#0773BB] hover:underline cursor-pointer"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-slate-400">•</span>
+                          <button
+                            type="button"
+                            onClick={() => setAllowedCompanyIds([companyId || companies[0]?.id || 'comp_5'])}
+                            className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
+                          >
+                            Primary Only
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {companies.map((c) => {
+                          const isChecked = allowedCompanyIds.includes(c.id) || c.id === companyId;
+                          return (
+                            <label
+                              key={c.id}
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border text-[11px] cursor-pointer transition-colors ${
+                                isChecked
+                                  ? isLight
+                                    ? 'bg-sky-50 border-[#0773BB]/40 text-slate-900 font-semibold'
+                                    : 'bg-[#0773BB]/10 border-[#0773BB]/40 text-white font-semibold'
+                                  : isLight
+                                  ? 'bg-slate-50 border-slate-200 text-slate-600'
+                                  : 'bg-[#16222F] border-[#233549] text-slate-400'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleCompanyAllowed(c.id)}
+                                className="rounded text-[#0773BB] focus:ring-[#0773BB]"
+                              />
+                              <span className="truncate">{c.name}</span>
+                              <span className="text-[9px] font-mono opacity-60 ml-auto">{c.code}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
