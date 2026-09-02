@@ -60,6 +60,7 @@ export const UsersView: React.FC = () => {
     inviteUser,
     updateUser,
     deleteUser,
+    purgeUser,
     activeCompany,
     companies,
     addCompany,
@@ -2010,40 +2011,71 @@ export const UsersView: React.FC = () => {
       {/* USER DELETION CONFIRMATION MODAL */}
       {userToDelete && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className={`rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95 border ${
+          <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in zoom-in-95 border ${
             isLight ? 'bg-white border-rose-200 text-slate-900' : 'bg-[#16222F] border-rose-500/40 text-white'
           }`}>
             <div className={`flex items-center gap-3 text-rose-500 border-b pb-3 ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
               <ShieldAlert className="w-6 h-6 text-rose-500 shrink-0" />
               <div>
                 <h3 className={`text-base font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>Confirm Remove User</h3>
-                <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Deactivate user access from the tenant workspace</p>
+                <p className={`text-xs ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>Deactivate or permanently remove user from tenant directory</p>
+              </div>
+            </div>
+
+            <div className={`p-3.5 rounded-xl border ${isLight ? 'bg-slate-50 border-slate-200' : 'bg-[#0D1520] border-[#233549]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#0773BB] to-[#3BC0BB] flex items-center justify-center text-white font-black text-sm">
+                  {userToDelete.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h4 className={`text-sm font-bold ${isLight ? 'text-slate-900' : 'text-white'}`}>{userToDelete.name}</h4>
+                  <p className="text-xs font-mono text-[#0773BB] dark:text-[#38BDF8]">{userToDelete.email}</p>
+                </div>
               </div>
             </div>
 
             <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-              Are you sure you want to remove user <strong className={isLight ? 'text-slate-900' : 'text-white'}>{userToDelete.name}</strong> (<span className="font-mono text-[#0773BB] font-bold">{userToDelete.email}</span>)?
-              This will revoke their access to project data and remove them from active tenant directories.
+              Choose an action below to manage this user's account and access credentials:
             </p>
 
-            <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
+            <div className="space-y-2">
+              <div className={`p-3 rounded-xl border text-xs ${
+                isLight ? 'bg-amber-50/60 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}>
+                <span className="font-bold block mb-0.5">Recycle Bin (Recommended)</span>
+                Soft-deletes the user and revokes access. Preserves data and history for 180 days with instant one-click recovery.
+              </div>
+            </div>
+
+            <div className={`flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t ${isLight ? 'border-slate-200' : 'border-[#233549]'}`}>
               <button
                 onClick={() => setUserToDelete(null)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold ${
-                  isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-[#0D1520] text-slate-300'
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  isLight ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-[#0D1520] text-slate-300 hover:bg-[#1a293b]'
                 }`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => {
+                  purgeUser(userToDelete.id);
+                  setUserToDelete(null);
+                }}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-black text-rose-400 hover:text-rose-300 text-xs font-bold border border-rose-500/30 transition-all flex items-center gap-1.5"
+                title="Permanently erase user from database"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Purge Permanently</span>
+              </button>
+              <button
+                onClick={() => {
                   deleteUser(userToDelete.id);
                   setUserToDelete(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/20 transition-all flex items-center gap-1.5"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>Remove User</span>
+                <span>Move to Recycle Bin</span>
               </button>
             </div>
           </div>
@@ -2448,45 +2480,6 @@ export const UsersView: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* USER DELETION CONFIRMATION MODAL */}
-      {userToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#16222F] border border-rose-500/40 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center gap-3 text-rose-400 border-b border-[#233549] pb-3">
-              <ShieldAlert className="w-6 h-6 text-rose-500 shrink-0" />
-              <div>
-                <h3 className="text-base font-bold text-white">Confirm Remove User</h3>
-                <p className="text-xs text-slate-400">Deactivate user access from the tenant workspace</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Are you sure you want to remove user <strong className="text-white">{userToDelete.name}</strong> (<span className="font-mono text-[#3BC0BB]">{userToDelete.email}</span>)?
-              This will revoke their access to project data and remove them from active tenant directories.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#233549]">
-              <button
-                onClick={() => setUserToDelete(null)}
-                className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 text-xs font-bold"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  deleteUser(userToDelete.id);
-                  setUserToDelete(null);
-                }}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Remove User</span>
-              </button>
-            </div>
           </div>
         </div>
       )}

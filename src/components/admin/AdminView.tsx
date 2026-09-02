@@ -302,6 +302,7 @@ export const AdminView: React.FC = () => {
 
   // Filter Users
   const filteredUsers = users.filter((u) => {
+    if (u.isDeleted) return false;
     const query = userSearch.toLowerCase();
     const matchesQuery =
       !query ||

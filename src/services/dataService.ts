@@ -416,16 +416,24 @@ export function deduplicateUserList(usersList: (User | undefined | null)[]): Use
 
     const existing = mapByEmail.get(cleanEmail);
     if (!existing) {
+      const isRawDeleted = Boolean(raw.isDeleted);
       mapByEmail.set(cleanEmail, {
         ...raw,
         email: cleanEmail,
-        password: raw.password ? String(raw.password).trim() : undefined
+        password: raw.password ? String(raw.password).trim() : undefined,
+        status: isRawDeleted ? 'Offline' : (raw.status || 'Active'),
+        isDeleted: isRawDeleted
       });
     } else {
-      // Merge records: prefer non-empty password, active status, valid ID
+      // Merge records:
+      // If either record is explicitly marked as deleted, preserve deletion unless explicitly restored with isDeleted === false
+      const isDeleted = (raw.isDeleted === true || existing.isDeleted === true) && !(raw.isDeleted === false && raw.deletedAt === '');
+      const deletedAt = isDeleted ? (raw.deletedAt || existing.deletedAt || new Date().toISOString()) : undefined;
+      const deletedBy = isDeleted ? (raw.deletedBy || existing.deletedBy || 'admin') : undefined;
+      const deletedByName = isDeleted ? (raw.deletedByName || existing.deletedByName || 'Administrator') : undefined;
+
       const mergedPassword = (raw.password && String(raw.password).trim()) || (existing.password && String(existing.password).trim()) || undefined;
-      const isDeleted = existing.isDeleted && raw.isDeleted;
-      const status = (!isDeleted && (existing.status === 'Active' || raw.status === 'Active')) ? 'Active' : (raw.status || existing.status || 'Active');
+      const status = isDeleted ? 'Offline' : (raw.status || existing.status || 'Active');
       
       // Prefer initial ID like usr_ciro_campos over random timestamp IDs
       const isRawInitial = String(raw.id || '').startsWith('usr_') && !String(raw.id || '').match(/^usr_\d{10,}/);
@@ -444,7 +452,10 @@ export function deduplicateUserList(usersList: (User | undefined | null)[]): Use
         avatar: raw.avatar || existing.avatar,
         password: mergedPassword,
         status,
-        isDeleted: Boolean(isDeleted),
+        isDeleted,
+        deletedAt,
+        deletedBy,
+        deletedByName,
         isEmailVerified: true
       });
     }
@@ -548,6 +559,36 @@ export async function softDeleteUserInFirestore(
   }
 }
 
+export async function softDeleteUserInFirestoreByEmail(
+  email: string,
+  deletedBy: string,
+  deletedByName?: string
+): Promise<void> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  try {
+    const colRef = collection(db, USERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
+        await updateDoc(
+          docSnap.ref,
+          sanitizeForFirestore({
+            isDeleted: true,
+            deletedAt: new Date().toISOString(),
+            deletedBy,
+            deletedByName: deletedByName || 'Administrator',
+            status: 'Offline'
+          })
+        );
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/email/${email}`);
+  }
+}
+
 export async function restoreUserInFirestore(id: string): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
   try {
@@ -566,12 +607,55 @@ export async function restoreUserInFirestore(id: string): Promise<void> {
   }
 }
 
+export async function restoreUserInFirestoreByEmail(email: string): Promise<void> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  try {
+    const colRef = collection(db, USERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
+        await updateDoc(
+          docSnap.ref,
+          sanitizeForFirestore({
+            isDeleted: false,
+            deletedAt: '',
+            deletedBy: '',
+            deletedByName: '',
+            status: 'Active'
+          })
+        );
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `users/email/${email}`);
+  }
+}
+
 export async function deleteUserFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
   try {
     await deleteDoc(docRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
+  }
+}
+
+export async function deleteUserFromFirestoreByEmail(email: string): Promise<void> {
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  if (!cleanEmail) return;
+  try {
+    const colRef = collection(db, USERS_COLLECTION);
+    const snapshot = await getDocs(colRef);
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
+        await deleteDoc(docSnap.ref);
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/email/${email}`);
   }
 }
 
@@ -630,7 +714,10 @@ export async function cleanAndDeduplicateFirestoreUsers(localUsers: User[] = [])
 
       // Merge data across duplicate documents
       const mergedPassword = docs.find((d) => d.password && String(d.password).trim() !== '')?.password?.trim();
-      const isActive = docs.some((d) => !d.isDeleted && d.status === 'Active');
+      const isAnyExplicitDeleted = docs.some((d) => d.isDeleted === true);
+      const isAnyExplicitActive = docs.some((d) => d.isDeleted === false && d.status === 'Active' && !d.deletedAt);
+      const isDeleted = isAnyExplicitDeleted && !isAnyExplicitActive;
+
       const latestName = docs.find((d) => d.name && d.name.trim() !== '')?.name || canonicalDoc.name;
       const latestRole = docs.find((d) => d.role && d.role.trim() !== '')?.role || canonicalDoc.role;
       const latestDept = docs.find((d) => d.department && d.department.trim() !== '')?.department || canonicalDoc.department;
@@ -647,8 +734,11 @@ export async function cleanAndDeduplicateFirestoreUsers(localUsers: User[] = [])
         companyId: latestCompanyId,
         avatar: latestAvatar,
         password: mergedPassword || canonicalDoc.password,
-        status: isActive ? 'Active' : (canonicalDoc.status || 'Active'),
-        isDeleted: !isActive && docs.every((d) => d.isDeleted),
+        status: isDeleted ? 'Offline' : (canonicalDoc.status || 'Active'),
+        isDeleted,
+        deletedAt: isDeleted ? (docs.find((d) => d.deletedAt)?.deletedAt || new Date().toISOString()) : undefined,
+        deletedBy: isDeleted ? (docs.find((d) => d.deletedBy)?.deletedBy || 'admin') : undefined,
+        deletedByName: isDeleted ? (docs.find((d) => d.deletedByName)?.deletedByName || 'Administrator') : undefined,
         isEmailVerified: true
       };
 

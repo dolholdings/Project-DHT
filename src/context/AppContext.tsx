@@ -88,8 +88,11 @@ import {
   createUserInFirestore,
   updateUserInFirestore,
   softDeleteUserInFirestore,
+  softDeleteUserInFirestoreByEmail,
   restoreUserInFirestore,
+  restoreUserInFirestoreByEmail,
   deleteUserFromFirestore,
+  deleteUserFromFirestoreByEmail,
   purgeExpiredUsersFromFirestore,
   syncAllLocalUsersToFirestore,
   cleanAndDeduplicateFirestoreUsers,
@@ -510,7 +513,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [users, setUsers] = useState<User[]>(() => {
     const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
-    const cleanUsers = deduplicateUserList([...INITIAL_USERS, ...loaded]);
+    const purgedEmails = new Set(
+      loadFromStorage<string[]>('dolphin_purged_user_emails', [])
+    );
+    const cleanUsers = deduplicateUserList(
+      [...INITIAL_USERS, ...loaded].filter(
+        (u) => u && u.email && !purgedEmails.has(String(u.email).trim().toLowerCase())
+      )
+    );
     saveToStorage('dolphin_users', cleanUsers);
     return cleanUsers;
   });
@@ -730,9 +740,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Subscribe to real-time Firestore updates for Users
     const unsubscribeUsers = subscribeToUsers((remoteUsers) => {
       const cleanRemote = deduplicateUserList(remoteUsers || []);
+      const purgedEmails = new Set(
+        loadFromStorage<string[]>('dolphin_purged_user_emails', [])
+      );
 
       setUsers((prev) => {
-        const unified = deduplicateUserList([...INITIAL_USERS, ...prev, ...cleanRemote]);
+        const combined = [...prev, ...cleanRemote].filter(
+          (u) => u && u.email && !purgedEmails.has(String(u.email).trim().toLowerCase())
+        );
+        const unified = deduplicateUserList(combined);
         saveToStorage('dolphin_users', unified);
         return unified;
       });
@@ -1475,12 +1491,14 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
 
     const u = users.find((x) => x.id === userId);
+    const targetEmail = u?.email ? String(u.email).trim().toLowerCase() : '';
     const nowIso = new Date().toISOString();
 
-    // Soft delete user in state
+    // Soft delete user in state (matching both id and target email)
     setUsers((prev) => {
-      const updated = prev.map((x) =>
-        x.id === userId
+      const updated = prev.map((x) => {
+        const isMatch = x.id === userId || (targetEmail && String(x.email || '').trim().toLowerCase() === targetEmail);
+        return isMatch
           ? {
               ...x,
               isDeleted: true,
@@ -1489,14 +1507,18 @@ ${currentUser?.name || 'Workspace Administrator'}`,
               deletedByName: currentUser?.name || 'Administrator',
               status: 'Offline' as const
             }
-          : x
-      );
-      saveToStorage('dolphin_users', updated);
-      return updated;
+          : x;
+      });
+      const unified = deduplicateUserList(updated);
+      saveToStorage('dolphin_users', unified);
+      return unified;
     });
 
-    // Soft delete in Firestore
+    // Soft delete in Firestore (both document ID and any duplicate documents by email)
     softDeleteUserInFirestore(userId, currentUser?.id || 'admin', currentUser?.name || 'Administrator');
+    if (targetEmail) {
+      softDeleteUserInFirestoreByEmail(targetEmail, currentUser?.id || 'admin', currentUser?.name || 'Administrator');
+    }
 
     if (u) {
       logActivity(
@@ -1518,9 +1540,18 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
 
     const u = users.find((x) => x.id === userId);
+    const targetEmail = u?.email ? String(u.email).trim().toLowerCase() : '';
+
+    if (targetEmail) {
+      const purgedEmails = loadFromStorage<string[]>('dolphin_purged_user_emails', []);
+      const filtered = purgedEmails.filter((e) => e.toLowerCase().trim() !== targetEmail);
+      saveToStorage('dolphin_purged_user_emails', filtered);
+    }
+
     setUsers((prev) => {
-      const updated = prev.map((x) =>
-        x.id === userId
+      const updated = prev.map((x) => {
+        const isMatch = x.id === userId || (targetEmail && String(x.email || '').trim().toLowerCase() === targetEmail);
+        return isMatch
           ? {
               ...x,
               isDeleted: false,
@@ -1529,13 +1560,17 @@ ${currentUser?.name || 'Workspace Administrator'}`,
               deletedByName: undefined,
               status: 'Active' as const
             }
-          : x
-      );
-      saveToStorage('dolphin_users', updated);
-      return updated;
+          : x;
+      });
+      const unified = deduplicateUserList(updated);
+      saveToStorage('dolphin_users', unified);
+      return unified;
     });
 
     restoreUserInFirestore(userId);
+    if (targetEmail) {
+      restoreUserInFirestoreByEmail(targetEmail);
+    }
 
     if (u) {
       logActivity(
@@ -1553,9 +1588,22 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   const bulkRestoreUsers = (userIds: string[]) => {
     if (!canDeleteUser(currentUser) || !userIds || userIds.length === 0) return;
 
+    const targetEmails: string[] = [];
+    userIds.forEach((id) => {
+      const found = users.find((x) => x.id === id);
+      if (found?.email) targetEmails.push(String(found.email).trim().toLowerCase());
+    });
+
+    if (targetEmails.length > 0) {
+      const purgedEmails = loadFromStorage<string[]>('dolphin_purged_user_emails', []);
+      const filtered = purgedEmails.filter((e) => !targetEmails.includes(e.toLowerCase().trim()));
+      saveToStorage('dolphin_purged_user_emails', filtered);
+    }
+
     setUsers((prev) => {
-      const updated = prev.map((x) =>
-        userIds.includes(x.id)
+      const updated = prev.map((x) => {
+        const isMatch = userIds.includes(x.id) || (x.email && targetEmails.includes(String(x.email).trim().toLowerCase()));
+        return isMatch
           ? {
               ...x,
               isDeleted: false,
@@ -1564,13 +1612,15 @@ ${currentUser?.name || 'Workspace Administrator'}`,
               deletedByName: undefined,
               status: 'Active' as const
             }
-          : x
-      );
-      saveToStorage('dolphin_users', updated);
-      return updated;
+          : x;
+      });
+      const unified = deduplicateUserList(updated);
+      saveToStorage('dolphin_users', unified);
+      return unified;
     });
 
     userIds.forEach((id) => restoreUserInFirestore(id));
+    targetEmails.forEach((email) => restoreUserInFirestoreByEmail(email));
 
     logActivity(
       'bulk restored users from Recycle Bin',
@@ -1590,13 +1640,28 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
 
     const u = users.find((x) => x.id === userId);
+    const targetEmail = u?.email ? String(u.email).trim().toLowerCase() : '';
+
+    if (targetEmail) {
+      const purgedEmails = loadFromStorage<string[]>('dolphin_purged_user_emails', []);
+      if (!purgedEmails.some((e) => e.toLowerCase().trim() === targetEmail)) {
+        purgedEmails.push(targetEmail);
+        saveToStorage('dolphin_purged_user_emails', purgedEmails);
+      }
+    }
+
     setUsers((prev) => {
-      const updated = prev.filter((x) => x.id !== userId);
+      const updated = prev.filter(
+        (x) => x.id !== userId && (!targetEmail || String(x.email || '').trim().toLowerCase() !== targetEmail)
+      );
       saveToStorage('dolphin_users', updated);
       return updated;
     });
 
     deleteUserFromFirestore(userId);
+    if (targetEmail) {
+      deleteUserFromFirestoreByEmail(targetEmail);
+    }
 
     if (u) {
       logActivity(
@@ -1614,13 +1679,32 @@ ${currentUser?.name || 'Workspace Administrator'}`,
   const bulkPurgeUsers = (userIds: string[]) => {
     if (!canDeleteUser(currentUser) || !userIds || userIds.length === 0) return;
 
+    const targetEmails: string[] = [];
+    userIds.forEach((id) => {
+      const found = users.find((x) => x.id === id);
+      if (found?.email) targetEmails.push(String(found.email).trim().toLowerCase());
+    });
+
+    if (targetEmails.length > 0) {
+      const purgedEmails = loadFromStorage<string[]>('dolphin_purged_user_emails', []);
+      targetEmails.forEach((email) => {
+        if (!purgedEmails.some((e) => e.toLowerCase().trim() === email)) {
+          purgedEmails.push(email);
+        }
+      });
+      saveToStorage('dolphin_purged_user_emails', purgedEmails);
+    }
+
     setUsers((prev) => {
-      const updated = prev.filter((x) => !userIds.includes(x.id));
+      const updated = prev.filter(
+        (x) => !userIds.includes(x.id) && (!x.email || !targetEmails.includes(String(x.email).trim().toLowerCase()))
+      );
       saveToStorage('dolphin_users', updated);
       return updated;
     });
 
     userIds.forEach((id) => deleteUserFromFirestore(id));
+    targetEmails.forEach((email) => deleteUserFromFirestoreByEmail(email));
 
     logActivity(
       'bulk purged user accounts',
