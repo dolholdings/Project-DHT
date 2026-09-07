@@ -63,16 +63,18 @@ export const RecentActivityPanel: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [quickCommentText, setQuickCommentText] = useState<string>('');
-  const [quickCommentTaskId, setQuickCommentTaskId] = useState<string>(tasks[0]?.id || '');
+  const [quickCommentTaskId, setQuickCommentTaskId] = useState<string>(tasks?.[0]?.id || '');
 
   // Convert activityLogs and taskComments into unified timeline items
   const unifiedActivities = useMemo(() => {
     const items: UnifiedActivityItem[] = [];
 
     // 1. Process activityLogs
-    activityLogs.forEach((log) => {
+    (activityLogs || []).forEach((log) => {
+      if (!log) return;
       let type: UnifiedActivityItem['type'] = 'other';
-      const actionLower = log.action.toLowerCase();
+      const actionText = log.action || '';
+      const actionLower = actionText.toLowerCase();
 
       if (actionLower.includes('status') || actionLower.includes('moved')) {
         type = 'status';
@@ -87,9 +89,10 @@ export const RecentActivityPanel: React.FC = () => {
       // Extract old & new status if present in action or target or details
       let oldStatus: string | undefined;
       let newStatus: string | undefined;
+      const targetText = log.target || '';
       if (type === 'status') {
-        const match = log.target.match(/(?:from\s+)?([A-Za-z\s]+)\s*➔\s*([A-Za-z\s]+)/) ||
-                      log.action.match(/(?:to\s+)([A-Za-z\s]+)/);
+        const match = targetText.match(/(?:from\s+)?([A-Za-z\s]+)\s*➔\s*([A-Za-z\s]+)/) ||
+                      actionText.match(/(?:to\s+)([A-Za-z\s]+)/);
         if (match) {
           if (match[2]) {
             oldStatus = match[1]?.trim();
@@ -106,9 +109,9 @@ export const RecentActivityPanel: React.FC = () => {
         userId: log.userId,
         userName: log.userName || 'Team Member',
         userAvatar: log.userAvatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150',
-        actionText: log.action,
-        targetTitle: log.target,
-        timestamp: log.timestamp,
+        actionText: log.action || 'updated',
+        targetTitle: log.target || 'Workspace Item',
+        timestamp: log.timestamp || new Date().toISOString(),
         projectId: log.projectId,
         taskId: log.taskId,
         details: log.details,
@@ -118,9 +121,10 @@ export const RecentActivityPanel: React.FC = () => {
     });
 
     // 2. Process taskComments
-    taskComments.forEach((cmt) => {
-      const parentTask = tasks.find((t) => t.id === cmt.taskId);
-      const targetTitle = parentTask ? parentTask.title : 'Task Discussion';
+    (taskComments || []).forEach((cmt) => {
+      if (!cmt) return;
+      const parentTask = (tasks || []).find((t) => t && t.id === cmt.taskId);
+      const targetTitle = parentTask?.title || 'Task Discussion';
 
       items.push({
         id: `cmt-${cmt.id}`,
@@ -130,7 +134,7 @@ export const RecentActivityPanel: React.FC = () => {
         userAvatar: cmt.userAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
         actionText: 'commented on',
         targetTitle,
-        timestamp: cmt.createdAt,
+        timestamp: cmt.createdAt || new Date().toISOString(),
         taskId: cmt.taskId,
         projectId: parentTask?.projectId,
         commentContent: cmt.content
@@ -385,12 +389,17 @@ export const RecentActivityPanel: React.FC = () => {
                 : 'bg-[#0D1520] border-[#233549] text-slate-200 focus:border-[#3BC0BB]'
             }`}
           >
-            <option value="all">All Projects ({projects.length})</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                [{p.code}] {p.title.slice(0, 20)}...
-              </option>
-            ))}
+            <option value="all">All Projects ({(projects || []).length})</option>
+            {(projects || []).map((p) => {
+              if (!p) return null;
+              const displayTitle = p.title || 'Untitled Space';
+              const truncatedTitle = displayTitle.length > 20 ? displayTitle.slice(0, 20) + '...' : displayTitle;
+              return (
+                <option key={p.id} value={p.id}>
+                  [{p.code || 'SPC'}] {truncatedTitle}
+                </option>
+              );
+            })}
           </select>
 
           <div className="relative flex-1 md:w-44">
@@ -640,9 +649,9 @@ export const RecentActivityPanel: React.FC = () => {
                   : 'bg-[#16222F] border-[#233549] text-slate-200 focus:border-[#3BC0BB]'
               }`}
             >
-              {tasks.slice(0, 10).map((t) => (
+              {(tasks || []).slice(0, 10).map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.title}
+                  {t?.title || 'Untitled Task'}
                 </option>
               ))}
             </select>

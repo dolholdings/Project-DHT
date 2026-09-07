@@ -77,6 +77,7 @@ export const AdminView: React.FC = () => {
     updateUser,
     deleteUser,
     companies,
+    deleteCompany,
     activeCompany,
     authorizedDomains,
     addAuthorizedDomain,
@@ -1204,7 +1205,7 @@ export const AdminView: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-slate-200 dark:border-[#233549] flex items-center justify-between">
+                    <div className="mt-5 pt-4 border-t border-slate-200 dark:border-[#233549] flex items-center justify-between gap-2">
                       <button
                         onClick={() => {
                           setCompanyFilter(comp.id);
@@ -1215,7 +1216,27 @@ export const AdminView: React.FC = () => {
                         <Users className="w-3.5 h-3.5" />
                         <span>View All {compUsers.length} Users</span>
                       </button>
-                      <span className="text-[10px] text-slate-400 font-mono">ID: {comp.id}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {comp.id}</span>
+                        {companies.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Delete Subsidiary / Entity "${comp.name}" [${comp.code}]?\n\nThis will remove this business entity, all ${compProjects.length} spaces, and all related tasks across global state, local persistence, and Firestore sync.`
+                                )
+                              ) {
+                                deleteCompany(comp.id);
+                              }
+                            }}
+                            className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
+                            title={`Delete ${comp.name} Entity`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

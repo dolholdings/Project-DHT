@@ -308,7 +308,7 @@ export const ProjectsDataTable: React.FC<ProjectsDataTableProps> = ({
             </div>
 
             <p className="text-xs text-slate-300 bg-[#0D1520] p-3 rounded-xl border border-[#233549]">
-              Deleting this project will remove all associated task links and budget tracking records.
+              This space will be moved to the Recycle Bin. Workspace Administrators can restore it anytime or permanently purge it.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -323,9 +323,9 @@ export const ProjectsDataTable: React.FC<ProjectsDataTableProps> = ({
                   deleteProject(projectToDelete.id);
                   setProjectToDelete(null);
                 }}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30"
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/30 cursor-pointer"
               >
-                Delete Permanently
+                Move to Recycle Bin
               </button>
             </div>
           </div>

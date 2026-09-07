@@ -21,6 +21,11 @@ export interface Company {
   type?: CompanyType;
   isExternal?: boolean;
   contactEmail?: string;
+  // Soft-Delete & 30-Day Recycle Bin Fields
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedByName?: string;
 }
 
 export type Role = 'Admin' | 'Project Manager' | 'Team Member' | 'Viewer';
@@ -72,6 +77,11 @@ export interface Project {
   members: string[]; // user ids
   memberRoles?: Record<string, SpaceRole>; // map of userId -> SpaceRole
   lists?: string[]; // Array of list names under this Space/Project (e.g., 'Chairman', 'SEO & Google Ads', etc.)
+  // Soft-Delete & Recycle Bin Fields
+  isDeleted?: boolean;
+  deletedAt?: string;
+  deletedBy?: string;
+  deletedByName?: string;
 }
 
 export type TaskStatus = 'Backlog' | 'To Do' | 'In Progress' | 'In Review' | 'Done';

@@ -937,12 +937,38 @@ export async function seedInitialFirestoreData(
   initialTemplates: ProjectTemplate[] = [],
   initialSprints: Sprint[] = []
 ): Promise<void> {
+  // Fast bail-out: if already seeded in this browser session, skip redundant network roundtrips
+  if (typeof window !== 'undefined') {
+    const isSeeded = sessionStorage.getItem('dolphin_firestore_seeded');
+    if (isSeeded === 'true') {
+      return;
+    }
+  }
+
+  const safeGetLocalStorage = <T>(key: string, fallback: T): T => {
+    try {
+      if (typeof window === 'undefined') return fallback;
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   try {
     // 1. Companies / Workspaces seeding
+    const purgedCompanyIds = new Set(
+      safeGetLocalStorage<string[]>('dolphin_purged_company_ids', [])
+    );
     if (initialCompanies.length > 0) {
       const existingCompanies = await fetchCompaniesFromFirestore();
       for (const ic of initialCompanies) {
-        if (!existingCompanies.some((c) => c.id === ic.id || c.code === ic.code || (c.domain && ic.domain && c.domain === ic.domain))) {
+        if (
+          !purgedCompanyIds.has(ic.id) &&
+          !existingCompanies.some(
+            (c) => c.id === ic.id || c.code === ic.code || (c.domain && ic.domain && c.domain === ic.domain)
+          )
+        ) {
           await createCompanyInFirestore(ic);
         }
       }
@@ -965,18 +991,31 @@ export async function seedInitialFirestoreData(
     }
 
     // 3. Projects seeding (only on first initialization so deleted projects stay deleted)
+    const purgedProjectIds = new Set(
+      safeGetLocalStorage<string[]>('dolphin_purged_project_ids', [])
+    );
+    const deletedProjectIds = new Set(
+      safeGetLocalStorage<string[]>('dolphin_deleted_project_ids', [])
+    );
     const existingProjects = await fetchProjectsFromFirestore();
-    if (existingProjects.length === 0 && initialProjects.length > 0) {
+    if (existingProjects.length === 0 && initialProjects.length > 0 && purgedProjectIds.size === 0 && deletedProjectIds.size === 0) {
       for (const ip of initialProjects) {
-        await createProjectInFirestore(ip);
+        if (!purgedProjectIds.has(ip.id) && !deletedProjectIds.has(ip.id)) {
+          await createProjectInFirestore(ip);
+        }
       }
     }
 
     // 4. Tasks seeding (only on first initialization so deleted tasks stay deleted)
+    const purgedTaskIds = new Set(
+      safeGetLocalStorage<string[]>('dolphin_purged_task_ids', [])
+    );
     const existingTasks = await fetchTasksFromFirestore();
-    if (existingTasks.length === 0 && initialTasks.length > 0) {
+    if (existingTasks.length === 0 && initialTasks.length > 0 && purgedTaskIds.size === 0) {
       for (const it of initialTasks) {
-        await createTaskInFirestore(it);
+        if (!purgedTaskIds.has(it.id)) {
+          await createTaskInFirestore(it);
+        }
       }
     }
 
@@ -1036,6 +1075,10 @@ export async function seedInitialFirestoreData(
           await createSprintInFirestore(sp);
         }
       }
+    }
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('dolphin_firestore_seeded', 'true');
     }
   } catch (error) {
     console.warn('Could not seed initial Firestore data automatically:', error);

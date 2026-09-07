@@ -175,9 +175,17 @@ interface AppContextType {
   activeCompany: Company;
   setActiveCompany: (company: Company) => void;
   companies: Company[];
+  deletedCompanies: Company[];
   addCompany: (company: Omit<Company, 'id'>) => Company;
   updateCompany: (id: string, updates: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
+  restoreCompany: (id: string) => void;
+  bulkRestoreCompanies: (ids: string[]) => void;
+  purgeCompany: (id: string) => void;
+  bulkPurgeCompanies: (ids: string[]) => void;
+  emptyWorkspacesRecycleBin: () => void;
+  emptyWorkspaceAndProjectRecycleBin: () => void;
+  purgeExpiredWorkspacesAndProjects: () => void;
   users: User[];
   allUsers: User[];
   deletedUsers: User[];
@@ -219,6 +227,12 @@ interface AppContextType {
 
   // Projects & Templates
   projects: Project[];
+  deletedProjects: Project[];
+  restoreProject: (id: string) => void;
+  bulkRestoreProjects: (ids: string[]) => void;
+  purgeProject: (id: string) => void;
+  bulkPurgeProjects: (ids: string[]) => void;
+  emptyProjectsRecycleBin: () => void;
   addProject: (project: Omit<Project, 'id' | 'progress' | 'spentBudget'> | Project) => Project;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
@@ -545,28 +559,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveAuthorizedDomainsToFirestore(updated);
   };
 
-  const [companies, setCompanies] = useState<Company[]>(() => {
+  const [allCompanies, setAllCompanies] = useState<Company[]>(() => {
     const stored: Company[] = loadFromStorage('dolphin_companies', INITIAL_COMPANIES);
+    const purgedCompanyIds = new Set(loadFromStorage<string[]>('dolphin_purged_company_ids', []));
     const compMap = new Map<string, Company>();
-    INITIAL_COMPANIES.forEach((c) => compMap.set(c.id, c));
+    INITIAL_COMPANIES.forEach((c) => {
+      if (!purgedCompanyIds.has(c.id)) {
+        compMap.set(c.id, c);
+      }
+    });
     if (Array.isArray(stored)) {
       stored.forEach((c) => {
-        if (c && c.id) compMap.set(c.id, c);
+        if (c && c.id && !purgedCompanyIds.has(c.id)) compMap.set(c.id, c);
       });
     }
-    return Array.from(compMap.values());
+    const result = Array.from(compMap.values());
+    return result.length > 0 ? result : INITIAL_COMPANIES;
   });
+
+  // Active companies (excluding soft-deleted workspaces)
+  const companies = useMemo(() => allCompanies.filter((c) => !c.isDeleted), [allCompanies]);
+  // Soft-deleted workspaces for Recycle Bin (30-day retention)
+  const deletedCompanies = useMemo(() => allCompanies.filter((c) => !!c.isDeleted), [allCompanies]);
+
   const [activeCompany, setActiveCompany] = useState<Company>(() => {
     const storedActive = loadFromStorage<Company | null>('dolphin_active_company', null);
     const storedCompanies: Company[] = loadFromStorage('dolphin_companies', INITIAL_COMPANIES);
-    if (storedActive && Array.isArray(storedCompanies) && storedCompanies.length > 0) {
-      const matchStored = storedCompanies.find(
-        (c) => c.id === storedActive.id || c.domain === storedActive.domain || c.code === storedActive.code
-      );
-      if (matchStored) return matchStored;
+    const purgedCompanyIds = new Set(loadFromStorage<string[]>('dolphin_purged_company_ids', []));
+    const activeStored = Array.isArray(storedCompanies)
+      ? storedCompanies.filter((c) => !c.isDeleted && !purgedCompanyIds.has(c.id))
+      : [];
+    if (storedActive && !storedActive.isDeleted && activeStored.some((c) => c.id === storedActive.id)) {
+      return storedActive;
     }
-    const dhtCompany = (storedCompanies || INITIAL_COMPANIES).find((c) => c.id === 'comp_dht') || INITIAL_COMPANIES[3];
-    return storedActive || dhtCompany || INITIAL_COMPANIES[0];
+    const dhtCompany = activeStored.find((c) => c.id === 'comp_dht') || activeStored[0] || INITIAL_COMPANIES[0];
+    return dhtCompany;
   });
   const [users, setUsers] = useState<User[]>(() => {
     const loaded: User[] = loadFromStorage('dolphin_users', INITIAL_USERS);
@@ -676,30 +703,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const [projects, setProjects] = useState<Project[]>(() => {
+  const [allProjects, setAllProjects] = useState<Project[]>(() => {
     const loaded: Project[] = loadFromStorage('dolphin_projects', INITIAL_PROJECTS);
+    const purgedIds = new Set(loadFromStorage<string[]>('dolphin_purged_project_ids', []));
+    const deletedIds = new Set(loadFromStorage<string[]>('dolphin_deleted_project_ids', []));
+
     if (!Array.isArray(loaded) || loaded.length === 0) {
+      if (purgedIds.size > 0 || deletedIds.size > 0) {
+        return [];
+      }
       saveToStorage('dolphin_projects', INITIAL_PROJECTS);
       return INITIAL_PROJECTS;
     }
-    const merged = [...loaded];
+    const merged = [...loaded].filter((p) => p && !purgedIds.has(p.id));
     INITIAL_PROJECTS.forEach((ip) => {
-      if (!merged.some((p) => p.id === ip.id)) {
+      if (!purgedIds.has(ip.id) && !deletedIds.has(ip.id) && !merged.some((p) => p.id === ip.id)) {
         merged.push(ip);
       }
     });
     return merged;
   });
+  const setProjects = setAllProjects;
+
+  // Active projects (excluding soft-deleted spaces)
+  const projects = useMemo(() => allProjects.filter((p) => !p.isDeleted), [allProjects]);
+  // Soft-deleted spaces for Recycle Bin
+  const deletedProjects = useMemo(() => allProjects.filter((p) => !!p.isDeleted), [allProjects]);
+
   const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>(() => loadFromStorage('dolphin_project_templates', INITIAL_TEMPLATES));
   const [allTasks, setAllTasks] = useState<Task[]>(() => {
     const loaded: Task[] = loadFromStorage('dolphin_tasks', INITIAL_TASKS);
+    const purgedTaskIds = new Set(loadFromStorage<string[]>('dolphin_purged_task_ids', []));
+    const deletedTaskIds = new Set(loadFromStorage<string[]>('dolphin_deleted_task_ids', []));
+
     if (!Array.isArray(loaded) || loaded.length === 0) {
+      if (purgedTaskIds.size > 0 || deletedTaskIds.size > 0) {
+        return [];
+      }
       saveToStorage('dolphin_tasks', INITIAL_TASKS);
       return INITIAL_TASKS;
     }
-    const merged = [...loaded];
+    const merged = [...loaded].filter((t) => t && !purgedTaskIds.has(t.id));
     INITIAL_TASKS.forEach((it) => {
-      if (!merged.some((t) => t.id === it.id)) {
+      if (!purgedTaskIds.has(it.id) && !deletedTaskIds.has(it.id) && !merged.some((t) => t.id === it.id)) {
         merged.push(it);
       }
     });
@@ -711,8 +757,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Soft-deleted users for Recycle Bin (180-day retention)
   const deletedUsers = useMemo(() => users.filter((u) => !!u.isDeleted), [users]);
 
-  // Active tasks (excluding soft-deleted items)
-  const tasks = useMemo(() => allTasks.filter((t) => !t.isDeleted), [allTasks]);
+  // Active tasks (excluding soft-deleted items and tasks belonging to soft-deleted spaces)
+  const tasks = useMemo(() => {
+    const activeProjectIds = new Set(projects.map((p) => p.id));
+    return allTasks.filter((t) => !t.isDeleted && (!t.projectId || activeProjectIds.has(t.projectId)));
+  }, [allTasks, projects]);
   // Soft-deleted tasks for Recycle Bin
   const deletedTasks = useMemo(() => allTasks.filter((t) => !!t.isDeleted), [allTasks]);
   const [subtasks, setSubtasks] = useState<Subtask[]>(() => loadFromStorage('dolphin_subtasks', INITIAL_SUBTASKS));
@@ -797,15 +846,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Subscribe to real-time Firestore updates for Companies/Workspaces
     const unsubscribeCompanies = subscribeToCompanies((remoteCompanies) => {
       if (remoteCompanies) {
-        setCompanies((prev) => {
-          const compMap = new Map<string, Company>();
-          INITIAL_COMPANIES.forEach((c) => compMap.set(c.id, c));
-          prev.forEach((c) => compMap.set(c.id, c));
-          remoteCompanies.forEach((c) => compMap.set(c.id, c));
-          const merged = Array.from(compMap.values());
-          saveToStorage('dolphin_companies', merged);
-          return merged;
-        });
+        const purgedCompanyIds = new Set(loadFromStorage<string[]>('dolphin_purged_company_ids', []));
+        const filteredRemote = remoteCompanies.filter((c) => c && c.id && !purgedCompanyIds.has(c.id));
+        if (filteredRemote.length > 0) {
+          setAllCompanies(filteredRemote);
+          saveToStorage('dolphin_companies', filteredRemote);
+          setActiveCompany((prevActive) => {
+            const activeFiltered = filteredRemote.filter((c) => !c.isDeleted);
+            if (!prevActive || prevActive.isDeleted || !activeFiltered.some((c) => c.id === prevActive.id)) {
+              const nextActive = activeFiltered[0] || filteredRemote[0];
+              if (nextActive) {
+                saveToStorage('dolphin_active_company', nextActive);
+                return nextActive;
+              }
+            }
+            return prevActive;
+          });
+        }
       }
     });
 
@@ -862,18 +919,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Subscribe to real-time Firestore updates for Projects
     const unsubscribeProjects = subscribeToProjects((remoteProjects) => {
       if (remoteProjects) {
-        setProjects(remoteProjects);
-        saveToStorage('dolphin_projects', remoteProjects);
+        const purgedIds = new Set(loadFromStorage<string[]>('dolphin_purged_project_ids', []));
+        const deletedIds = new Set(loadFromStorage<string[]>('dolphin_deleted_project_ids', []));
+        const cleanRemote = remoteProjects
+          .filter((p) => p && !purgedIds.has(p.id))
+          .map((p) => (deletedIds.has(p.id) ? { ...p, isDeleted: true } : p));
+        setProjects(cleanRemote);
+        saveToStorage('dolphin_projects', cleanRemote);
+        setSelectedProjectId((prev) => {
+          if (
+            prev &&
+            (purgedIds.has(prev) ||
+              deletedIds.has(prev) ||
+              !cleanRemote.some((p) => p.id === prev && !p.isDeleted))
+          ) {
+            return null;
+          }
+          return prev;
+        });
       }
     });
 
     // Subscribe to real-time Firestore updates for Tasks
     const unsubscribeTasks = subscribeToTasks((remoteTasks) => {
       if (remoteTasks) {
-        setAllTasks(remoteTasks);
-        saveToStorage('dolphin_tasks', remoteTasks);
+        const purgedTaskIds = new Set(loadFromStorage<string[]>('dolphin_purged_task_ids', []));
+        const deletedTaskIds = new Set(loadFromStorage<string[]>('dolphin_deleted_task_ids', []));
+        const cleanRemote = remoteTasks
+          .filter((t) => t && !purgedTaskIds.has(t.id))
+          .map((t) => (deletedTaskIds.has(t.id) ? { ...t, isDeleted: true } : t));
+        setAllTasks(cleanRemote);
+        saveToStorage('dolphin_tasks', cleanRemote);
         // Automatically check and purge any items older than 30 days
-        purgeExpiredTasksFromFirestore(remoteTasks);
+        purgeExpiredTasksFromFirestore(cleanRemote);
       }
     });
 
@@ -1237,7 +1315,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...newComp,
       id: `comp_${Date.now()}`
     };
-    setCompanies((prev) => {
+    setAllCompanies((prev) => {
       const next = [...prev, created];
       saveToStorage('dolphin_companies', next);
       return next;
@@ -1248,7 +1326,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCompany = (id: string, updates: Partial<Company>) => {
-    setCompanies((prev) => {
+    setAllCompanies((prev) => {
       const next = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
       saveToStorage('dolphin_companies', next);
       return next;
@@ -1264,28 +1342,262 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     logActivity('updated space config', updates.name || 'Space settings', 'system');
   };
 
+  // Soft-Delete Workspace / Company (Holds for 30 days in Recycle Bin before permanent deletion)
   const deleteCompany = (id: string) => {
     if (companies.length <= 1) {
-      alert('Cannot delete the last remaining Space/Workspace.');
+      alert('Cannot delete the last active Workspace entity. At least one workspace must remain active.');
       return;
     }
-    const compToDelete = companies.find((c) => c.id === id);
-    const remaining = companies.filter((c) => c.id !== id);
-    setCompanies(remaining);
-    saveToStorage('dolphin_companies', remaining);
-    setProjects((prev) => prev.filter((p) => p.companyId !== id));
-    setAllTasks((prev) => prev.filter((t) => t.companyId !== id));
+    const compToDelete = allCompanies.find((c) => c.id === id);
+    if (!compToDelete) return;
+    const now = new Date().toISOString();
 
-    if (activeCompany.id === id && remaining.length > 0) {
-      setActiveCompany(remaining[0]);
-      saveToStorage('dolphin_active_company', remaining[0]);
+    // 1. Soft-delete company in state and storage
+    setAllCompanies((prev) => {
+      const next = prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              isDeleted: true,
+              deletedAt: now,
+              deletedBy: currentUser?.id || 'admin',
+              deletedByName: currentUser?.name || 'Administrator'
+            }
+          : c
+      );
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
+
+    // 2. Also soft-delete all projects belonging to this company so they move to the Recycle Bin
+    const compProjects = allProjects.filter((p) => p.companyId === id);
+    if (compProjects.length > 0) {
+      setAllProjects((prev) => {
+        const next = prev.map((p) =>
+          p.companyId === id
+            ? {
+                ...p,
+                isDeleted: true,
+                deletedAt: p.deletedAt || now,
+                deletedBy: p.deletedBy || (currentUser?.id || 'admin'),
+                deletedByName: p.deletedByName || (currentUser?.name || 'Administrator')
+              }
+            : p
+        );
+        saveToStorage('dolphin_projects', next);
+        return next;
+      });
+
+      compProjects.forEach((p) => {
+        updateProjectInFirestore(p.id, {
+          isDeleted: true,
+          deletedAt: p.deletedAt || now,
+          deletedBy: p.deletedBy || (currentUser?.id || 'admin'),
+          deletedByName: p.deletedByName || (currentUser?.name || 'Administrator')
+        }).catch((err) => console.warn('Firestore soft-delete project error:', err));
+      });
     }
 
+    // 3. Update Firestore company document
+    updateCompanyInFirestore(id, {
+      isDeleted: true,
+      deletedAt: now,
+      deletedBy: currentUser?.id || 'admin',
+      deletedByName: currentUser?.name || 'Administrator'
+    }).catch((err) => console.warn('Company Firestore soft-delete error:', err));
+
+    // 4. Reset selectedProjectId if it belonged to this company
+    const projIdsOfCompany = new Set(compProjects.map((p) => p.id));
+    setSelectedProjectId((prev) => (prev && projIdsOfCompany.has(prev) ? null : prev));
+
+    // 5. Switch activeCompany if the deleted one was currently active
+    const remainingActive = companies.filter((c) => c.id !== id);
+    if (activeCompany.id === id && remainingActive.length > 0) {
+      setActiveCompany(remainingActive[0]);
+      saveToStorage('dolphin_active_company', remainingActive[0]);
+    }
+
+    logActivity('moved workspace to recycle bin', compToDelete.name, 'system');
+  };
+
+  // Restore Workspace from Recycle Bin
+  const restoreCompany = (id: string) => {
+    const comp = allCompanies.find((c) => c.id === id);
+    if (!comp) return;
+
+    // 1. Restore company in state and storage
+    setAllCompanies((prev) => {
+      const next = prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined
+            }
+          : c
+      );
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
+
+    // 2. Also restore projects belonging to this company that were soft-deleted
+    const compProjects = allProjects.filter((p) => p.companyId === id && p.isDeleted);
+    if (compProjects.length > 0) {
+      setAllProjects((prev) => {
+        const next = prev.map((p) =>
+          p.companyId === id
+            ? {
+                ...p,
+                isDeleted: false,
+                deletedAt: undefined,
+                deletedBy: undefined,
+                deletedByName: undefined
+              }
+            : p
+        );
+        saveToStorage('dolphin_projects', next);
+        return next;
+      });
+
+      compProjects.forEach((p) => {
+        updateProjectInFirestore(p.id, {
+          isDeleted: false,
+          deletedAt: undefined,
+          deletedBy: undefined,
+          deletedByName: undefined
+        }).catch((err) => console.warn('Firestore restore project error:', err));
+      });
+    }
+
+    // 3. Update Firestore company document
+    updateCompanyInFirestore(id, {
+      isDeleted: false,
+      deletedAt: undefined,
+      deletedBy: undefined,
+      deletedByName: undefined
+    }).catch((err) => console.warn('Company Firestore restore error:', err));
+
+    logActivity('restored workspace from recycle bin', comp.name, 'system');
+  };
+
+  const bulkRestoreCompanies = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    ids.forEach((id) => restoreCompany(id));
+  };
+
+  // Permanently Purge Workspace
+  const purgeCompany = (id: string) => {
+    const compToDelete = allCompanies.find((c) => c.id === id);
+
+    // Track purged company so it cannot re-seed
+    const purgedCompanyIds = loadFromStorage<string[]>('dolphin_purged_company_ids', []);
+    if (!purgedCompanyIds.includes(id)) {
+      saveToStorage('dolphin_purged_company_ids', [...purgedCompanyIds, id]);
+    }
+
+    // 1. Immediately update allCompanies
+    setAllCompanies((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
+
+    // 2. Identify projects belonging to this company and purge them
+    const projectsToRemove = allProjects.filter((p) => p.companyId === id);
+    const projIdsToRemove = new Set(projectsToRemove.map((p) => p.id));
+    if (projectsToRemove.length > 0) {
+      const purgedProjIds = loadFromStorage<string[]>('dolphin_purged_project_ids', []);
+      const updatedPurgedProj = Array.from(new Set([...purgedProjIds, ...projectsToRemove.map((p) => p.id)]));
+      saveToStorage('dolphin_purged_project_ids', updatedPurgedProj);
+
+      projectsToRemove.forEach((p) => {
+        deleteProjectFromFirestore(p.id).catch((err) => console.warn('Project Firestore purge error:', err));
+      });
+
+      setAllProjects((prev) => {
+        const next = prev.filter((p) => p.companyId !== id);
+        saveToStorage('dolphin_projects', next);
+        return next;
+      });
+    }
+
+    // 3. Identify and purge all tasks belonging to this company or its projects
+    const tasksToRemove = allTasks.filter((t) => t.companyId === id || (t.projectId && projIdsToRemove.has(t.projectId)));
+    if (tasksToRemove.length > 0) {
+      const purgedTaskIds = loadFromStorage<string[]>('dolphin_purged_task_ids', []);
+      const updatedPurgedTasks = Array.from(new Set([...purgedTaskIds, ...tasksToRemove.map((t) => t.id)]));
+      saveToStorage('dolphin_purged_task_ids', updatedPurgedTasks);
+
+      tasksToRemove.forEach((t) => {
+        deleteTaskFromFirestore(t.id).catch((err) => console.warn('Task Firestore purge error:', err));
+      });
+
+      setAllTasks((prev) => {
+        const next = prev.filter((t) => t.companyId !== id && (!t.projectId || !projIdsToRemove.has(t.projectId)));
+        saveToStorage('dolphin_tasks', next);
+        return next;
+      });
+    }
+
+    // 4. Reset selectedProjectId if it belonged to this company
+    setSelectedProjectId((prev) => {
+      if (prev && projIdsToRemove.has(prev)) {
+        return null;
+      }
+      return prev;
+    });
+
+    // 5. Switch activeCompany if the deleted one was currently active
+    const remainingActive = companies.filter((c) => c.id !== id);
+    if (activeCompany.id === id && remainingActive.length > 0) {
+      setActiveCompany(remainingActive[0]);
+      saveToStorage('dolphin_active_company', remainingActive[0]);
+    }
+
+    // 6. Delete company document from Firestore
     deleteCompanyFromFirestore(id).catch((err) => console.warn('Company Firestore delete error:', err));
 
     if (compToDelete) {
-      logActivity('deleted space', compToDelete.name, 'system');
+      logActivity('permanently purged workspace entity', compToDelete.name, 'system');
     }
+  };
+
+  const bulkPurgeCompanies = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    ids.forEach((id) => purgeCompany(id));
+  };
+
+  const emptyWorkspacesRecycleBin = () => {
+    const deleted = allCompanies.filter((c) => !!c.isDeleted);
+    deleted.forEach((c) => purgeCompany(c.id));
+  };
+
+  const emptyWorkspaceAndProjectRecycleBin = () => {
+    emptyWorkspacesRecycleBin();
+    const deletedProj = allProjects.filter((p) => !!p.isDeleted);
+    deletedProj.forEach((p) => purgeProject(p.id));
+  };
+
+  // 30-Day Retention Auto-Purge Engine for Workspaces & Projects
+  const purgeExpiredWorkspacesAndProjects = () => {
+    const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+    const nowTime = Date.now();
+
+    // Expired projects (> 30 days)
+    const expiredProjects = allProjects.filter((p) => {
+      if (!p.isDeleted || !p.deletedAt) return false;
+      return nowTime - new Date(p.deletedAt).getTime() >= RETENTION_MS;
+    });
+    expiredProjects.forEach((p) => purgeProject(p.id));
+
+    // Expired workspaces (> 30 days)
+    const expiredCompanies = allCompanies.filter((c) => {
+      if (!c.isDeleted || !c.deletedAt) return false;
+      return nowTime - new Date(c.deletedAt).getTime() >= RETENTION_MS;
+    });
+    expiredCompanies.forEach((c) => purgeCompany(c.id));
   };
 
   // Domain & Email Validation helper (Project Management email address access control)
@@ -2159,12 +2471,206 @@ ${currentUser?.name || 'Workspace Administrator'}`,
       return;
     }
 
-    const p = projects.find((x) => x.id === id);
-    setProjects((prev) => prev.filter((x) => x.id !== id));
-    if (p) {
-      logActivity('deleted project', p.title, 'project', id);
+    const p = allProjects.find((x) => x.id === id);
+    const now = new Date().toISOString();
+
+    // Reset selectedProjectId immediately if it was this project
+    setSelectedProjectId((prev) => (prev === id ? null : prev));
+
+    // Track deleted project ID so initial demo space is never resurrected on reload
+    const deletedIds = loadFromStorage<string[]>('dolphin_deleted_project_ids', []);
+    if (!deletedIds.includes(id)) {
+      saveToStorage('dolphin_deleted_project_ids', [...deletedIds, id]);
     }
-    deleteProjectFromFirestore(id);
+
+    // Soft-delete project in state and move to Recycle Bin
+    setAllProjects((prev) => {
+      const updated = prev.map((proj) =>
+        proj.id === id
+          ? {
+              ...proj,
+              isDeleted: true,
+              deletedAt: now,
+              deletedBy: currentUser?.id || 'admin',
+              deletedByName: currentUser?.name || 'Administrator'
+            }
+          : proj
+      );
+      saveToStorage('dolphin_projects', updated);
+      return updated;
+    });
+
+    // Also soft-delete associated tasks in state and in Firestore
+    setAllTasks((prev) => {
+      const updated = prev.map((t) =>
+        t.projectId === id
+          ? {
+              ...t,
+              isDeleted: true,
+              deletedAt: now,
+              deletedBy: currentUser?.id || 'admin'
+            }
+          : t
+      );
+      saveToStorage('dolphin_tasks', updated);
+      return updated;
+    });
+
+    // Soft-delete in Firestore so it moves to Recycle Bin across devices/sessions
+    updateProjectInFirestore(id, {
+      isDeleted: true,
+      deletedAt: now,
+      deletedBy: currentUser?.id || 'admin',
+      deletedByName: currentUser?.name || 'Administrator'
+    }).catch((err) => console.warn('Firestore soft-delete project error:', err));
+
+    const tasksToSoftDelete = allTasks.filter((t) => t.projectId === id);
+    tasksToSoftDelete.forEach((t) => {
+      updateTaskInFirestore(t.id, {
+        isDeleted: true,
+        deletedAt: now,
+        deletedBy: currentUser?.id || 'admin'
+      }).catch((err) => console.warn('Firestore soft-delete task error:', err));
+    });
+
+    if (p) {
+      logActivity('moved space to recycle bin', p.title, 'project', id);
+    }
+  };
+
+  const restoreProject = (id: string) => {
+    if (!canDeleteSpace(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can restore project spaces.');
+      return;
+    }
+
+    const p = allProjects.find((x) => x.id === id);
+
+    // Remove from deleted tracking
+    const deletedIds = loadFromStorage<string[]>('dolphin_deleted_project_ids', []);
+    saveToStorage('dolphin_deleted_project_ids', deletedIds.filter((x) => x !== id));
+
+    // Restore active status in state
+    setAllProjects((prev) => {
+      const updated = prev.map((proj) =>
+        proj.id === id
+          ? {
+              ...proj,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined,
+              deletedByName: undefined
+            }
+          : proj
+      );
+      saveToStorage('dolphin_projects', updated);
+      return updated;
+    });
+
+    // Also restore associated tasks in state and in Firestore
+    setAllTasks((prev) => {
+      const updated = prev.map((t) =>
+        t.projectId === id
+          ? {
+              ...t,
+              isDeleted: false,
+              deletedAt: undefined,
+              deletedBy: undefined
+            }
+          : t
+      );
+      saveToStorage('dolphin_tasks', updated);
+      return updated;
+    });
+
+    // Update in Firestore
+    updateProjectInFirestore(id, {
+      isDeleted: false,
+      deletedAt: undefined,
+      deletedBy: undefined,
+      deletedByName: undefined
+    }).catch((err) => console.warn('Firestore restore project error:', err));
+
+    const tasksToRestore = allTasks.filter((t) => t.projectId === id);
+    tasksToRestore.forEach((t) => {
+      updateTaskInFirestore(t.id, {
+        isDeleted: false,
+        deletedAt: undefined,
+        deletedBy: undefined
+      }).catch((err) => console.warn('Firestore restore task error:', err));
+    });
+
+    if (p) {
+      logActivity('restored space from recycle bin', p.title, 'project', id);
+    }
+  };
+
+  const bulkRestoreProjects = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    ids.forEach((id) => restoreProject(id));
+  };
+
+  const purgeProject = (id: string) => {
+    if (!canDeleteSpace(currentUser)) {
+      console.warn('Permission denied: Only Workspace Administrators can permanently purge project spaces.');
+      return;
+    }
+
+    const p = allProjects.find((x) => x.id === id);
+
+    // Reset selectedProjectId immediately if it was this project
+    setSelectedProjectId((prev) => (prev === id ? null : prev));
+
+    // Add to purged project IDs so it can NEVER be loaded or re-seeded again
+    const purgedIds = loadFromStorage<string[]>('dolphin_purged_project_ids', []);
+    if (!purgedIds.includes(id)) {
+      saveToStorage('dolphin_purged_project_ids', [...purgedIds, id]);
+    }
+
+    // Remove from deleted IDs tracking
+    const deletedIds = loadFromStorage<string[]>('dolphin_deleted_project_ids', []);
+    saveToStorage('dolphin_deleted_project_ids', deletedIds.filter((x) => x !== id));
+
+    // Permanently remove from local state
+    setAllProjects((prev) => {
+      const updated = prev.filter((proj) => proj.id !== id);
+      saveToStorage('dolphin_projects', updated);
+      return updated;
+    });
+
+    // Permanently delete document from Firestore
+    deleteProjectFromFirestore(id).catch((err) => console.warn('Firestore purge project error:', err));
+
+    // Also purge associated tasks so they don't linger
+    const projTasks = allTasks.filter((t) => t.projectId === id);
+    if (projTasks.length > 0) {
+      const purgedTaskIds = loadFromStorage<string[]>('dolphin_purged_task_ids', []);
+      const updatedPurgedTasks = Array.from(new Set([...purgedTaskIds, ...projTasks.map((t) => t.id)]));
+      saveToStorage('dolphin_purged_task_ids', updatedPurgedTasks);
+
+      projTasks.forEach((t) => {
+        deleteTaskFromFirestore(t.id).catch((err) => console.warn('Firestore purge task error:', err));
+      });
+      setAllTasks((prev) => {
+        const updated = prev.filter((t) => t.projectId !== id);
+        saveToStorage('dolphin_tasks', updated);
+        return updated;
+      });
+    }
+
+    if (p) {
+      logActivity('permanently purged space', p.title, 'project', id);
+    }
+  };
+
+  const bulkPurgeProjects = (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    ids.forEach((id) => purgeProject(id));
+  };
+
+  const emptyProjectsRecycleBin = () => {
+    const deleted = allProjects.filter((p) => !!p.isDeleted);
+    deleted.forEach((p) => purgeProject(p.id));
   };
 
   // Helper to compute next semver style string
@@ -4395,11 +4901,13 @@ Please log into your workspace dashboard to update task status or adjust target 
     }
     // Run automated 30-day Recycle Bin purge check on mount and hourly
     purgeExpiredTasks();
+    purgeExpiredWorkspacesAndProjects();
     const interval = setInterval(() => {
       triggerUpcomingDueCheck();
     }, 60000);
     const purgeInterval = setInterval(() => {
       purgeExpiredTasks();
+      purgeExpiredWorkspacesAndProjects();
     }, 60 * 60 * 1000);
     return () => {
       clearInterval(interval);
@@ -4673,7 +5181,7 @@ Please log into your workspace dashboard to update task status or adjust target 
   // Restore all master workspaces, companies, DHT-Ajman projects, and task registries
   const restoreAllWorkspaceData = async () => {
     // 1. Reset all state in memory
-    setCompanies(INITIAL_COMPANIES);
+    setAllCompanies(INITIAL_COMPANIES);
     setProjects(INITIAL_PROJECTS);
     setAllTasks(INITIAL_TASKS);
     setSubtasks(INITIAL_SUBTASKS);
@@ -4735,9 +5243,17 @@ Please log into your workspace dashboard to update task status or adjust target 
         activeCompany,
         setActiveCompany,
         companies,
+        deletedCompanies,
         addCompany,
         updateCompany,
         deleteCompany,
+        restoreCompany,
+        bulkRestoreCompanies,
+        purgeCompany,
+        bulkPurgeCompanies,
+        emptyWorkspacesRecycleBin,
+        emptyWorkspaceAndProjectRecycleBin,
+        purgeExpiredWorkspacesAndProjects,
         users: activeUsers,
         allUsers: users,
         deletedUsers,
@@ -4754,6 +5270,12 @@ Please log into your workspace dashboard to update task status or adjust target 
         inviteUser,
         dispatchEmailNotification,
         projects,
+        deletedProjects,
+        restoreProject,
+        bulkRestoreProjects,
+        purgeProject,
+        bulkPurgeProjects,
+        emptyProjectsRecycleBin,
         addProject,
         updateProject,
         deleteProject,

@@ -27,7 +27,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
-import { Task, Priority, User, Role } from '../../types';
+import { Task, Priority, User, Role, Project, Company } from '../../types';
 import { UserAvatar } from '../common/UserAvatar';
 
 interface AdminRecycleBinProps {
@@ -36,6 +36,19 @@ interface AdminRecycleBinProps {
 
 export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => {
   const {
+    deletedCompanies,
+    restoreCompany,
+    bulkRestoreCompanies,
+    purgeCompany,
+    bulkPurgeCompanies,
+    emptyWorkspacesRecycleBin,
+    purgeExpiredWorkspacesAndProjects,
+    deletedProjects,
+    restoreProject,
+    bulkRestoreProjects,
+    purgeProject,
+    bulkPurgeProjects,
+    emptyProjectsRecycleBin,
     deletedTasks,
     restoreTask,
     bulkRestoreTasks,
@@ -50,12 +63,32 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
     bulkPurgeUsers,
     purgeExpiredUsers,
     projects,
+    allTasks,
     users,
     companies
   } = useApp();
 
-  // Active Entity Tab in Recycle Bin: 'tasks' | 'users'
-  const [activeEntityTab, setActiveEntityTab] = useState<'tasks' | 'users'>('users');
+  // Active Entity Tab in Recycle Bin: 'workspaces' | 'spaces' | 'users' | 'tasks'
+  const [activeEntityTab, setActiveEntityTab] = useState<'workspaces' | 'spaces' | 'users' | 'tasks'>('workspaces');
+
+  // Search & Filter for Workspaces (30-Day Retention)
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState('');
+  const [workspaceSortBy, setWorkspaceSortBy] = useState<'deleted_recent' | 'deleted_oldest' | 'purge_soon' | 'name'>('deleted_recent');
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([]);
+  const [previewWorkspace, setPreviewWorkspace] = useState<Company | null>(null);
+  const [workspaceToPurge, setWorkspaceToPurge] = useState<Company | null>(null);
+  const [isEmptyWorkspacesModalOpen, setIsEmptyWorkspacesModalOpen] = useState(false);
+  const [isBulkPurgeWorkspacesModalOpen, setIsBulkPurgeWorkspacesModalOpen] = useState(false);
+
+  // Search & Filter for Spaces / Projects
+  const [projectSearchQuery, setProjectSearchQuery] = useState('');
+  const [projectCompanyFilter, setProjectCompanyFilter] = useState<string>('all');
+  const [projectCategoryFilter, setProjectCategoryFilter] = useState<string>('all');
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [previewProject, setPreviewProject] = useState<Project | null>(null);
+  const [projectToPurge, setProjectToPurge] = useState<Project | null>(null);
+  const [isEmptyProjectsModalOpen, setIsEmptyProjectsModalOpen] = useState(false);
+  const [isBulkPurgeProjectsModalOpen, setIsBulkPurgeProjectsModalOpen] = useState(false);
 
   // Search & Filter for Tasks
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
@@ -81,6 +114,32 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
   // System Action feedback
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Helper to calculate days remaining before 30-day workspace auto purge
+  const getWorkspaceRetentionInfo = (deletedAt?: string) => {
+    if (!deletedAt) {
+      return { daysLeft: 30, isUrgent: false, formattedDate: 'Unknown' };
+    }
+    const delDate = new Date(deletedAt);
+    const now = new Date();
+    const ageMs = now.getTime() - delDate.getTime();
+    const ageDays = ageMs / (1000 * 60 * 60 * 24);
+    const daysLeft = Math.max(0, Math.ceil(30 - ageDays));
+    const isUrgent = daysLeft <= 5;
+
+    return {
+      daysLeft,
+      isUrgent,
+      ageDays: Math.floor(ageDays),
+      formattedDate: isNaN(delDate.getTime()) ? deletedAt : delDate.toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+  };
 
   // Helper to calculate days remaining before 30-day task auto purge
   const getTaskRetentionInfo = (deletedAt?: string) => {
@@ -134,6 +193,46 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
     };
   };
 
+  // Filter and sort soft-deleted workspaces (30 days)
+  const filteredWorkspaces = useMemo(() => {
+    let result = [...deletedCompanies];
+
+    if (workspaceSearchQuery.trim()) {
+      const q = workspaceSearchQuery.toLowerCase().trim();
+      result = result.filter((c) => {
+        const nameMatch = (c.name || '').toLowerCase().includes(q);
+        const codeMatch = (c.code || '').toLowerCase().includes(q);
+        const domainMatch = (c.domain || '').toLowerCase().includes(q);
+        const delByMatch = (c.deletedByName || c.deletedBy || '').toLowerCase().includes(q);
+        return nameMatch || codeMatch || domainMatch || delByMatch;
+      });
+    }
+
+    result.sort((a, b) => {
+      if (workspaceSortBy === 'deleted_recent') {
+        const timeA = a.deletedAt ? new Date(a.deletedAt).getTime() : 0;
+        const timeB = b.deletedAt ? new Date(b.deletedAt).getTime() : 0;
+        return timeB - timeA;
+      }
+      if (workspaceSortBy === 'deleted_oldest') {
+        const timeA = a.deletedAt ? new Date(a.deletedAt).getTime() : 0;
+        const timeB = b.deletedAt ? new Date(b.deletedAt).getTime() : 0;
+        return timeA - timeB;
+      }
+      if (workspaceSortBy === 'purge_soon') {
+        const infoA = getWorkspaceRetentionInfo(a.deletedAt);
+        const infoB = getWorkspaceRetentionInfo(b.deletedAt);
+        return infoA.daysLeft - infoB.daysLeft;
+      }
+      if (workspaceSortBy === 'name') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      return 0;
+    });
+
+    return result;
+  }, [deletedCompanies, workspaceSearchQuery, workspaceSortBy]);
+
   // Filter and sort soft-deleted tasks (30 days)
   const filteredTasks = useMemo(() => {
     let result = [...deletedTasks];
@@ -181,6 +280,39 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
 
     return result;
   }, [deletedTasks, taskSearchQuery, selectedProjectId, selectedPriority, taskSortBy]);
+
+  // Filter soft-deleted spaces / projects
+  const filteredProjects = useMemo(() => {
+    let result = [...deletedProjects];
+
+    if (projectSearchQuery.trim()) {
+      const q = projectSearchQuery.toLowerCase().trim();
+      result = result.filter((p) => {
+        const titleMatch = (p.title || '').toLowerCase().includes(q);
+        const codeMatch = (p.code || '').toLowerCase().includes(q);
+        const descMatch = (p.description || '').toLowerCase().includes(q);
+        const catMatch = (p.category || '').toLowerCase().includes(q);
+        const delByMatch = (p.deletedByName || p.deletedBy || '').toLowerCase().includes(q);
+        return titleMatch || codeMatch || descMatch || catMatch || delByMatch;
+      });
+    }
+
+    if (projectCompanyFilter !== 'all') {
+      result = result.filter((p) => p.companyId === projectCompanyFilter);
+    }
+
+    if (projectCategoryFilter !== 'all') {
+      result = result.filter((p) => p.category === projectCategoryFilter);
+    }
+
+    result.sort((a, b) => {
+      const timeA = a.deletedAt ? new Date(a.deletedAt).getTime() : 0;
+      const timeB = b.deletedAt ? new Date(b.deletedAt).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    return result;
+  }, [deletedProjects, projectSearchQuery, projectCompanyFilter, projectCategoryFilter]);
 
   // Filter and sort soft-deleted users (180 days)
   const filteredUsers = useMemo(() => {
@@ -230,6 +362,63 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
 
     return result;
   }, [deletedUsers, userSearchQuery, userCompanyFilter, userRoleFilter, userSortBy]);
+
+  // Bulk Selection Handlers for Workspaces
+  const handleSelectAllWorkspaces = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedWorkspaceIds(filteredWorkspaces.map((c) => c.id));
+    } else {
+      setSelectedWorkspaceIds([]);
+    }
+  };
+
+  const toggleSelectWorkspace = (id: string) => {
+    setSelectedWorkspaceIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Workspace Actions
+  const handleRestoreWorkspace = (workspaceId: string) => {
+    restoreCompany(workspaceId);
+    setSelectedWorkspaceIds((prev) => prev.filter((id) => id !== workspaceId));
+    setFeedbackMessage('Workspace and associated spaces restored successfully.');
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
+
+  const handleBulkRestoreWorkspaces = () => {
+    if (selectedWorkspaceIds.length === 0) return;
+    bulkRestoreCompanies(selectedWorkspaceIds);
+    setSelectedWorkspaceIds([]);
+    setFeedbackMessage(`Successfully restored ${selectedWorkspaceIds.length} workspace(s).`);
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
+
+  const handleExecutePurgeWorkspace = () => {
+    if (!workspaceToPurge) return;
+    purgeCompany(workspaceToPurge.id);
+    setSelectedWorkspaceIds((prev) => prev.filter((id) => id !== workspaceToPurge.id));
+    setWorkspaceToPurge(null);
+    setFeedbackMessage('Workspace permanently purged from storage.');
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
+
+  const handleExecuteBulkPurgeWorkspaces = () => {
+    if (selectedWorkspaceIds.length === 0) return;
+    bulkPurgeCompanies(selectedWorkspaceIds);
+    setIsBulkPurgeWorkspacesModalOpen(false);
+    setSelectedWorkspaceIds([]);
+    setFeedbackMessage('Selected workspace(s) permanently erased.');
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
+
+  const handleExecuteEmptyWorkspacesBin = () => {
+    emptyWorkspacesRecycleBin();
+    setIsEmptyWorkspacesModalOpen(false);
+    setSelectedWorkspaceIds([]);
+    setFeedbackMessage('Workspace recycle bin completely emptied.');
+    setTimeout(() => setFeedbackMessage(null), 4000);
+  };
 
   // Bulk Selection Handlers for Tasks
   const handleSelectAllTasks = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -372,6 +561,12 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
             {/* Retention Policies Info Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px]">
               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium border ${
+                isLight ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30'
+              }`}>
+                <Building2 className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Workspaces & Spaces Retention: <strong>30 Days</strong></span>
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-medium border ${
                 isLight ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
               }`}>
                 <Shield className="w-3.5 h-3.5 text-amber-500" />
@@ -397,6 +592,44 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
             <div className={`p-1.5 rounded-2xl border flex items-center gap-1 ${
               isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#0D1520] border-[#233549]'
             }`}>
+              <button
+                onClick={() => setActiveEntityTab('workspaces')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeEntityTab === 'workspaces'
+                    ? 'bg-[#0773BB] text-white shadow-md'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>Workspaces</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  activeEntityTab === 'workspaces' ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500'
+                }`}>
+                  {deletedCompanies.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setActiveEntityTab('spaces')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeEntityTab === 'spaces'
+                    ? 'bg-[#0773BB] text-white shadow-md'
+                    : isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    : 'text-slate-400 hover:text-white hover:bg-[#16222F]'
+                }`}
+              >
+                <FolderKanban className="w-4 h-4" />
+                <span>Spaces / Projects</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  activeEntityTab === 'spaces' ? 'bg-white/20 text-white' : 'bg-rose-500/20 text-rose-500'
+                }`}>
+                  {deletedProjects.length}
+                </span>
+              </button>
+
               <button
                 onClick={() => setActiveEntityTab('users')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -451,6 +684,526 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
           </div>
         )}
       </div>
+
+      {/* ========================================================= */}
+      {/* TAB: DELETED WORKSPACES (30-DAY RETENTION)                */}
+      {/* ========================================================= */}
+      {activeEntityTab === 'workspaces' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Controls Bar for Workspaces */}
+          <div className={`border rounded-2xl p-5 space-y-4 ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              {/* Search */}
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={workspaceSearchQuery}
+                  onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
+                  placeholder="Search deleted workspace name, code, domain..."
+                  className={`w-full pl-10 pr-4 py-2 border rounded-xl text-xs focus:outline-none focus:border-[#0773BB] transition-all ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-[#0D1520] border-[#233549] text-white placeholder-slate-500'
+                  }`}
+                />
+              </div>
+
+              {/* Sort Filter */}
+              <div className="flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={workspaceSortBy}
+                  onChange={(e) => setWorkspaceSortBy(e.target.value as any)}
+                  className={`px-3 py-2 border rounded-xl text-xs focus:outline-none transition-all ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-800'
+                      : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                  }`}
+                >
+                  <option value="deleted_recent">Recently Deleted</option>
+                  <option value="deleted_oldest">Oldest Deletions</option>
+                  <option value="purge_soon">Expiring Soon (30 Days)</option>
+                  <option value="name">Workspace Name (A-Z)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Bulk Action Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60 dark:border-[#233549]/60">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={filteredWorkspaces.length > 0 && selectedWorkspaceIds.length === filteredWorkspaces.length}
+                    onChange={handleSelectAllWorkspaces}
+                    className="w-4 h-4 rounded border-slate-300 text-[#0773BB] focus:ring-0 cursor-pointer"
+                  />
+                  <span>Select All ({filteredWorkspaces.length})</span>
+                </label>
+
+                {selectedWorkspaceIds.length > 0 && (
+                  <span className="text-xs text-[#0773BB] font-bold">
+                    {selectedWorkspaceIds.length} workspace(s) selected
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedWorkspaceIds.length > 0 && (
+                  <>
+                    <button
+                      onClick={handleBulkRestoreWorkspaces}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Restore Selected ({selectedWorkspaceIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsBulkPurgeWorkspacesModalOpen(true)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Purge Selected ({selectedWorkspaceIds.length})</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  disabled={deletedCompanies.length === 0}
+                  onClick={() => setIsEmptyWorkspacesModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                    deletedCompanies.length === 0
+                      ? 'opacity-40 cursor-not-allowed border-slate-300 dark:border-slate-800 text-slate-400'
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white cursor-pointer'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Empty Workspaces Bin</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Workspaces List */}
+          {filteredWorkspaces.length === 0 ? (
+            <div className={`p-12 text-center rounded-2xl border ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+            }`}>
+              <div className="w-16 h-16 rounded-2xl bg-[#0773BB]/10 text-[#0773BB] mx-auto flex items-center justify-center mb-4">
+                <Building2 className="w-8 h-8" />
+              </div>
+              <h3 className="font-bold text-base">No Workspaces in Recycle Bin</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1.5 leading-relaxed">
+                When a workspace entity is removed, it is securely retained here for 30 days. You can restore it or permanently purge it.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredWorkspaces.map((comp) => {
+                const retInfo = getWorkspaceRetentionInfo(comp.deletedAt);
+                const isSelected = selectedWorkspaceIds.includes(comp.id);
+                const associatedSpaces = projects.filter((p) => p.companyId === comp.id).length;
+
+                return (
+                  <div
+                    key={comp.id}
+                    className={`border rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all relative ${
+                      isSelected
+                        ? 'border-[#0773BB] ring-2 ring-[#0773BB]/30'
+                        : isLight
+                        ? 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                        : 'bg-[#16222F] border-[#233549] hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectWorkspace(comp.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-[#0773BB] focus:ring-0 cursor-pointer"
+                        />
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-[#0773BB]/20 text-indigo-400 flex items-center justify-center font-black text-sm">
+                          {comp.code || 'WS'}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${
+                          retInfo.isUrgent
+                            ? 'bg-rose-500/10 text-rose-500 border-rose-500/30 animate-pulse'
+                            : 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                        }`}>
+                          <Clock className="w-3 h-3" />
+                          <span>{retInfo.daysLeft}d left</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="font-bold text-sm tracking-tight text-slate-900 dark:text-white line-clamp-1">
+                        {comp.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
+                        {comp.domain || 'Internal Entity'}
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-[#233549]/50 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Associated Spaces</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-200">{associatedSpaces} spaces</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Deleted By</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block">
+                            {comp.deletedByName || comp.deletedBy || 'System Admin'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-[11px]">
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold">Deletion Date</span>
+                        <span className="text-slate-600 dark:text-slate-300 font-mono text-[11px]">{retInfo.formattedDate}</span>
+                      </div>
+
+                      {/* Retention Progress Bar */}
+                      <div className="mt-3 space-y-1">
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>30-Day Retention</span>
+                          <span>{30 - retInfo.daysLeft}/30 days elapsed</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-slate-200 dark:bg-[#0D1520] rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              retInfo.isUrgent ? 'bg-rose-500' : 'bg-[#0773BB]'
+                            }`}
+                            style={{ width: `${Math.min(100, Math.max(5, ((30 - retInfo.daysLeft) / 30) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-[#233549]/50">
+                      <button
+                        onClick={() => setPreviewWorkspace(comp)}
+                        className={`p-2 rounded-xl text-xs font-bold flex items-center gap-1 border transition-all cursor-pointer ${
+                          isLight
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                            : 'bg-[#0D1520] hover:bg-[#1f2d3d] text-slate-300 border-[#233549]'
+                        }`}
+                        title="Inspect Workspace Details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect</span>
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleRestoreWorkspace(comp.id)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 shadow-sm cursor-pointer transition-all"
+                          title="Restore Workspace"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Restore</span>
+                        </button>
+                        <button
+                          onClick={() => setWorkspaceToPurge(comp)}
+                          className="p-1.5 rounded-xl text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all cursor-pointer"
+                          title="Permanently Purge Workspace"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TAB: DELETED SPACES / PROJECTS                            */}
+      {/* ========================================================= */}
+      {activeEntityTab === 'spaces' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Controls Bar for Spaces */}
+          <div className={`border rounded-2xl p-5 space-y-4 ${
+            isLight ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#16222F] border-[#233549]'
+          }`}>
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              {/* Search */}
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={projectSearchQuery}
+                  onChange={(e) => setProjectSearchQuery(e.target.value)}
+                  placeholder="Search deleted space name, code, description..."
+                  className={`w-full pl-10 pr-4 py-2 border rounded-xl text-xs focus:outline-none focus:border-[#0773BB] transition-all ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400'
+                      : 'bg-[#0D1520] border-[#233549] text-white placeholder-slate-500'
+                  }`}
+                />
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5 text-slate-400" />
+                  <select
+                    value={projectCompanyFilter}
+                    onChange={(e) => setProjectCompanyFilter(e.target.value)}
+                    className={`px-3 py-2 border rounded-xl text-xs focus:outline-none transition-all ${
+                      isLight
+                        ? 'bg-slate-50 border-slate-300 text-slate-800'
+                        : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                    }`}
+                  >
+                    <option value="all">All Workspaces</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <select
+                  value={projectCategoryFilter}
+                  onChange={(e) => setProjectCategoryFilter(e.target.value)}
+                  className={`px-3 py-2 border rounded-xl text-xs focus:outline-none transition-all ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-800'
+                      : 'bg-[#0D1520] border-[#233549] text-slate-200'
+                  }`}
+                >
+                  <option value="all">All Categories</option>
+                  <option value="Engineering">Engineering</option>
+                  <option value="Design">Design</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Operations">Operations</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Bulk Action Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200/60 dark:border-[#233549]/60">
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={filteredProjects.length > 0 && selectedProjectIds.length === filteredProjects.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedProjectIds(filteredProjects.map((p) => p.id));
+                      } else {
+                        setSelectedProjectIds([]);
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-slate-300 text-[#0773BB] focus:ring-0 cursor-pointer"
+                  />
+                  <span>Select All ({filteredProjects.length})</span>
+                </label>
+
+                {selectedProjectIds.length > 0 && (
+                  <span className="text-xs text-[#0773BB] font-bold">
+                    {selectedProjectIds.length} space(s) selected
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedProjectIds.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => {
+                        bulkRestoreProjects(selectedProjectIds);
+                        setFeedbackMessage(`Restored ${selectedProjectIds.length} space(s) to active workspace.`);
+                        setSelectedProjectIds([]);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Restore Selected ({selectedProjectIds.length})</span>
+                    </button>
+
+                    <button
+                      onClick={() => setIsBulkPurgeProjectsModalOpen(true)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Purge Selected ({selectedProjectIds.length})</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  disabled={deletedProjects.length === 0}
+                  onClick={() => setIsEmptyProjectsModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                    deletedProjects.length === 0
+                      ? 'opacity-40 cursor-not-allowed border-slate-300 dark:border-slate-800 text-slate-400'
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white cursor-pointer'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Empty Spaces Bin</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Spaces List */}
+          {filteredProjects.length === 0 ? (
+            <div className={`p-12 text-center rounded-2xl border ${
+              isLight ? 'bg-white border-slate-200' : 'bg-[#16222F] border-[#233549]'
+            }`}>
+              <div className="w-16 h-16 rounded-2xl bg-[#0773BB]/10 text-[#0773BB] mx-auto flex items-center justify-center mb-4">
+                <FolderKanban className="w-8 h-8" />
+              </div>
+              <h3 className="font-bold text-base">No Spaces in Recycle Bin</h3>
+              <p className="text-xs text-slate-400 max-w-md mx-auto mt-1.5 leading-relaxed">
+                When you delete a space (project), it is safely moved here. You can inspect its details, restore it back to your active spaces, or permanently purge it.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProjects.map((proj) => {
+                const company = companies.find((c) => c.id === proj.companyId);
+                const projTasksCount = allTasks.filter((t) => t.projectId === proj.id).length;
+                const isSelected = selectedProjectIds.includes(proj.id);
+                const formattedDelDate = proj.deletedAt
+                  ? new Date(proj.deletedAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : 'Recently';
+
+                return (
+                  <div
+                    key={proj.id}
+                    className={`border rounded-2xl p-5 flex flex-col justify-between space-y-4 transition-all relative ${
+                      isSelected
+                        ? 'border-[#0773BB] ring-2 ring-[#0773BB]/30'
+                        : isLight
+                        ? 'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                        : 'bg-[#16222F] border-[#233549] hover:border-slate-700'
+                    }`}
+                  >
+                    {/* Top Row: Checkbox + Badges */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedProjectIds((prev) => [...prev, proj.id]);
+                            } else {
+                              setSelectedProjectIds((prev) => prev.filter((id) => id !== proj.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-[#0773BB] focus:ring-0 cursor-pointer"
+                        />
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0773BB]/20 to-sky-500/20 text-[#0773BB] flex items-center justify-center font-black text-sm">
+                          {proj.code ? proj.code.substring(0, 3) : 'SPC'}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-[#0D1520] text-slate-500 border border-slate-200 dark:border-[#233549]">
+                          {proj.category || 'General'}
+                        </span>
+                        {company && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0773BB]/10 text-[#0773BB]">
+                            {company.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div>
+                      <h4 className="font-bold text-sm tracking-tight text-slate-900 dark:text-white line-clamp-1">
+                        {proj.title || 'Untitled Space'}
+                      </h4>
+                      {proj.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                          {proj.description}
+                        </p>
+                      )}
+
+                      {/* Meta Information */}
+                      <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 dark:border-[#233549]/50 text-[11px]">
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Associated Tasks</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">{projTasksCount} tasks</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px] uppercase font-bold">Budget</span>
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
+                            {proj.budget ? `$${proj.budget.toLocaleString()}` : 'N/A'}
+                          </span>
+                        </div>
+                        <div className="col-span-2 pt-1 flex items-center justify-between text-slate-400 text-[10px]">
+                          <span>Deleted: {formattedDelDate}</span>
+                          <span>By: {proj.deletedByName || proj.deletedBy || 'Admin'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-[#233549]/50">
+                      <button
+                        onClick={() => setPreviewProject(proj)}
+                        className={`p-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                          isLight
+                            ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            : 'text-slate-400 hover:text-white hover:bg-[#0D1520]'
+                        }`}
+                        title="Preview Space"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Inspect</span>
+                      </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            restoreProject(proj.id);
+                            setFeedbackMessage(`Space "${proj.title}" restored successfully.`);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-emerald-500/20 hover:border-emerald-500"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Restore</span>
+                        </button>
+
+                        <button
+                          onClick={() => setProjectToPurge(proj)}
+                          className="p-2 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all cursor-pointer border border-transparent hover:border-rose-500"
+                          title="Permanently Delete Space"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* TAB: DELETED USERS (180-DAY RETENTION)                    */}
@@ -1393,6 +2146,425 @@ export const AdminRecycleBin: React.FC<AdminRecycleBinProps> = ({ isLight }) => 
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Yes, Empty Tasks Bin</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PREVIEW SPACE / PROJECT */}
+      {previewProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-lg border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#0773BB]/20 text-[#0773BB] flex items-center justify-center font-black text-lg">
+                  {previewProject.code ? previewProject.code.substring(0, 3) : 'SPC'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">{previewProject.title}</h3>
+                  <p className="text-xs text-slate-400 font-mono">Code: {previewProject.code || 'N/A'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewProject(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {previewProject.description && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-[#0D1520] p-3 rounded-xl border border-slate-200 dark:border-[#233549]">
+                {previewProject.description}
+              </p>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Company / Workspace</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {companies.find((c) => c.id === previewProject.companyId)?.name || 'Default'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Category</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {previewProject.category || 'General'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Allocated Budget</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {previewProject.budget ? `$${previewProject.budget.toLocaleString()}` : 'Not Specified'}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                <span className="text-[10px] text-slate-400 uppercase font-bold block">Associated Tasks</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  {allTasks.filter((t) => t.projectId === previewProject.id).length} Tasks
+                </span>
+              </div>
+              <div className="col-span-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500">
+                <span className="text-[10px] uppercase font-bold block">Deleted At & By</span>
+                <span className="font-semibold text-xs">
+                  {previewProject.deletedAt ? new Date(previewProject.deletedAt).toLocaleString() : 'Recently'} • By {previewProject.deletedByName || previewProject.deletedBy || 'Admin'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#233549]">
+              <button
+                type="button"
+                onClick={() => setPreviewProject(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  restoreProject(previewProject.id);
+                  setFeedbackMessage(`Space "${previewProject.title}" restored successfully.`);
+                  setPreviewProject(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restore This Space</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PURGE SINGLE SPACE */}
+      {projectToPurge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Permanently Purge Space?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                You are about to permanently erase space <strong className="text-white">"{projectToPurge.title}"</strong> and its associated tasks from Firestore and local storage. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setProjectToPurge(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  purgeProject(projectToPurge.id);
+                  setFeedbackMessage(`Space "${projectToPurge.title}" permanently purged.`);
+                  setProjectToPurge(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Purge Space</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BULK PURGE SPACES */}
+      {isBulkPurgeProjectsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Purge {selectedProjectIds.length} Selected Spaces?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                You are about to permanently erase {selectedProjectIds.length} spaces and their associated tasks from Firestore. This action cannot be reversed.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkPurgeProjectsModalOpen(false)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  bulkPurgeProjects(selectedProjectIds);
+                  setFeedbackMessage(`Permanently purged ${selectedProjectIds.length} space(s).`);
+                  setSelectedProjectIds([]);
+                  setIsBulkPurgeProjectsModalOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Bulk Purge</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EMPTY SPACES BIN */}
+      {isEmptyProjectsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Empty Spaces Recycle Bin?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                This will permanently erase all <strong className="text-white">{deletedProjects.length} soft-deleted spaces</strong> and their associated tasks from Firestore.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEmptyProjectsModalOpen(false)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  emptyProjectsRecycleBin();
+                  setFeedbackMessage('Spaces recycle bin successfully emptied.');
+                  setIsEmptyProjectsModalOpen(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Empty Spaces Bin</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PREVIEW WORKSPACE */}
+      {previewWorkspace && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-lg border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/20 to-[#0773BB]/20 text-indigo-400 flex items-center justify-center font-black text-base">
+                  {previewWorkspace.code || 'WS'}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base">{previewWorkspace.name}</h3>
+                  <span className="text-xs text-slate-400 font-mono">Workspace ID: {previewWorkspace.id}</span>
+                </div>
+              </div>
+              <button onClick={() => setPreviewWorkspace(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 pt-2 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Company Code</span>
+                  <span className="font-mono font-bold text-indigo-400">{previewWorkspace.code}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Domain / Scope</span>
+                  <span className="font-mono">{previewWorkspace.domain || 'Internal Entity'}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Deleted By</span>
+                  <span className="font-semibold">{previewWorkspace.deletedByName || previewWorkspace.deletedBy || 'Admin'}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Deletion Timestamp</span>
+                  <span className="font-semibold">{getWorkspaceRetentionInfo(previewWorkspace.deletedAt).formattedDate}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Retention Policy</span>
+                  <span className="font-bold text-amber-500">30-Day Auto Retention</span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#0D1520] border border-slate-200 dark:border-[#233549]">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Days Until Permanent Purge</span>
+                  <span className="font-bold text-rose-500">{getWorkspaceRetentionInfo(previewWorkspace.deletedAt).daysLeft} Days</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-[#233549]">
+              <button
+                type="button"
+                onClick={() => setPreviewWorkspace(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleRestoreWorkspace(previewWorkspace.id);
+                  setPreviewWorkspace(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restore Workspace Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PURGE SINGLE WORKSPACE */}
+      {workspaceToPurge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Permanently Purge Workspace "{workspaceToPurge.name}"?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                This will permanently delete this workspace entity and its associated spaces from persistent storage. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setWorkspaceToPurge(null)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecutePurgeWorkspace}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Purge</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: BULK PURGE WORKSPACES */}
+      {isBulkPurgeWorkspacesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Purge {selectedWorkspaceIds.length} Selected Workspaces?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                You are about to permanently erase {selectedWorkspaceIds.length} workspace entities and their associated records. This action cannot be reversed.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsBulkPurgeWorkspacesModalOpen(false)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBulkPurgeWorkspaces}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Bulk Purge</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EMPTY WORKSPACES BIN */}
+      {isEmptyWorkspacesModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className={`w-full max-w-md border rounded-2xl shadow-2xl p-6 space-y-4 animate-in zoom-in-95 ${
+            isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#131E2B] border-[#233549] text-white'
+          }`}>
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-500 flex items-center justify-center">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-rose-500">
+                Empty Workspaces Recycle Bin?
+              </h3>
+              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                This will permanently erase all <strong className="text-white">{deletedCompanies.length} soft-deleted workspaces</strong> and their associated data.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsEmptyWorkspacesModalOpen(false)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold ${
+                  isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteEmptyWorkspacesBin}
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg shadow-rose-500/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Yes, Empty Workspaces Bin</span>
               </button>
             </div>
           </div>

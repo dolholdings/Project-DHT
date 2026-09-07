@@ -599,12 +599,12 @@ export const ProjectsView: React.FC = () => {
                     <PermissionGuard action="delete_space">
                       <button
                         onClick={() => {
-                          if (window.confirm(`Are you sure you want to delete Space/Project "${proj.title}"?`)) {
+                          if (window.confirm(`Move Space "${proj.title}" to Recycle Bin? You can restore it anytime from Admin > Recycle Bin.`)) {
                             deleteProject(proj.id);
                           }
                         }}
-                        className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-all"
-                        title="Delete Space / Project"
+                        className="p-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-all cursor-pointer"
+                        title="Move Space to Recycle Bin"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

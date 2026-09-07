@@ -139,37 +139,39 @@ export const BudgetTrackingWidget: React.FC<BudgetTrackingWidgetProps> = ({
 
   // Project comparison chart data
   const comparisonChartData = useMemo(() => {
-    return projects.map((p) => {
-      const pForecast = p.progress > 0 ? Math.round((p.spentBudget / (p.progress / 100)) * whatIfModifier) : p.budget;
+    return (projects || []).filter(Boolean).map((p) => {
+      const pForecast = (p.progress || 0) > 0 ? Math.round(((p.spentBudget || 0) / ((p.progress || 1) / 100)) * whatIfModifier) : (p.budget || 0);
+      const safeTitle = p.title || 'Untitled Project';
       return {
-        name: p.code || p.title.substring(0, 12),
-        fullTitle: p.title,
-        budget: p.budget,
-        spent: p.spentBudget,
+        name: p.code || safeTitle.substring(0, 12),
+        fullTitle: safeTitle,
+        budget: p.budget || 0,
+        spent: p.spentBudget || 0,
         forecast: pForecast,
-        progress: p.progress,
-        variance: p.budget - pForecast
+        progress: p.progress || 0,
+        variance: (p.budget || 0) - pForecast
       };
     });
   }, [projects, whatIfModifier]);
 
   // Runway & Burn Velocity Data
   const burnVelocityData = useMemo(() => {
-    return projects.map((p) => {
-      const projTasks = tasks.filter((t) => t.projectId === p.id);
+    return (projects || []).filter(Boolean).map((p) => {
+      const projTasks = (tasks || []).filter((t) => t && t.projectId === p.id);
       const estHours = projTasks.reduce((s, t) => s + (t.estimatedHours || 0), 0);
       const actHours = projTasks.reduce((s, t) => s + (t.loggedHours || 0), 0);
-      const costPerHour = p.budget > 0 && estHours > 0 ? p.budget / estHours : 85;
+      const costPerHour = (p.budget || 0) > 0 && estHours > 0 ? (p.budget || 0) / estHours : 85;
       const estimatedCost = Math.round(estHours * costPerHour);
       const actualCost = Math.round(actHours * costPerHour);
+      const safeTitle = p.title || 'Project';
 
       return {
-        name: p.code || p.title.substring(0, 10),
+        name: p.code || safeTitle.substring(0, 10),
         estimatedHours: estHours,
         actualHours: actHours,
         estimatedCost,
         actualCost,
-        spentBudget: p.spentBudget,
+        spentBudget: p.spentBudget || 0,
         burnRateIdx: actHours > 0 && estHours > 0 ? parseFloat((actHours / estHours).toFixed(2)) : 1.0
       };
     });

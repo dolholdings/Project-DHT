@@ -38,7 +38,7 @@ import { useLogo } from '../../context/LogoContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 import { PermissionGuard } from '../common/PermissionGuard';
-import { normalizeRole, canCreateUser, canViewUsersDirectory, isUserSuperAdmin } from '../../lib/permissions';
+import { normalizeRole, canCreateUser, canViewUsersDirectory, isUserSuperAdmin, canDeleteSpace } from '../../lib/permissions';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export interface SidebarProps {
@@ -815,12 +815,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         <Plus className="w-3.5 h-3.5" />
                                       </button>
                                     )}
-                                    {currentUser?.role === 'Admin' && (
+                                    {canDeleteSpace(currentUser) && (
                                       <button
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (window.confirm(`Are you sure you want to delete Space "${p.title}"?`)) {
+                                          if (window.confirm(`Move Space "${p.title}" to Recycle Bin? You can restore it anytime from Admin > Recycle Bin.`)) {
                                             deleteProject(p.id);
                                             if (selectedProjectId === p.id) {
                                               setSelectedProjectId(null);

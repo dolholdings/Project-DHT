@@ -257,12 +257,17 @@ export const LiveActivityStream: React.FC = () => {
             onChange={(e) => setSelectedProjectIdFilter(e.target.value)}
             className="bg-[#0D1520] border border-[#233549] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-[#3BC0BB] font-mono"
           >
-            <option value="all">All Projects ({projects.length})</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                [{p.code}] {p.title.slice(0, 20)}...
-              </option>
-            ))}
+            <option value="all">All Projects ({(projects || []).length})</option>
+            {(projects || []).map((p) => {
+              if (!p) return null;
+              const displayTitle = p.title || 'Untitled Space';
+              const truncatedTitle = displayTitle.length > 20 ? displayTitle.slice(0, 20) + '...' : displayTitle;
+              return (
+                <option key={p.id} value={p.id}>
+                  [{p.code || 'SPC'}] {truncatedTitle}
+                </option>
+              );
+            })}
           </select>
 
           {/* Keyword Search */}

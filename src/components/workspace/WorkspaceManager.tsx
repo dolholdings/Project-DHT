@@ -73,14 +73,17 @@ import { TemplateMetricsDashboardModal } from './TemplateMetricsDashboardModal';
 import { UnifiedProjectSearchModal } from './UnifiedProjectSearchModal';
 import { ExcelImportModal } from '../common/ExcelImportModal';
 import { DolphinLogo } from '../common/DolphinLogo';
+import { WorkspaceRecycleBin } from './WorkspaceRecycleBin';
 
 export const WorkspaceManager: React.FC = () => {
   const {
     projects,
+    deletedProjects,
     addProject,
     updateProject,
     deleteProject,
     companies,
+    deletedCompanies,
     addCompany,
     updateCompany,
     deleteCompany,
@@ -111,7 +114,7 @@ export const WorkspaceManager: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'dashboard' | 'grid' | 'table' | 'hierarchy'>('dashboard');
+  const [viewMode, setViewMode] = useState<'dashboard' | 'grid' | 'table' | 'hierarchy' | 'recycle_bin'>('dashboard');
   const [tableSubTab, setTableSubTab] = useState<'spaces' | 'users'>('spaces');
   const [activityFilter, setActivityFilter] = useState<string>('all');
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
@@ -628,6 +631,24 @@ export const WorkspaceManager: React.FC = () => {
             </button>
 
             <button
+              onClick={() => setViewMode((prev) => (prev === 'recycle_bin' ? 'dashboard' : 'recycle_bin'))}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                viewMode === 'recycle_bin'
+                  ? 'bg-rose-600 border-rose-500 text-white shadow-md'
+                  : 'bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300'
+              }`}
+              title="Open 30-Day Workspace & Space Recycle Bin"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>Recycle Bin</span>
+              {(deletedCompanies.length + deletedProjects.length) > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold">
+                  {deletedCompanies.length + deletedProjects.length}
+                </span>
+              )}
+            </button>
+
+            <button
               onClick={exportWorkspaceConfig}
               className={`p-2.5 rounded-xl border transition-all ${
                 theme === 'light'
@@ -810,6 +831,22 @@ export const WorkspaceManager: React.FC = () => {
             }`}
           >
             ClickUp Hierarchy
+          </button>
+          <button
+            onClick={() => setViewMode('recycle_bin')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              viewMode === 'recycle_bin'
+                ? 'bg-rose-600 text-white shadow'
+                : 'text-slate-400 hover:text-rose-300'
+            }`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Recycle Bin</span>
+            {(deletedCompanies.length + deletedProjects.length) > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono">
+                {deletedCompanies.length + deletedProjects.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1725,18 +1762,38 @@ export const WorkspaceManager: React.FC = () => {
                       <span className="text-xs text-slate-400 font-mono">({compProjects.length} Spaces)</span>
                     </div>
 
-                    <PermissionGuard action="create_space">
-                      <button
-                        onClick={() => {
-                          setActiveCompany(comp);
-                          setShowCreateSpaceModal(true);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-bold"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>Add Space to {comp.code}</span>
-                      </button>
-                    </PermissionGuard>
+                    <div className="flex items-center gap-2">
+                      <PermissionGuard action="create_space">
+                        <button
+                          onClick={() => {
+                            setActiveCompany(comp);
+                            setShowCreateSpaceModal(true);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#3BC0BB]/20 text-[#3BC0BB] border border-[#3BC0BB]/30 text-xs font-bold hover:bg-[#3BC0BB]/30 transition-all cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Add Space to {comp.code}</span>
+                        </button>
+                      </PermissionGuard>
+                      {companies.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `Delete Workspace Entity "${comp.name}" [${comp.code}]?\n\nThis will permanently remove this workspace entity, all of its ${compProjects.length} spaces, and all related tasks across global state and cloud sync.`
+                              )
+                            ) {
+                              deleteCompany(comp.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 transition-all cursor-pointer"
+                          title={`Delete ${comp.name} Workspace Entity`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-3 space-y-2 pl-6">
@@ -1760,7 +1817,7 @@ export const WorkspaceManager: React.FC = () => {
                                 setSelectedProjectId(p.id);
                                 setActiveTab('tasks');
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-[#0773BB] text-white text-xs font-bold"
+                              className="px-2.5 py-1 rounded-lg bg-[#0773BB] text-white text-xs font-bold hover:bg-[#0773BB]/80 transition-all cursor-pointer"
                             >
                               Go to Space
                             </button>
@@ -1772,17 +1829,35 @@ export const WorkspaceManager: React.FC = () => {
                                 setTemplateCategory(p.category);
                                 setShowSaveAsTemplateModal(true);
                               }}
-                              className="p-1 rounded bg-[#0D1520] text-purple-400 hover:text-purple-200 border border-[#233549]"
+                              className="p-1 rounded bg-[#0D1520] text-purple-400 hover:text-purple-200 border border-[#233549] transition-all cursor-pointer"
                               title="Save Space as Template"
                             >
                               <Bookmark className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setConfiguringProject(p)}
-                              className="p-1 rounded bg-[#0D1520] text-slate-300 border border-[#233549]"
+                              className="p-1 rounded bg-[#0D1520] text-slate-300 hover:text-white border border-[#233549] transition-all cursor-pointer"
+                              title="Configure Space"
                             >
                               <Settings className="w-3.5 h-3.5" />
                             </button>
+                            <PermissionGuard action="delete_space">
+                              <button
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Move Space "${p.title}" to Recycle Bin?\n\nIt will be moved to the Admin Recycle Bin where it can be restored within 180 days or permanently purged.`
+                                    )
+                                  ) {
+                                    deleteProject(p.id);
+                                  }
+                                }}
+                                className="p-1 rounded bg-[#0D1520] text-rose-400 hover:text-rose-200 border border-[#233549] hover:border-rose-500/40 transition-all cursor-pointer"
+                                title="Move Space to Recycle Bin"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </PermissionGuard>
                           </div>
                         </div>
                       ))
@@ -1793,6 +1868,14 @@ export const WorkspaceManager: React.FC = () => {
             })}
           </div>
         </div>
+      )}
+
+      {/* 4.5 RECYCLE BIN VIEW (30-DAY RETENTION ENGINE) */}
+      {viewMode === 'recycle_bin' && (
+        <WorkspaceRecycleBin
+          isLight={theme === 'light'}
+          onBackToDashboard={() => setViewMode('dashboard')}
+        />
       )}
 
       {/* 5. MODAL: CREATE NEW SPACE / PROJECT */}
@@ -2475,13 +2558,13 @@ export const WorkspaceManager: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              This action will permanently delete Space <span className="font-mono text-rose-400 font-bold">[{deleteConfirmProject.code}]</span> and remove all associated tasks, subtasks, and files from Firestore storage.
+              This space <span className="font-mono text-rose-400 font-bold">[{deleteConfirmProject.code}]</span> will be moved to the <span className="text-[#0773BB] font-semibold">Admin Recycle Bin</span>. Workspace Administrators can restore it anytime or permanently purge it.
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#233549]">
               <button
                 onClick={() => setDeleteConfirmProject(null)}
-                className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 text-xs font-semibold"
+                className="px-4 py-2 rounded-xl bg-[#0D1520] text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Cancel
               </button>
@@ -2490,9 +2573,9 @@ export const WorkspaceManager: React.FC = () => {
                   deleteProject(deleteConfirmProject.id);
                   setDeleteConfirmProject(null);
                 }}
-                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg"
+                className="px-4 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shadow-lg cursor-pointer"
               >
-                Confirm Delete
+                Move to Recycle Bin
               </button>
             </div>
           </div>

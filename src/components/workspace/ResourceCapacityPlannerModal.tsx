@@ -651,11 +651,15 @@ export const ResourceCapacityPlannerModal: React.FC<ResourceCapacityPlannerModal
                   <tr className="border-b border-[#233549] text-slate-400 font-mono">
                     <th className="p-2">Team Member</th>
                     <th className="p-2">Total Capacity</th>
-                    {projects.map((p) => (
-                      <th key={p.id} className="p-2 text-center min-w-[100px] truncate" title={p.title}>
-                        {p.code || p.title.slice(0, 10)}
-                      </th>
-                    ))}
+                    {(projects || []).map((p) => {
+                      if (!p) return null;
+                      const titleStr = p.title || 'Space';
+                      return (
+                        <th key={p.id} className="p-2 text-center min-w-[100px] truncate" title={titleStr}>
+                          {p.code || (titleStr.length > 10 ? titleStr.slice(0, 10) + '...' : titleStr)}
+                        </th>
+                      );
+                    })}
                     <th className="p-2 text-right">Total Allocated</th>
                   </tr>
                 </thead>

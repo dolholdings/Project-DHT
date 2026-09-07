@@ -1,31 +1,74 @@
 /* ==========================================================================
-   DOLPHIN PROJECT MANAGEMENT - EXECUTIVE PRINT & PDF EXPORT STYLESHEET
-   Optimizes Gantt Chart & Kanban Views for A4 Landscape PDF Generation
+   DOLPHIN PROJECT MANAGEMENT & ERP SUITE - PRINT & A4 EXPORT STYLESHEET
+   Specialized media query rules for print scenarios & A4 report generation
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   1. A4 Page Dimensions, Bleed & Page Margins
+   -------------------------------------------------------------------------- */
 @page {
-  size: A4 landscape;
-  margin: 8mm 10mm;
+  size: A4 portrait;
+  margin: 12mm 15mm;
 }
 
+@page :left {
+  margin: 12mm 15mm;
+}
+
+@page :right {
+  margin: 12mm 15mm;
+}
+
+/* Specific landscape page setup for Gantt, Kanban, and wide engineering sheets */
+@page landscape-sheet {
+  size: A4 landscape;
+  margin: 10mm 12mm;
+}
+
+.a4-landscape,
+.page-landscape,
+.gantt-print-wrapper,
+.kanban-print-wrapper {
+  page: landscape-sheet;
+}
+
+/* --------------------------------------------------------------------------
+   2. Media Query: Print Rules
+   -------------------------------------------------------------------------- */
 @media print {
   /* ------------------------------------------------------------------------
-     1. Universal Reset & Color Fidelity
+     2.1 Universal Reset, Color Fidelity & Background Rendering
      ------------------------------------------------------------------------ */
   *,
   *::before,
   *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    color-adjust: exact !important;
     box-shadow: none !important;
     text-shadow: none !important;
+    transition: none !important;
+    animation: none !important;
   }
 
   html,
-  body,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    line-height: 1.45 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
   #root,
   main,
-  .main-layout-container {
+  .main-layout-container,
+  .app-container {
     background: #ffffff !important;
     color: #0f172a !important;
     width: 100% !important;
@@ -33,81 +76,423 @@
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
   }
 
   /* ------------------------------------------------------------------------
-     2. Hide Non-Essential Navigation, Shell & Interactive Controls
+     2.2 Hide Non-Essential Interactive Components & Shell Controls
      ------------------------------------------------------------------------ */
-  header,
+  /* Navigation, Sidebars & Footers */
+  header:not(.print-header),
   nav,
   aside,
-  footer,
-  .no-print,
+  footer:not(.print-footer),
+  .sidebar,
+  [role="navigation"],
+  [role="complementary"],
+  
+  /* Buttons, Controls & Form Elements (except static printable fields) */
   button,
   select,
-  input,
+  input:not([type="checkbox"]):not([type="radio"]),
   textarea,
-  .clickup-banner,
-  .task-alert-toast,
-  [role="dialog"],
+  .btn,
+  .action-buttons,
+  .quick-actions,
+  
+  /* Modals, Popovers, Drawers & Overlays not marked for print */
+  .no-print,
+  .print-hidden,
+  .print-exclude,
+  .d-print-none,
+  [data-no-print],
+  [role="dialog"]:not(.print-modal),
   [role="banner"],
+  .modal-backdrop,
+  .dialog-backdrop,
   .notifications-drawer,
   .command-palette,
   .tooltip,
   .popover,
   [data-radix-popper-content-wrapper],
+  
+  /* Transient Alerts, Badges & Toast Notifications */
+  .clickup-banner,
+  .task-alert-toast,
+  .toast,
+  .alert-toast,
+  .banner,
+  .onboarding-banner,
+  .announcement-bar,
+  
+  /* Drag & Drop Handles, Floating Action Buttons & Cursor Utilities */
   .cursor-grab,
   .cursor-grabbing,
+  .drag-handle,
+  .resize-handle,
   .fixed.bottom-5,
-  .drag-handle {
+  .floating-btn,
+  .scroll-to-top,
+  .live-pulse-indicator {
     display: none !important;
+    visibility: hidden !important;
   }
 
-  /* Force display of print-only elements */
+  /* ------------------------------------------------------------------------
+     2.3 Display Print-Only Utilities
+     ------------------------------------------------------------------------ */
   .print-only,
   .print\:block {
     display: block !important;
+    visibility: visible !important;
   }
 
   .print\:inline-block {
     display: inline-block !important;
+    visibility: visible !important;
+  }
+
+  .print\:inline {
+    display: inline !important;
+    visibility: visible !important;
   }
 
   .print\:flex {
     display: flex !important;
+    visibility: visible !important;
   }
 
   .print\:grid {
     display: grid !important;
+    visibility: visible !important;
   }
 
   /* ------------------------------------------------------------------------
-     3. Executive Print Header Banner (For A4 Landscape PDF Reports)
+     2.4 A4 Report Layout, Paper Constraints & Scale Standardization
      ------------------------------------------------------------------------ */
-  .print-executive-header {
+  .a4-container,
+  .a4-report,
+  .a4-page,
+  .print-report,
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Fixed dialog / modal un-fixing when printing inside active modal reports */
+  .print-active-dialog,
+  .fixed.inset-0:has(#printable-client-psr-report),
+  .fixed.inset-0:has(.a4-report),
+  .fixed.inset-0:has(.print-report) {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
     display: block !important;
-    margin-bottom: 16px !important;
-    padding: 16px !important;
-    border-bottom: 2px solid #0f172a !important;
+  }
+
+  #printable-client-psr-report,
+  .printable-document {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.5 Page Breaks & Flow Protection
+     ------------------------------------------------------------------------ */
+  /* Prevent awkward breaks inside essential blocks */
+  .print-avoid-break,
+  .card,
+  .report-card,
+  .kpi-card,
+  .metric-card,
+  .summary-card,
+  table,
+  tr,
+  tbody,
+  figure,
+  .chart-container,
+  .gantt-row,
+  .gantt-task-item,
+  .kanban-task-card,
+  .milestone-item,
+  .audit-log-item,
+  blockquote,
+  pre {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Keep headings attached to subsequent text */
+  h1, h2, h3, h4, h5, h6,
+  .report-header,
+  .section-header,
+  .print-header {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+    color: #0f172a !important;
+  }
+
+  /* Explicit Page Break Utilities */
+  .page-break,
+  .page-break-before,
+  .print-page-break {
+    break-before: page !important;
+    page-break-before: always !important;
+    height: 0 !important;
+    display: block !important;
+  }
+
+  .page-break-after {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  /* Widows & Orphans Control */
+  p, li, dd {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.6 Typography Scaling for High-Density A4 Reports
+     ------------------------------------------------------------------------ */
+  h1, .print-title-1 {
+    font-size: 20pt !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    margin-bottom: 8pt !important;
+  }
+
+  h2, .print-title-2 {
+    font-size: 15pt !important;
+    line-height: 1.3 !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.01em !important;
+    margin-bottom: 6pt !important;
+  }
+
+  h3, .print-title-3 {
+    font-size: 12pt !important;
+    line-height: 1.35 !important;
+    font-weight: 700 !important;
+    margin-bottom: 4pt !important;
+  }
+
+  h4, .print-title-4 {
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+    font-weight: 600 !important;
+  }
+
+  .text-xs, .text-\[10px\], .text-\[11px\], .caption-text {
+    font-size: 8.5pt !important;
+    line-height: 1.3 !important;
+  }
+
+  .text-sm {
+    font-size: 9.5pt !important;
+  }
+
+  /* High contrast readable links without URL expansion noise */
+  a {
+    color: #0773bb !important;
+    text-decoration: none !important;
+  }
+
+  a[href^="http"]:after {
+    content: "" !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.7 Report Tables & Structured Data Grids
+     ------------------------------------------------------------------------ */
+  table,
+  .print-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    font-size: 9pt !important;
+    margin-top: 8pt !important;
+    margin-bottom: 12pt !important;
+    background-color: #ffffff !important;
+  }
+
+  /* Repeat table headers across multi-page breaks */
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  th,
+  td {
+    padding: 5pt 7pt !important;
+    text-align: left !important;
+    vertical-align: middle !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+    background-color: #ffffff !important;
+  }
+
+  th {
+    font-weight: 700 !important;
+    background-color: #f1f5f9 !important;
+    color: #0f172a !important;
+    text-transform: uppercase !important;
+    font-size: 8pt !important;
+    letter-spacing: 0.03em !important;
+  }
+
+  /* Alternate zebra striping with high contrast */
+  tbody tr:nth-child(even) td {
+    background-color: #f8fafc !important;
+  }
+
+  /* Status Badges & Pills in Tables */
+  .badge,
+  .status-pill,
+  span[class*="rounded-full"],
+  span[class*="rounded-md"] {
+    border: 1px solid #94a3b8 !important;
+    padding: 1.5pt 5pt !important;
+    font-size: 7.5pt !important;
+    font-weight: 700 !important;
+    display: inline-block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.8 Responsive Grids Scaled for A4 Columns
+     ------------------------------------------------------------------------ */
+  /* Convert excessive multi-column grids to readable 2- or 4-column print flow */
+  .grid-cols-1,
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4,
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-12 {
+    gap: 8pt !important;
+  }
+
+  /* KPI Cards Grid Optimization */
+  .kpi-grid,
+  .stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8pt !important;
+    margin-bottom: 12pt !important;
+  }
+
+  .kpi-card,
+  .stats-card {
+    padding: 8pt !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6pt !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.9 Charts, SVGs & Visualizations
+     ------------------------------------------------------------------------ */
+  svg,
+  .recharts-responsive-container,
+  .recharts-surface,
+  .d3-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .recharts-tooltip-wrapper,
+  .recharts-default-tooltip {
+    display: none !important;
+  }
+
+  /* Preserve SVG colors and clear backgrounds */
+  .recharts-cartesian-grid-horizontal line,
+  .recharts-cartesian-grid-vertical line {
+    stroke: #e2e8f0 !important;
+  }
+
+  .recharts-text {
+    fill: #475569 !important;
+    font-size: 8pt !important;
+  }
+
+  /* Images and Corporate Logos */
+  img {
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2.10 Executive Header Banner & Corporate Footer
+     ------------------------------------------------------------------------ */
+  .print-executive-header,
+  .print-report-header {
+    display: block !important;
+    margin-bottom: 14pt !important;
+    padding-bottom: 10pt !important;
+    border-bottom: 2pt solid #0773bb !important;
     background-color: #ffffff !important;
     color: #0f172a !important;
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
 
+  .print-executive-footer,
+  .print-report-footer {
+    display: block !important;
+    margin-top: 14pt !important;
+    padding-top: 8pt !important;
+    border-top: 1pt solid #cbd5e1 !important;
+    font-size: 8pt !important;
+    color: #64748b !important;
+    page-break-before: avoid !important;
+    break-before: avoid !important;
+  }
+
   /* ------------------------------------------------------------------------
-     4. GANTT CHART PRINT OPTIMIZATION
+     2.11 Gantt Chart View Print Optimization
      ------------------------------------------------------------------------ */
   .gantt-print-wrapper,
   .gantt-container {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 10px !important;
+    padding: 8pt !important;
     background: #ffffff !important;
     color: #0f172a !important;
     border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
+    border-radius: 6pt !important;
     overflow: visible !important;
   }
 
@@ -119,7 +504,6 @@
     overflow: visible !important;
   }
 
-  /* Gantt Rows & Tasks Page-Break Handling */
   .gantt-print-row,
   .gantt-row,
   .gantt-task-item {
@@ -130,7 +514,6 @@
     color: #0f172a !important;
   }
 
-  /* Preserve Timeline Bars, Critical Path Glowing Markers & Arrows */
   .gantt-bar-fill,
   .gantt-milestone-diamond,
   .gantt-critical-path-glow,
@@ -139,17 +522,8 @@
     visibility: visible !important;
   }
 
-  /* Gantt Table Grid Text Formatting */
-  .gantt-print-wrapper table,
-  .gantt-print-wrapper th,
-  .gantt-print-wrapper td {
-    color: #0f172a !important;
-    border-color: #cbd5e1 !important;
-    background: #ffffff !important;
-  }
-
   /* ------------------------------------------------------------------------
-     5. KANBAN BOARD PRINT OPTIMIZATION
+     2.12 Kanban Board Print Optimization
      ------------------------------------------------------------------------ */
   .kanban-print-wrapper {
     width: 100% !important;
@@ -161,19 +535,17 @@
     overflow: visible !important;
   }
 
-  /* 5-Column Side-by-Side Layout for A4 Landscape */
   .kanban-board-grid {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    gap: 8px !important;
+    gap: 6pt !important;
     width: 100% !important;
     max-width: 100% !important;
     height: auto !important;
     overflow: visible !important;
-    margin-top: 10px !important;
+    margin-top: 8pt !important;
   }
 
-  /* Individual Column Container */
   .kanban-column {
     height: auto !important;
     max-height: none !important;
@@ -181,28 +553,27 @@
     overflow: visible !important;
     background: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
-    border-radius: 8px !important;
-    padding: 8px !important;
+    border-radius: 6pt !important;
+    padding: 6pt !important;
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     box-shadow: none !important;
   }
 
-  /* Column Header */
   .kanban-column-header {
     display: flex !important;
-    items-center: center !important;
+    align-items: center !important;
     justify-content: space-between !important;
     border-bottom: 2px solid #0f172a !important;
-    padding-bottom: 6px !important;
-    margin-bottom: 8px !important;
+    padding-bottom: 4pt !important;
+    margin-bottom: 6pt !important;
     background: transparent !important;
   }
 
   .kanban-column-title {
     color: #0f172a !important;
     font-weight: 800 !important;
-    font-size: 11px !important;
+    font-size: 9pt !important;
     text-transform: uppercase !important;
     letter-spacing: 0.05em !important;
   }
@@ -211,13 +582,12 @@
     background: #f1f5f9 !important;
     color: #0f172a !important;
     border: 1px solid #cbd5e1 !important;
-    font-size: 10px !important;
+    font-size: 8pt !important;
     font-weight: 700 !important;
-    padding: 2px 6px !important;
-    border-radius: 12px !important;
+    padding: 1pt 5pt !important;
+    border-radius: 8pt !important;
   }
 
-  /* Droppable Container */
   .kanban-column-droppable {
     height: auto !important;
     max-height: none !important;
@@ -227,15 +597,14 @@
     background: transparent !important;
   }
 
-  /* Task Card */
   .kanban-task-card {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
     background: #f8fafc !important;
     border: 1px solid #cbd5e1 !important;
-    border-radius: 6px !important;
-    padding: 8px !important;
-    margin-bottom: 8px !important;
+    border-radius: 5pt !important;
+    padding: 6pt !important;
+    margin-bottom: 6pt !important;
     color: #0f172a !important;
     box-shadow: none !important;
   }
@@ -243,14 +612,14 @@
   .kanban-task-title {
     color: #0f172a !important;
     font-weight: 700 !important;
-    font-size: 11px !important;
-    line-height: 1.3 !important;
-    margin-bottom: 4px !important;
+    font-size: 9pt !important;
+    line-height: 1.25 !important;
+    margin-bottom: 3pt !important;
   }
 
   .kanban-task-desc {
     color: #334155 !important;
-    font-size: 10px !important;
+    font-size: 8pt !important;
     line-height: 1.3 !important;
     display: -webkit-box !important;
     -webkit-line-clamp: 3 !important;
@@ -258,23 +627,14 @@
     overflow: hidden !important;
   }
 
-  /* Card Meta Footer */
   .kanban-task-footer {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     border-top: 1px solid #e2e8f0 !important;
-    padding-top: 6px !important;
-    margin-top: 6px !important;
-    font-size: 9px !important;
+    padding-top: 4pt !important;
+    margin-top: 4pt !important;
+    font-size: 7.5pt !important;
     color: #475569 !important;
-  }
-
-  /* Hide interactives inside cards */
-  .kanban-task-card select,
-  .kanban-task-card .cursor-grab,
-  .kanban-task-card .drag-handle,
-  .kanban-task-card button {
-    display: none !important;
   }
 }

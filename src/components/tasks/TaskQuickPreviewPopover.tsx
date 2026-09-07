@@ -85,7 +85,7 @@ export const TaskQuickPreviewPopover: React.FC<TaskQuickPreviewPopoverProps> = (
   const attachedFiles = files.filter(
     (f) =>
       f.projectId === task.projectId ||
-      (f.name && f.name.toLowerCase().includes(task.title.substring(0, 8).toLowerCase()))
+      (f.name && task.title && f.name.toLowerCase().includes(task.title.substring(0, 8).toLowerCase()))
   );
 
   // Check blockers / prerequisites

@@ -299,7 +299,7 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({ onClose })
                 <option value="all">All Projects ({projects.length})</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
-                    [{p.code}] {p.title.substring(0, 22)}...
+                    [{p.code || 'PRJ'}] {(p.title || 'Untitled Project').substring(0, 22)}...
                   </option>
                 ))}
               </select>
