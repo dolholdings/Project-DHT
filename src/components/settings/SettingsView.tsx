@@ -52,6 +52,7 @@ import { ActivityLog, DolphinTheme, CustomFieldDefinition, CustomFieldType } fro
 import { startOnboardingTour, resetUserTour, hasUserCompletedTour, markUserTourCompleted } from '../../services/onboardingTour';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { LogoSettings } from './LogoSettings';
+import { AdminResetDataGuard } from '../common/AdminActionGuard';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -524,38 +525,43 @@ SET FOREIGN_KEY_CHECKS = 1;
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={async () => {
-              if (window.confirm('Restore all 5 enterprise workspaces (DHT-Ajman, DML, DRCS, Corporate, DGH Analytics) and all project tasks from archive?')) {
-                setIsRestoring(true);
-                try {
-                  await restoreAllWorkspaceData();
-                  setRestoreSuccessMsg(true);
-                  setTimeout(() => setRestoreSuccessMsg(false), 4000);
-                } finally {
-                  setIsRestoring(false);
+          <AdminResetDataGuard>
+            <button
+              onClick={async () => {
+                if (window.confirm('Restore all 5 enterprise workspaces (DHT-Ajman, DML, DRCS, Corporate, DGH Analytics) and all project tasks from archive?')) {
+                  setIsRestoring(true);
+                  try {
+                    await restoreAllWorkspaceData();
+                    setRestoreSuccessMsg(true);
+                    setTimeout(() => setRestoreSuccessMsg(false), 4000);
+                  } finally {
+                    setIsRestoring(false);
+                  }
                 }
-              }
-            }}
-            disabled={isRestoring}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-xs font-bold shadow-md transition-all cursor-pointer"
-            title="Restore DHT-Ajman, DML, DRCS workspaces and all tasks from master archive"
-          >
-            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isRestoring ? 'animate-spin' : ''}`} />
-            <span>{isRestoring ? 'Restoring...' : '⚡ Restore Master Workspaces & Tasks'}</span>
-          </button>
-          <button
-            onClick={() => {
-              if (window.confirm('WARNING: Are you sure you want to clear your current workspace data? You can always restore it using the "Restore Master Workspaces & Tasks" button.')) {
-                clearAllData();
-              }
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold shadow-md transition-all cursor-pointer"
-            title="Clear current workspace data"
-          >
-            <Trash2 className="w-4 h-4 text-rose-400" />
-            <span>Reset Sample Data</span>
-          </button>
+              }}
+              disabled={isRestoring}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 text-xs font-bold shadow-md transition-all cursor-pointer"
+              title="Restore DHT-Ajman, DML, DRCS workspaces and all tasks from master archive"
+            >
+              <RefreshCw className={`w-4 h-4 text-emerald-400 ${isRestoring ? 'animate-spin' : ''}`} />
+              <span>{isRestoring ? 'Restoring...' : '⚡ Restore Master Workspaces & Tasks'}</span>
+            </button>
+          </AdminResetDataGuard>
+
+          <AdminResetDataGuard>
+            <button
+              onClick={() => {
+                if (window.confirm('WARNING: Are you sure you want to clear your current workspace data? You can always restore it using the "Restore Master Workspaces & Tasks" button.')) {
+                  clearAllData();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold shadow-md transition-all cursor-pointer"
+              title="Clear current workspace data"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" />
+              <span>Reset Sample Data</span>
+            </button>
+          </AdminResetDataGuard>
           <button
             onClick={handleExportJSON}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0662A0] text-white text-xs font-semibold shadow-lg shadow-[#0773BB]/20 transition-all cursor-pointer"

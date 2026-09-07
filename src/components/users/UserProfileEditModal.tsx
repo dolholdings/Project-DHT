@@ -34,7 +34,7 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
   user,
   theme = 'dark'
 }) => {
-  const { updateUser, companies, currentUser, logActivity } = useApp();
+  const { updateUser, companies, currentUser, users, logActivity } = useApp();
   const isLight = theme === 'light';
 
   const [name, setName] = useState('');
@@ -83,7 +83,17 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
 
   if (!isOpen || !user) return null;
 
-  const isAdmin = normalizeRole(currentUser?.role) === 'admin' || isUserSuperAdmin(currentUser);
+  const effectiveCurrentUser = (() => {
+    if (!currentUser) return null;
+    const match = users?.find(
+      (u) =>
+        u.id === currentUser.id ||
+        (currentUser.email && u.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+    return match || currentUser;
+  })();
+
+  const isAdmin = normalizeRole(effectiveCurrentUser?.role) === 'admin' || isUserSuperAdmin(effectiveCurrentUser);
   const isEditingSelf = currentUser?.id === user.id;
 
   // Non-admins can only view/edit their own profile

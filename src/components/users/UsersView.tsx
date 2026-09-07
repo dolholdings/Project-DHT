@@ -48,6 +48,13 @@ import { canCreateUser, canDeleteUser, canViewUsersDirectory, normalizeRole, isU
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { PermissionGuard } from '../common/PermissionGuard';
+import {
+  AdminActionGuard,
+  AdminInviteGuard,
+  AdminDeleteGuard,
+  AdminResetDataGuard,
+  withAdminActionGuard
+} from '../common/AdminActionGuard';
 import { UserAvatar } from '../common/UserAvatar';
 import { UserProfileEditModal } from './UserProfileEditModal';
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
@@ -563,8 +570,20 @@ export const UsersView: React.FC = () => {
 
   const isLight = theme === 'light';
 
-  // Role Access Guard: Team Members & Viewers cannot view user profiles / organization directory
-  if (!canViewUsersDirectory(currentUser)) {
+  const effectiveUser = React.useMemo(() => {
+    if (!currentUser) return null;
+    const match = users?.find(
+      (u) =>
+        u.id === currentUser.id ||
+        (currentUser.email && u.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+    return match || currentUser;
+  }, [users, currentUser]);
+
+  const isAdminUser = normalizeRole(effectiveUser?.role) === 'admin' || isUserSuperAdmin(effectiveUser);
+
+  // Role Access Guard: Team Members & Viewers cannot view user profiles / organization directory / skills & access rules
+  if (!isAdminUser) {
     return (
       <div className={`p-4 sm:p-8 max-w-4xl mx-auto my-12 animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
         <div className={`p-8 rounded-2xl border text-center shadow-xl ${
@@ -579,7 +598,7 @@ export const UsersView: React.FC = () => {
           </h2>
 
           <p className={`text-sm max-w-lg mx-auto mb-6 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-            Your account is currently assigned the <span className="font-bold text-amber-500">"{currentUser?.role || 'Team Member'}"</span> access role. Accessing the Users master view, member profiles, user invitations, and administrative governance records is strictly restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span>.
+            Your account is currently assigned the <span className="font-bold text-amber-500">"{effectiveUser?.role || currentUser?.role || 'Team Member'}"</span> access role. Accessing the Users master view, member profiles, user invitations, and administrative governance records is strictly restricted to <span className="font-semibold text-emerald-500">Workspace Administrators</span>.
           </p>
 
           <div className={`p-4 rounded-xl border max-w-md mx-auto mb-8 text-left text-xs space-y-2 ${
@@ -608,8 +627,6 @@ export const UsersView: React.FC = () => {
     );
   }
 
-  const isAdminUser = normalizeRole(currentUser?.role) === 'admin' || isUserSuperAdmin(currentUser);
-
   return (
     <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
       {/* Top Header */}
@@ -625,7 +642,7 @@ export const UsersView: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <PermissionGuard action="delete_user">
+          <AdminResetDataGuard>
             <button
               onClick={() => setShowClearConfirmModal(true)}
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl font-semibold text-xs transition-all ${
@@ -638,7 +655,9 @@ export const UsersView: React.FC = () => {
               <Trash2 className="w-3.5 h-3.5" />
               <span>Remove Old Data</span>
             </button>
+          </AdminResetDataGuard>
 
+          <AdminActionGuard action="manage_company">
             <button
               onClick={() => setShowCompanyModal(true)}
               className={`flex items-center gap-2 px-3.5 py-2 rounded-xl font-medium text-xs transition-all shadow-md ${
@@ -650,9 +669,9 @@ export const UsersView: React.FC = () => {
               <Building2 className="w-4 h-4 text-[#3BC0BB]" />
               <span>Register Company</span>
             </button>
-          </PermissionGuard>
+          </AdminActionGuard>
 
-          <PermissionGuard action="create_user">
+          <AdminActionGuard action="sync">
             <button
               onClick={async () => {
                 setIsSyncingFirebase(true);
@@ -695,7 +714,9 @@ export const UsersView: React.FC = () => {
               )}
               <span>{isSyncingFirebase ? 'Deduplicating & Syncing...' : 'Deduplicate & Sync Firebase'}</span>
             </button>
+          </AdminActionGuard>
 
+          <AdminInviteGuard>
             <button
               onClick={() => {
                 setShowWorkspaceInviteModal(true);
@@ -707,7 +728,9 @@ export const UsersView: React.FC = () => {
               <FolderKanban className="w-4 h-4" />
               <span>Invite to Workspace</span>
             </button>
+          </AdminInviteGuard>
 
+          <AdminInviteGuard>
             <button
               onClick={() => setShowInviteModal(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg shadow-[#0773BB]/30 transition-all"
@@ -715,7 +738,7 @@ export const UsersView: React.FC = () => {
               <UserPlus className="w-4 h-4" />
               <span>Invite Users</span>
             </button>
-          </PermissionGuard>
+          </AdminInviteGuard>
         </div>
       </div>
 
@@ -941,29 +964,29 @@ export const UsersView: React.FC = () => {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                {currentUser?.role === 'Admin' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowWorkspaceInviteModal(true);
-                        setWsInviteError('');
-                        setWsInviteSuccess('');
-                      }}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all shrink-0"
-                    >
-                      <FolderKanban className="w-3.5 h-3.5" />
-                      <span>Invite to Workspace</span>
-                    </button>
+                <AdminInviteGuard>
+                  <button
+                    onClick={() => {
+                      setShowWorkspaceInviteModal(true);
+                      setWsInviteError('');
+                      setWsInviteSuccess('');
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all shrink-0"
+                  >
+                    <FolderKanban className="w-3.5 h-3.5" />
+                    <span>Invite to Workspace</span>
+                  </button>
+                </AdminInviteGuard>
 
-                    <button
-                      onClick={() => setShowInviteModal(true)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs shadow-md transition-all shrink-0"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>+ Add User</span>
-                    </button>
-                  </>
-                )}
+                <AdminInviteGuard>
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/90 text-white font-bold text-xs shadow-md transition-all shrink-0"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>+ Add User</span>
+                  </button>
+                </AdminInviteGuard>
               </div>
             </div>
 
@@ -1337,7 +1360,7 @@ export const UsersView: React.FC = () => {
                                   }
                                   return null;
                                 })()}
-                                {currentUser?.role === 'Admin' && (
+                                {isAdminUser && (
                                   <button
                                     onClick={() => setManagingSpacesUserId(u.id)}
                                     className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/15 text-teal-700 dark:text-teal-400 hover:bg-teal-500/25 border border-teal-500/30 transition-all flex items-center gap-1 shrink-0"
@@ -1354,13 +1377,14 @@ export const UsersView: React.FC = () => {
                           {/* Status */}
                           <td className="p-3.5">
                             <button
-                              onClick={() => handleToggleUserStatus(u)}
+                              onClick={isAdminUser ? () => handleToggleUserStatus(u) : undefined}
+                              disabled={!isAdminUser}
                               className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-sm ${
                                 isOnline
-                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25'
-                                  : 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/30 hover:bg-slate-500/25'
-                              }`}
-                              title={`Click to switch status to ${isOnline ? 'Offline' : 'Active'}`}
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/30'
+                              } ${isAdminUser ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                              title={isAdminUser ? `Click to switch status to ${isOnline ? 'Offline' : 'Active'}` : `Status: ${u.status}`}
                             >
                               <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                               <span>{u.status}</span>
@@ -1391,7 +1415,7 @@ export const UsersView: React.FC = () => {
                           <td className="p-3.5 pr-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {/* 1. Reset Password Action Button */}
-                              {isAdminUser && (
+                              <AdminActionGuard action="admin_only">
                                 <button
                                   onClick={() => handleOpenPasswordResetModal(u)}
                                   className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-sm"
@@ -1400,21 +1424,23 @@ export const UsersView: React.FC = () => {
                                   <Key className="w-3.5 h-3.5" />
                                   <span className="hidden sm:inline">Reset Password</span>
                                 </button>
-                              )}
+                              </AdminActionGuard>
 
                               {/* 2. Manage Spaces Shortcut */}
-                              {isAdminUser && u.role !== 'Admin' && (
-                                <button
-                                  onClick={() => setManagingSpacesUserId(u.id)}
-                                  className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
-                                    isLight
-                                      ? 'bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200'
-                                      : 'bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30'
-                                  }`}
-                                  title="Manage Workspaces"
-                                >
-                                  <FolderKanban className="w-3.5 h-3.5" />
-                                </button>
+                              {u.role !== 'Admin' && (
+                                <AdminActionGuard action="admin_only">
+                                  <button
+                                    onClick={() => setManagingSpacesUserId(u.id)}
+                                    className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
+                                      isLight
+                                        ? 'bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200'
+                                        : 'bg-teal-500/10 hover:bg-teal-500/20 text-teal-400 border border-teal-500/30'
+                                    }`}
+                                    title="Manage Workspaces"
+                                  >
+                                    <FolderKanban className="w-3.5 h-3.5" />
+                                  </button>
+                                </AdminActionGuard>
                               )}
 
                               {/* 3. Edit Profile & Picture Modal Trigger */}
@@ -1433,9 +1459,9 @@ export const UsersView: React.FC = () => {
                                 </button>
                               )}
 
-                              {/* 4. Delete User (Protected) */}
-                              <PermissionGuard action="delete_user">
-                                {u.id !== currentUser?.id && (
+                              {/* 4. Delete User (Protected: Admin Only) */}
+                              {u.id !== currentUser?.id && (
+                                <AdminDeleteGuard>
                                   <button
                                     onClick={() => setUserToDelete({ id: u.id, name: u.name, email: u.email })}
                                     className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
@@ -1447,8 +1473,8 @@ export const UsersView: React.FC = () => {
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
-                                )}
-                              </PermissionGuard>
+                                </AdminDeleteGuard>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1628,37 +1654,39 @@ export const UsersView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Add Domain Form */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!newDomainInput) return;
-                  addAuthorizedDomain(newDomainInput);
-                  setDomainSuccess(`Domain @${newDomainInput.toLowerCase().replace(/^@/, '')} added to authorized whitelist!`);
-                  setNewDomainInput('');
-                  setTimeout(() => setDomainSuccess(''), 3000);
-                }}
-                className="flex items-center gap-2"
-              >
-                <input
-                  type="text"
-                  placeholder="e.g. dolrad.ae"
-                  value={newDomainInput}
-                  onChange={(e) => setNewDomainInput(e.target.value)}
-                  className={`rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-[#0773BB] ${
-                    isLight
-                      ? 'bg-slate-100 border border-slate-300 text-slate-900'
-                      : 'bg-[#0D1520] border border-[#233549] text-white'
-                  }`}
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 shrink-0"
+              {/* Add Domain Form (Admin Only) */}
+              {isAdminUser && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newDomainInput) return;
+                    addAuthorizedDomain(newDomainInput);
+                    setDomainSuccess(`Domain @${newDomainInput.toLowerCase().replace(/^@/, '')} added to authorized whitelist!`);
+                    setNewDomainInput('');
+                    setTimeout(() => setDomainSuccess(''), 3000);
+                  }}
+                  className="flex items-center gap-2"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Domain</span>
-                </button>
-              </form>
+                  <input
+                    type="text"
+                    placeholder="e.g. dolrad.ae"
+                    value={newDomainInput}
+                    onChange={(e) => setNewDomainInput(e.target.value)}
+                    className={`rounded-xl px-3.5 py-2 text-xs font-mono focus:outline-none focus:border-[#0773BB] ${
+                      isLight
+                        ? 'bg-slate-100 border border-slate-300 text-slate-900'
+                        : 'bg-[#0D1520] border border-[#233549] text-white'
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs shadow-lg transition-all flex items-center gap-1.5 shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Domain</span>
+                  </button>
+                </form>
+              )}
             </div>
 
             {domainSuccess && (
@@ -1688,7 +1716,7 @@ export const UsersView: React.FC = () => {
                       </div>
                     </div>
 
-                    {authorizedDomains.length > 1 && (
+                    {isAdminUser && authorizedDomains.length > 1 && (
                       <button
                         onClick={() => removeAuthorizedDomain(dom)}
                         className="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/20 transition-all"
@@ -1715,13 +1743,15 @@ export const UsersView: React.FC = () => {
                 Manage internal Dolphin entities and registered client / contractor / vendor companies.
               </p>
             </div>
-            <button
-              onClick={() => setShowCompanyModal(true)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Register New Company</span>
-            </button>
+            {isAdminUser && (
+              <button
+                onClick={() => setShowCompanyModal(true)}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-medium text-xs shadow-lg"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Register New Company</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1786,7 +1816,7 @@ export const UsersView: React.FC = () => {
       )}
 
       {/* MODAL 1: Add User & Grant Access Modal */}
-      {showInviteModal && (
+      {isAdminUser && showInviteModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className={`rounded-2xl w-full max-w-xl max-h-[92vh] flex flex-col shadow-2xl animate-in zoom-in-95 border ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
@@ -2370,7 +2400,7 @@ export const UsersView: React.FC = () => {
       )}
 
       {/* MODAL 2: Register External Company Modal */}
-      {showCompanyModal && (
+      {isAdminUser && showCompanyModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className={`rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in zoom-in-95 border ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
@@ -2540,7 +2570,7 @@ export const UsersView: React.FC = () => {
       )}
 
       {/* Remove Old Sample Data Confirmation Modal */}
-      {showClearConfirmModal && (
+      {isAdminUser && showClearConfirmModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-[#16222F] border border-red-500/40 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-[#233549]">
@@ -2595,7 +2625,7 @@ export const UsersView: React.FC = () => {
       )}
 
       {/* MODAL: Invite to Workspace */}
-      {showWorkspaceInviteModal && (
+      {isAdminUser && showWorkspaceInviteModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
           <div className={`rounded-2xl w-full max-w-xl p-6 space-y-4 shadow-2xl border ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'
@@ -2790,7 +2820,7 @@ export const UsersView: React.FC = () => {
       )}
 
       {/* MODAL: Manage User Space Assignments */}
-      {managingSpacesUserId && (() => {
+      {isAdminUser && managingSpacesUserId && (() => {
         const targetUser = users.find((u) => u.id === managingSpacesUserId);
         if (!targetUser) return null;
 
@@ -2883,7 +2913,7 @@ export const UsersView: React.FC = () => {
       })()}
 
       {/* MODAL: Dedicated Password Reset */}
-      {passwordResetUser && (
+      {isAdminUser && passwordResetUser && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
           <div className={`rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl border ${
             isLight ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#16222F] border-[#233549] text-white'

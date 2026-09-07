@@ -5,7 +5,21 @@ import {
   PermissionAction,
   hasPermission,
   getPermissionDeniedReason,
+  isStrictAdmin,
 } from '../../lib/permissions';
+
+export {
+  AdminActionGuard,
+  withAdminActionGuard,
+  withAdminInvite,
+  withAdminDelete,
+  withAdminResetData,
+  AdminInviteGuard,
+  AdminDeleteGuard,
+  AdminResetDataGuard,
+  useStrictAdmin,
+  withStrictAdminExecution
+} from './AdminActionGuard';
 
 export interface PermissionGuardProps {
   /** The action to check permission for */
@@ -47,14 +61,26 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   customCheck,
   children,
 }) => {
-  const { currentUser } = useApp();
+  const { currentUser, users } = useApp();
+
+  const effectiveUser = React.useMemo(() => {
+    if (!currentUser) return null;
+    const liveMatch = users?.find(
+      (u) =>
+        u.id === currentUser.id ||
+        (currentUser.email && u.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+    return liveMatch || currentUser;
+  }, [users, currentUser]);
 
   const effectiveTask = task || (target && 'status' in target ? (target as Task) : undefined);
   const effectiveProject = project || (target && 'category' in target ? (target as Project) : undefined);
 
   const isAllowed = customCheck
-    ? customCheck(currentUser)
-    : hasPermission(currentUser, action, { task: effectiveTask, project: effectiveProject });
+    ? customCheck(effectiveUser)
+    : action === 'create_user' || action === 'delete_user'
+    ? isStrictAdmin(effectiveUser, users)
+    : hasPermission(effectiveUser, action, { task: effectiveTask, project: effectiveProject });
 
   if (typeof children === 'function') {
     return <>{children(isAllowed)}</>;
@@ -65,7 +91,7 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
   }
 
   if (disableInsteadOfHide) {
-    const reason = tooltipText || getPermissionDeniedReason(currentUser, action);
+    const reason = tooltipText || getPermissionDeniedReason(effectiveUser, action);
     return (
       <div
         className="inline-flex items-center opacity-40 cursor-not-allowed select-none pointer-events-none"

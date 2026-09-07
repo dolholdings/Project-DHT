@@ -38,7 +38,7 @@ import { useLogo } from '../../context/LogoContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { CreateSpaceModal } from '../workspace/CreateSpaceModal';
 import { PermissionGuard } from '../common/PermissionGuard';
-import { normalizeRole, canCreateUser, canViewUsersDirectory } from '../../lib/permissions';
+import { normalizeRole, canCreateUser, canViewUsersDirectory, isUserSuperAdmin } from '../../lib/permissions';
 import { LogoPlaceholder } from '../common/LogoPlaceholder';
 
 export interface SidebarProps {
@@ -96,19 +96,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [users, currentUser]);
 
   const effectiveRole = userProfile?.role || currentUser?.role;
-  const isAdmin = normalizeRole(effectiveRole) === 'admin';
-  const canViewUsers = canViewUsersDirectory(userProfile || currentUser);
-  const canInvite = canCreateUser(userProfile || currentUser);
+  const isAdmin = normalizeRole(effectiveRole) === 'admin' || isUserSuperAdmin(userProfile || currentUser);
+  const canViewUsers = isAdmin;
+  const canInvite = isAdmin;
 
   // Guard: If a non-admin or unauthorized user lands on restricted tabs, redirect them to dashboard
   useEffect(() => {
-    if (!isAdmin && (activeTab === 'admin' || activeTab === 'settings' || activeTab === 'workspace')) {
+    if (!isAdmin && (activeTab === 'admin' || activeTab === 'settings' || activeTab === 'workspace' || activeTab === 'users')) {
       setActiveTab('dashboard');
     }
-    if (!canViewUsers && activeTab === 'users') {
-      setActiveTab('dashboard');
-    }
-  }, [isAdmin, canViewUsers, activeTab, setActiveTab]);
+  }, [isAdmin, activeTab, setActiveTab]);
 
   const accessibleProjects = React.useMemo(() => {
     if (!currentUser) return [];

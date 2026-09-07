@@ -34,6 +34,7 @@ import { CommandPalette } from './components/layout/CommandPalette';
 import { TransactionalEmailGatewayModal } from './components/notifications/TransactionalEmailGatewayModal';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { hasUserCompletedTour, markUserTourCompleted, startOnboardingTour } from './services/onboardingTour';
+import { normalizeRole, isUserSuperAdmin } from './lib/permissions';
 
 const MainLayout: React.FC = () => {
   const {
@@ -43,6 +44,7 @@ const MainLayout: React.FC = () => {
     setCommandPaletteOpen,
     theme,
     currentUser,
+    users,
     setCurrentUser,
     isAuthenticated,
     projects,
@@ -54,6 +56,18 @@ const MainLayout: React.FC = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isRestoringData, setIsRestoringData] = useState(false);
   const isMobile = useIsMobile();
+
+  const userProfile = React.useMemo(() => {
+    if (!currentUser) return null;
+    const match = users?.find(
+      (u) =>
+        u.id === currentUser.id ||
+        (currentUser.email && u.email?.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
+    );
+    return match || currentUser;
+  }, [users, currentUser]);
+
+  const isAdmin = normalizeRole(userProfile?.role || currentUser?.role) === 'admin' || isUserSuperAdmin(userProfile || currentUser);
 
   // Trigger Onboarding Tour automatically on first login
   React.useEffect(() => {
@@ -219,11 +233,11 @@ const MainLayout: React.FC = () => {
             {activeTab === 'files' && <FilesView />}
             {activeTab === 'reports' && <ReportsView />}
             {activeTab === 'automations' && <AutomationsView />}
-            {activeTab === 'users' && <UsersView />}
+            {activeTab === 'users' && (isAdmin ? <UsersView /> : <DashboardView />)}
             {activeTab === 'architecture' && <ArchitectureView />}
-            {activeTab === 'workspace' && <WorkspaceManager />}
-            {activeTab === 'settings' && <SettingsView />}
-            {activeTab === 'admin' && <AdminView />}
+            {activeTab === 'workspace' && (isAdmin ? <WorkspaceManager /> : <DashboardView />)}
+            {activeTab === 'settings' && (isAdmin ? <SettingsView /> : <DashboardView />)}
+            {activeTab === 'admin' && (isAdmin ? <AdminView /> : <DashboardView />)}
           </ErrorBoundary>
         </main>
       </div>

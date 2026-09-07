@@ -64,6 +64,12 @@ import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../c
 import { PasswordComplexityValidatorUI } from '../auth/LoginModal';
 import { UserAvatar } from '../common/UserAvatar';
 import { TransactionalEmailGatewayModal } from '../notifications/TransactionalEmailGatewayModal';
+import {
+  AdminActionGuard,
+  AdminInviteGuard,
+  AdminDeleteGuard,
+  AdminResetDataGuard
+} from '../common/AdminActionGuard';
 
 export const AdminView: React.FC = () => {
   const {
@@ -474,18 +480,20 @@ export const AdminView: React.FC = () => {
             <span>Email Service</span>
           </button>
 
-          <button
-            onClick={() => {
-              if (activeCompany?.id) {
-                setNewUserCompany(activeCompany.id);
-              }
-              setIsInviteModalOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs transition-all shadow-md"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Invite Tenant User</span>
-          </button>
+          <AdminInviteGuard>
+            <button
+              onClick={() => {
+                if (activeCompany?.id) {
+                  setNewUserCompany(activeCompany.id);
+                }
+                setIsInviteModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs transition-all shadow-md"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Invite Tenant User</span>
+            </button>
+          </AdminInviteGuard>
         </div>
       </div>
 

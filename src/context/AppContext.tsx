@@ -48,7 +48,8 @@ import {
   canDeleteSpace,
   canDeleteTask,
   canAccessCompany,
-  isUserSuperAdmin
+  isUserSuperAdmin,
+  normalizeRole
 } from '../lib/permissions';
 import {
   INITIAL_COMPANIES,
@@ -821,18 +822,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUsers(unified);
       saveToStorage('dolphin_users', unified);
 
-      if (currentUser?.id) {
+      if (currentUser?.id || currentUser?.email) {
         const matchedRemote = cleanRemote.find(
-          (ru) => ru.id === currentUser.id || (ru.email && currentUser.email && ru.email.toLowerCase() === currentUser.email.toLowerCase())
+          (ru) =>
+            ru.id === currentUser.id ||
+            (ru.email && currentUser.email && ru.email.toLowerCase().trim() === currentUser.email.toLowerCase().trim())
         );
-        if (matchedRemote?.theme) {
-          const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
-          saveToStorage(userThemeKey, matchedRemote.theme);
-          setDolphinThemeState(matchedRemote.theme);
-          const isLight = matchedRemote.theme === 'light';
-          const baseTheme = isLight ? 'light' : 'dark';
-          setThemeState(baseTheme);
-          applyThemeToDOM(matchedRemote.theme, baseTheme);
+        if (matchedRemote) {
+          const roleChanged = matchedRemote.role !== currentUser.role;
+          const superAdminChanged = !!matchedRemote.isSuperAdmin !== !!currentUser.isSuperAdmin;
+          const scopeChanged = matchedRemote.companyAccessScope !== currentUser.companyAccessScope;
+          const statusChanged = matchedRemote.status !== currentUser.status;
+          const nameChanged = matchedRemote.name !== currentUser.name;
+
+          if (roleChanged || superAdminChanged || scopeChanged || statusChanged || nameChanged) {
+            const updated = {
+              ...currentUser,
+              ...matchedRemote,
+              role: matchedRemote.role,
+              isSuperAdmin: matchedRemote.role === 'Admin' ? !!matchedRemote.isSuperAdmin : false
+            };
+            setCurrentUser(updated);
+            saveToStorage('dolphin_current_user', updated);
+          }
+
+          if (matchedRemote?.theme) {
+            const userThemeKey = `dolphin_user_theme_${currentUser.id}`;
+            saveToStorage(userThemeKey, matchedRemote.theme);
+            setDolphinThemeState(matchedRemote.theme);
+            const isLight = matchedRemote.theme === 'light';
+            const baseTheme = isLight ? 'light' : 'dark';
+            setThemeState(baseTheme);
+            applyThemeToDOM(matchedRemote.theme, baseTheme);
+          }
         }
       }
     });
@@ -1738,6 +1760,9 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
     if (cleanUpdates.email) {
       cleanUpdates.email = cleanUpdates.email.trim().toLowerCase();
+    }
+    if (cleanUpdates.role && normalizeRole(cleanUpdates.role) !== 'admin') {
+      cleanUpdates.isSuperAdmin = false;
     }
 
     setUsers((prev) => {

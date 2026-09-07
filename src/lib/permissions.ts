@@ -27,25 +27,59 @@ export function normalizeRole(role?: string | null): string {
  */
 export function isUserSuperAdmin(user: User | null): boolean {
   if (!user) return false;
+  const role = normalizeRole(user.role);
+  // Team Members, Project Managers, and Viewers can NEVER have administrative privileges
+  if (role === 'team member' || role === 'viewer' || role === 'project manager') {
+    return false;
+  }
+
   const email = (user.email || '').toLowerCase().trim();
   const isDesignatedSystemAdmin =
     email === 'dolphingroup786@gmail.com' ||
     email === 'admin@dolrad.ae' ||
-    email === 'ceo@dolphingroup.ae' ||
-    email.startsWith('sys_analyst@') ||
-    email.startsWith('sysadmin@');
+    email === 'ceo@dolphingroup.ae';
 
   if (isDesignatedSystemAdmin) {
     return true;
   }
 
-  const role = normalizeRole(user.role);
-  // Team Members, Project Managers, and Viewers can NEVER be Super Admins
-  if (role !== 'admin') {
+  if (role !== 'admin' && role !== 'superadmin') {
     return false;
   }
 
   return user.isSuperAdmin === true;
+}
+
+/**
+ * Strict Administrator Verification.
+ * Returns true ONLY if the user's role is strictly 'admin' or 'superadmin'.
+ * Safely cross-references with the live user list if provided to eliminate stale session caching.
+ */
+export function isStrictAdmin(user: User | null, usersList?: User[]): boolean {
+  if (!user) return false;
+
+  let effectiveUser = user;
+  if (usersList && usersList.length > 0) {
+    const liveMatch = usersList.find(
+      (u) =>
+        u.id === user.id ||
+        (user.email && u.email?.toLowerCase().trim() === user.email.toLowerCase().trim())
+    );
+    if (liveMatch) {
+      effectiveUser = liveMatch;
+    }
+  }
+
+  const role = normalizeRole(effectiveUser.role);
+  if (role === 'team member' || role === 'viewer' || role === 'project manager') {
+    return false;
+  }
+
+  if (role === 'admin' || role === 'superadmin') {
+    return true;
+  }
+
+  return isUserSuperAdmin(effectiveUser);
 }
 
 /**
