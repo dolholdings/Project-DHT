@@ -25,6 +25,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { Project, Company } from '../../types';
 import { UserAvatar } from '../common/UserAvatar';
+import { WorkspaceCleanupJobModal } from './WorkspaceCleanupJobModal';
 
 interface WorkspaceRecycleBinProps {
   isLight: boolean;
@@ -104,7 +105,9 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
     emptyProjectsRecycleBin,
     purgeExpiredWorkspacesAndProjects,
     allTasks,
-    users
+    users,
+    showRestorationToast,
+    runAutomatedWorkspaceCleanup
   } = useApp();
 
   // Active Filter Controls
@@ -121,6 +124,7 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
   const [previewItem, setPreviewItem] = useState<RecycleItem | null>(null);
   const [isBulkPurgeModalOpen, setIsBulkPurgeModalOpen] = useState(false);
   const [isEmptyAllModalOpen, setIsEmptyAllModalOpen] = useState(false);
+  const [isCleanupJobModalOpen, setIsCleanupJobModalOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isActionInProgress, setIsActionInProgress] = useState(false);
 
@@ -270,10 +274,18 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
       else if (type === 'space') spaceIdsToRestore.push(id);
     });
 
-    if (workspaceIdsToRestore.length > 0) {
+    if (workspaceIdsToRestore.length > 0 && spaceIdsToRestore.length > 0) {
+      workspaceIdsToRestore.forEach((id) => restoreCompany(id, true));
+      spaceIdsToRestore.forEach((id) => restoreProject(id, true));
+      showRestorationToast({
+        title: 'Workspace Data Recovered',
+        itemType: 'multiple',
+        count: workspaceIdsToRestore.length + spaceIdsToRestore.length,
+        details: `Successfully recovered ${workspaceIdsToRestore.length} workspace(s) and ${spaceIdsToRestore.length} space(s) from the 30-day Recycle Bin.`
+      });
+    } else if (workspaceIdsToRestore.length > 0) {
       bulkRestoreCompanies(workspaceIdsToRestore);
-    }
-    if (spaceIdsToRestore.length > 0) {
+    } else if (spaceIdsToRestore.length > 0) {
       bulkRestoreProjects(spaceIdsToRestore);
     }
 
@@ -344,8 +356,16 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
 
   // Manual Trigger for 30-Day Auto Purge
   const handleRunAutoPurgeCheck = () => {
-    purgeExpiredWorkspacesAndProjects();
-    showFeedback('30-Day retention check completed. Any workspaces or spaces older than 30 days have been purged.');
+    const result = runAutomatedWorkspaceCleanup(true);
+    if (result.workspacesPurged > 0) {
+      showFeedback(
+        `30-day retention cleanup executed: Permanently deleted ${result.workspacesPurged} expired workspace(s) exceeding 30-day retention.`
+      );
+    } else {
+      showFeedback(
+        `30-day retention scan completed: Evaluated ${result.workspacesEvaluated} workspace(s). All items are within the 30-day retention window.`
+      );
+    }
   };
 
   return (
@@ -389,6 +409,20 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
 
           {/* Quick Global Actions */}
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsCleanupJobModalOpen(true)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                isLight
+                  ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300'
+              }`}
+              title="Automated 30-Day Retention Cleanup Background Daemon settings and audit logs"
+            >
+              <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Auto-Cleanup Daemon</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+
             <button
               onClick={handleRunAutoPurgeCheck}
               disabled={isActionInProgress}
@@ -1188,6 +1222,12 @@ export const WorkspaceRecycleBin: React.FC<WorkspaceRecycleBinProps> = ({
           </div>
         </div>
       )}
+
+      <WorkspaceCleanupJobModal
+        isOpen={isCleanupJobModalOpen}
+        onClose={() => setIsCleanupJobModalOpen(false)}
+        isLight={isLight}
+      />
     </div>
   );
 };

@@ -74,6 +74,7 @@ import { UnifiedProjectSearchModal } from './UnifiedProjectSearchModal';
 import { ExcelImportModal } from '../common/ExcelImportModal';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { WorkspaceRecycleBin } from './WorkspaceRecycleBin';
+import { WorkspaceCleanupJobModal } from './WorkspaceCleanupJobModal';
 
 export const WorkspaceManager: React.FC = () => {
   const {
@@ -122,6 +123,7 @@ export const WorkspaceManager: React.FC = () => {
   // Modal States
   const [showCreateSpaceModal, setShowCreateSpaceModal] = useState(false);
   const [showCreateCompanyModal, setShowCreateCompanyModal] = useState(false);
+  const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
   const [configuringProject, setConfiguringProject] = useState<Project | null>(null);
   const [deleteConfirmProject, setDeleteConfirmProject] = useState<Project | null>(null);
   const [activeConfigTab, setActiveConfigTab] = useState<'general' | 'clickapps' | 'statuses' | 'members'>('general');
@@ -646,6 +648,20 @@ export const WorkspaceManager: React.FC = () => {
                   {deletedCompanies.length + deletedProjects.length}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setIsCleanupModalOpen(true)}
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border font-bold text-xs transition-all cursor-pointer ${
+                theme === 'light'
+                  ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300'
+              }`}
+              title="Configure and monitor automated 30-day retention cleanup background job"
+            >
+              <Clock className="w-4 h-4 text-emerald-400" />
+              <span className="hidden sm:inline">30d Auto-Purge</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             </button>
 
             <button
@@ -4418,6 +4434,11 @@ export const WorkspaceManager: React.FC = () => {
             setShowPreviewModal(true);
           }
         }}
+      />
+      <WorkspaceCleanupJobModal
+        isOpen={isCleanupModalOpen}
+        onClose={() => setIsCleanupModalOpen(false)}
+        isLight={theme === 'light'}
       />
     </div>
   );

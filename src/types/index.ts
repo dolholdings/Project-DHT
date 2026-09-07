@@ -455,3 +455,41 @@ export interface AIDailyBrief {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   suggestedActions?: string[];
 }
+
+export interface WorkspaceRestorationToastData {
+  id: string;
+  title: string;
+  itemType: 'workspace' | 'space' | 'multiple';
+  count?: number;
+  code?: string;
+  details?: string;
+  timestamp: number;
+}
+
+export interface WorkspaceCleanupRecord {
+  id: string;
+  name: string;
+  code?: string;
+  deletedAt?: string;
+  daysInRecycleBin: number;
+  purgedAt: string;
+}
+
+export interface WorkspaceCleanupLog {
+  id: string;
+  runAt: string;
+  triggerType: 'AUTOMATED_BACKGROUND' | 'MANUAL';
+  retentionDaysThreshold: number;
+  workspacesEvaluated: number;
+  workspacesPurged: number;
+  purgedDetails: WorkspaceCleanupRecord[];
+  status: 'SUCCESS' | 'NO_EXPIRED_ITEMS' | 'ERROR';
+  executionDurationMs?: number;
+}
+
+export interface WorkspaceCleanupJobConfig {
+  enabled: boolean;
+  retentionDays: number; // default 30
+  intervalMinutes: number; // default 15
+  autoNotifyOnPurge: boolean; // default true
+}

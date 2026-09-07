@@ -27,6 +27,7 @@ import { EmailInboxView } from './components/email/EmailInboxView';
 import { WorkspaceManager } from './components/workspace/WorkspaceManager';
 import { NotificationsDrawer } from './components/notifications/NotificationsDrawer';
 import { TaskDueAlertToast } from './components/notifications/TaskDueAlertToast';
+import { WorkspaceRestorationToast } from './components/notifications/WorkspaceRestorationToast';
 import { LoginModal } from './components/auth/LoginModal';
 import { EmailVerificationScreen } from './components/auth/EmailVerificationScreen';
 import { SessionTimeoutManager } from './components/auth/SessionTimeoutManager';
@@ -241,6 +242,9 @@ const MainLayout: React.FC = () => {
           </ErrorBoundary>
         </main>
       </div>
+
+      {/* Workspace Data Recovery Toast Notification */}
+      <WorkspaceRestorationToast />
 
       {/* Floating Task Due Date Alert Toast Stack */}
       <TaskDueAlertToast />

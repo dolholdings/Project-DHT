@@ -31,7 +31,11 @@ import {
   TemplateVersionRecord,
   TemplateCleanupRules,
   CustomFieldDefinition,
-  Sprint
+  Sprint,
+  WorkspaceRestorationToastData,
+  WorkspaceCleanupRecord,
+  WorkspaceCleanupLog,
+  WorkspaceCleanupJobConfig
 } from '../types';
 
 import { INITIAL_TEMPLATES } from '../data/initialTemplates';
@@ -179,13 +183,29 @@ interface AppContextType {
   addCompany: (company: Omit<Company, 'id'>) => Company;
   updateCompany: (id: string, updates: Partial<Company>) => void;
   deleteCompany: (id: string) => void;
-  restoreCompany: (id: string) => void;
+  restoreCompany: (id: string, suppressToast?: boolean) => void;
   bulkRestoreCompanies: (ids: string[]) => void;
   purgeCompany: (id: string) => void;
   bulkPurgeCompanies: (ids: string[]) => void;
   emptyWorkspacesRecycleBin: () => void;
   emptyWorkspaceAndProjectRecycleBin: () => void;
   purgeExpiredWorkspacesAndProjects: () => void;
+
+  // Automated 30-Day Retention Cleanup Background Job
+  cleanupJobConfig: WorkspaceCleanupJobConfig;
+  updateCleanupJobConfig: (updates: Partial<WorkspaceCleanupJobConfig>) => void;
+  cleanupJobLogs: WorkspaceCleanupLog[];
+  lastCleanupRunAt: string | null;
+  isCleanupJobRunning: boolean;
+  runAutomatedWorkspaceCleanup: (forceManual?: boolean, customDays?: number) => WorkspaceCleanupLog;
+  clearCleanupJobLogs: () => void;
+  simulateExpiredWorkspace: (companyId: string, daysAgo?: number) => void;
+  createTestDeletedWorkspace: (daysAgo?: number) => Company;
+
+  // Workspace Restoration Toast
+  restorationToast: WorkspaceRestorationToastData | null;
+  showRestorationToast: (data: Omit<WorkspaceRestorationToastData, 'id' | 'timestamp'> & { id?: string }) => void;
+  clearRestorationToast: () => void;
   users: User[];
   allUsers: User[];
   deletedUsers: User[];
@@ -228,7 +248,7 @@ interface AppContextType {
   // Projects & Templates
   projects: Project[];
   deletedProjects: Project[];
-  restoreProject: (id: string) => void;
+  restoreProject: (id: string, suppressToast?: boolean) => void;
   bulkRestoreProjects: (ids: string[]) => void;
   purgeProject: (id: string) => void;
   bulkPurgeProjects: (ids: string[]) => void;
@@ -581,6 +601,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const companies = useMemo(() => allCompanies.filter((c) => !c.isDeleted), [allCompanies]);
   // Soft-deleted workspaces for Recycle Bin (30-day retention)
   const deletedCompanies = useMemo(() => allCompanies.filter((c) => !!c.isDeleted), [allCompanies]);
+
+  // Workspace Restoration Toast Notification
+  const [restorationToast, setRestorationToast] = useState<WorkspaceRestorationToastData | null>(null);
+
+  const showRestorationToast = useCallback(
+    (data: Omit<WorkspaceRestorationToastData, 'id' | 'timestamp'> & { id?: string }) => {
+      setRestorationToast({
+        id: data.id || `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        title: data.title,
+        itemType: data.itemType,
+        count: data.count ?? 1,
+        code: data.code,
+        details: data.details,
+        timestamp: Date.now()
+      });
+    },
+    []
+  );
+
+  const clearRestorationToast = useCallback(() => {
+    setRestorationToast(null);
+  }, []);
 
   const [activeCompany, setActiveCompany] = useState<Company>(() => {
     const storedActive = loadFromStorage<Company | null>('dolphin_active_company', null);
@@ -1421,7 +1463,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Restore Workspace from Recycle Bin
-  const restoreCompany = (id: string) => {
+  const restoreCompany = (id: string, suppressToast = false) => {
     const comp = allCompanies.find((c) => c.id === id);
     if (!comp) return;
 
@@ -1480,11 +1522,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch((err) => console.warn('Company Firestore restore error:', err));
 
     logActivity('restored workspace from recycle bin', comp.name, 'system');
+
+    if (!suppressToast) {
+      showRestorationToast({
+        title: comp.name,
+        itemType: 'workspace',
+        count: 1,
+        code: comp.code,
+        details: `Workspace "${comp.name}" and all associated spaces have been recovered from the Recycle Bin.`
+      });
+    }
   };
 
   const bulkRestoreCompanies = (ids: string[]) => {
     if (!ids || ids.length === 0) return;
-    ids.forEach((id) => restoreCompany(id));
+    ids.forEach((id) => restoreCompany(id, true));
+    showRestorationToast({
+      title: `${ids.length} Workspaces Recovered`,
+      itemType: 'workspace',
+      count: ids.length,
+      details: `Successfully recovered ${ids.length} workspaces and all associated spaces from the Recycle Bin.`
+    });
   };
 
   // Permanently Purge Workspace
@@ -1580,24 +1638,191 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     deletedProj.forEach((p) => purgeProject(p.id));
   };
 
-  // 30-Day Retention Auto-Purge Engine for Workspaces & Projects
+  // Automated 30-Day Retention Cleanup Background Job for Workspaces
+  const [cleanupJobConfig, setCleanupJobConfigState] = useState<WorkspaceCleanupJobConfig>(() => {
+    return loadFromStorage<WorkspaceCleanupJobConfig>('dolphin_workspace_cleanup_config', {
+      enabled: true,
+      retentionDays: 30,
+      intervalMinutes: 15,
+      autoNotifyOnPurge: true
+    });
+  });
+
+  const updateCleanupJobConfig = (updates: Partial<WorkspaceCleanupJobConfig>) => {
+    setCleanupJobConfigState((prev) => {
+      const next = { ...prev, ...updates };
+      saveToStorage('dolphin_workspace_cleanup_config', next);
+      return next;
+    });
+  };
+
+  const [cleanupJobLogs, setCleanupJobLogs] = useState<WorkspaceCleanupLog[]>(() => {
+    return loadFromStorage<WorkspaceCleanupLog[]>('dolphin_workspace_cleanup_logs', []);
+  });
+
+  const clearCleanupJobLogs = () => {
+    setCleanupJobLogs([]);
+    saveToStorage('dolphin_workspace_cleanup_logs', []);
+  };
+
+  const [lastCleanupRunAt, setLastCleanupRunAt] = useState<string | null>(() => {
+    return loadFromStorage<string | null>('dolphin_workspace_cleanup_last_run', null);
+  });
+
+  const [isCleanupJobRunning, setIsCleanupJobRunning] = useState(false);
+
+  // Automated 30-Day Retention Auto-Purge Engine for Workspaces & Projects
+  const runAutomatedWorkspaceCleanup = useCallback(
+    (forceManual = false, customDays?: number): WorkspaceCleanupLog => {
+      setIsCleanupJobRunning(true);
+      const startTime = Date.now();
+      const effectiveDays = customDays ?? cleanupJobConfig.retentionDays;
+      const RETENTION_MS = effectiveDays * 24 * 60 * 60 * 1000;
+      const nowTime = Date.now();
+
+      // Soft-deleted workspaces in recycle bin
+      const deletedComps = allCompanies.filter((c) => !!c.isDeleted);
+      const expiredComps: Company[] = [];
+      const purgedDetails: WorkspaceCleanupRecord[] = [];
+
+      deletedComps.forEach((comp) => {
+        const deletedTimestamp = comp.deletedAt ? new Date(comp.deletedAt).getTime() : nowTime;
+        const elapsedMs = nowTime - deletedTimestamp;
+        if (elapsedMs >= RETENTION_MS) {
+          expiredComps.push(comp);
+          purgedDetails.push({
+            id: comp.id,
+            name: comp.name,
+            code: comp.code,
+            deletedAt: comp.deletedAt,
+            daysInRecycleBin: Math.max(effectiveDays, Math.floor(elapsedMs / (24 * 60 * 60 * 1000))),
+            purgedAt: new Date().toISOString()
+          });
+        }
+      });
+
+      // Synchronize projects (> 30 days)
+      const expiredProjects = allProjects.filter((p) => {
+        if (!p.isDeleted || !p.deletedAt) return false;
+        return nowTime - new Date(p.deletedAt).getTime() >= RETENTION_MS;
+      });
+      expiredProjects.forEach((p) => purgeProject(p.id));
+
+      // Permanently purge expired workspaces
+      expiredComps.forEach((comp) => {
+        purgeCompany(comp.id);
+      });
+
+      const executionDurationMs = Date.now() - startTime;
+      const runTimestamp = new Date().toISOString();
+
+      const logEntry: WorkspaceCleanupLog = {
+        id: `cleanup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        runAt: runTimestamp,
+        triggerType: forceManual ? 'MANUAL' : 'AUTOMATED_BACKGROUND',
+        retentionDaysThreshold: effectiveDays,
+        workspacesEvaluated: deletedComps.length,
+        workspacesPurged: expiredComps.length,
+        purgedDetails,
+        status: expiredComps.length > 0 ? 'SUCCESS' : 'NO_EXPIRED_ITEMS',
+        executionDurationMs
+      };
+
+      setCleanupJobLogs((prev) => {
+        const next = [logEntry, ...prev].slice(0, 50);
+        saveToStorage('dolphin_workspace_cleanup_logs', next);
+        return next;
+      });
+
+      setLastCleanupRunAt(runTimestamp);
+      saveToStorage('dolphin_workspace_cleanup_last_run', runTimestamp);
+      setIsCleanupJobRunning(false);
+
+      if (expiredComps.length > 0) {
+        logActivity(
+          'automated 30-day retention cleanup purged workspaces',
+          `Permanently deleted ${expiredComps.length} expired workspace(s) exceeding ${effectiveDays}-day retention: ${expiredComps.map((c) => c.name).join(', ')}`,
+          'system'
+        );
+      }
+
+      return logEntry;
+    },
+    [allCompanies, allProjects, cleanupJobConfig.retentionDays]
+  );
+
   const purgeExpiredWorkspacesAndProjects = () => {
-    const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
-    const nowTime = Date.now();
+    runAutomatedWorkspaceCleanup(true);
+  };
 
-    // Expired projects (> 30 days)
-    const expiredProjects = allProjects.filter((p) => {
-      if (!p.isDeleted || !p.deletedAt) return false;
-      return nowTime - new Date(p.deletedAt).getTime() >= RETENTION_MS;
-    });
-    expiredProjects.forEach((p) => purgeProject(p.id));
+  // Simulation test utilities for admins/users
+  const simulateExpiredWorkspace = (companyId: string, daysAgo = 32) => {
+    const target = allCompanies.find((c) => c.id === companyId);
+    if (!target) return;
 
-    // Expired workspaces (> 30 days)
-    const expiredCompanies = allCompanies.filter((c) => {
-      if (!c.isDeleted || !c.deletedAt) return false;
-      return nowTime - new Date(c.deletedAt).getTime() >= RETENTION_MS;
+    const fakeDeletedDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+
+    setAllCompanies((prev) => {
+      const next = prev.map((c) =>
+        c.id === companyId
+          ? {
+              ...c,
+              isDeleted: true,
+              deletedAt: fakeDeletedDate,
+              deletedBy: currentUser?.id || 'admin',
+              deletedByName: currentUser?.name || 'Workspace Administrator'
+            }
+          : c
+      );
+      saveToStorage('dolphin_companies', next);
+      return next;
     });
-    expiredCompanies.forEach((c) => purgeCompany(c.id));
+
+    updateCompanyInFirestore(companyId, {
+      isDeleted: true,
+      deletedAt: fakeDeletedDate
+    }).catch((err) => console.warn('Firestore simulate expired error:', err));
+
+    logActivity(
+      'simulated 30-day expired workspace',
+      `Set workspace "${target.name}" deletion date to ${daysAgo} days ago for automated background job testing.`,
+      'system'
+    );
+  };
+
+  const createTestDeletedWorkspace = (daysAgo = 35): Company => {
+    const timestamp = Date.now();
+    const fakeDeletedDate = new Date(timestamp - daysAgo * 24 * 60 * 60 * 1000).toISOString();
+    const testCompany: Company = {
+      id: `comp_test_${timestamp}`,
+      name: `Expired Retention Test Workspace (${daysAgo}d)`,
+      code: `EXP${Math.floor(Math.random() * 900 + 100)}`,
+      domain: 'test-expired.dolphin.internal',
+      logo: '🏢',
+      description: 'Simulated expired test workspace for automated 30-day retention cleanup testing',
+      isDeleted: true,
+      deletedAt: fakeDeletedDate,
+      deletedBy: currentUser?.id || 'admin',
+      deletedByName: currentUser?.name || 'Workspace Administrator'
+    };
+
+    setAllCompanies((prev) => {
+      const next = [testCompany, ...prev];
+      saveToStorage('dolphin_companies', next);
+      return next;
+    });
+
+    createCompanyInFirestore(testCompany).catch((err) =>
+      console.warn('Firestore test company create error:', err)
+    );
+
+    logActivity(
+      'created simulated expired workspace',
+      `Created test workspace "${testCompany.name}" with deletion timestamp set to ${daysAgo} days ago for automated background job testing.`,
+      'system'
+    );
+
+    return testCompany;
   };
 
   // Domain & Email Validation helper (Project Management email address access control)
@@ -2538,7 +2763,7 @@ ${currentUser?.name || 'Workspace Administrator'}`,
     }
   };
 
-  const restoreProject = (id: string) => {
+  const restoreProject = (id: string, suppressToast = false) => {
     if (!canDeleteSpace(currentUser)) {
       console.warn('Permission denied: Only Workspace Administrators can restore project spaces.');
       return;
@@ -2602,12 +2827,27 @@ ${currentUser?.name || 'Workspace Administrator'}`,
 
     if (p) {
       logActivity('restored space from recycle bin', p.title, 'project', id);
+      if (!suppressToast) {
+        showRestorationToast({
+          title: p.title,
+          itemType: 'space',
+          count: 1,
+          code: p.code,
+          details: `Space "${p.title}" and its active tasks have been recovered from the Recycle Bin.`
+        });
+      }
     }
   };
 
   const bulkRestoreProjects = (ids: string[]) => {
     if (!ids || ids.length === 0) return;
-    ids.forEach((id) => restoreProject(id));
+    ids.forEach((id) => restoreProject(id, true));
+    showRestorationToast({
+      title: `${ids.length} Spaces Recovered`,
+      itemType: 'space',
+      count: ids.length,
+      details: `Successfully recovered ${ids.length} spaces and their tasks from the Recycle Bin.`
+    });
   };
 
   const purgeProject = (id: string) => {
@@ -4899,21 +5139,33 @@ Please log into your workspace dashboard to update task status or adjust target 
     if (tasks.length > 0) {
       triggerDailyOverdueCheck(false);
     }
-    // Run automated 30-day Recycle Bin purge check on mount and hourly
+    // Run automated 30-day Recycle Bin purge check on mount
     purgeExpiredTasks();
-    purgeExpiredWorkspacesAndProjects();
+    if (cleanupJobConfig.enabled) {
+      runAutomatedWorkspaceCleanup(false);
+    } else {
+      purgeExpiredWorkspacesAndProjects();
+    }
+
     const interval = setInterval(() => {
       triggerUpcomingDueCheck();
     }, 60000);
+
+    const cleanupIntervalMs = Math.max(1, cleanupJobConfig.intervalMinutes) * 60 * 1000;
     const purgeInterval = setInterval(() => {
       purgeExpiredTasks();
-      purgeExpiredWorkspacesAndProjects();
-    }, 60 * 60 * 1000);
+      if (cleanupJobConfig.enabled) {
+        runAutomatedWorkspaceCleanup(false);
+      } else {
+        purgeExpiredWorkspacesAndProjects();
+      }
+    }, cleanupIntervalMs);
+
     return () => {
       clearInterval(interval);
       clearInterval(purgeInterval);
     };
-  }, []);
+  }, [cleanupJobConfig.enabled, cleanupJobConfig.intervalMinutes, runAutomatedWorkspaceCleanup]);
 
   // Automations
   const toggleAutomation = (id: string) => {
@@ -5254,6 +5506,18 @@ Please log into your workspace dashboard to update task status or adjust target 
         emptyWorkspacesRecycleBin,
         emptyWorkspaceAndProjectRecycleBin,
         purgeExpiredWorkspacesAndProjects,
+        cleanupJobConfig,
+        updateCleanupJobConfig,
+        cleanupJobLogs,
+        lastCleanupRunAt,
+        isCleanupJobRunning,
+        runAutomatedWorkspaceCleanup,
+        clearCleanupJobLogs,
+        simulateExpiredWorkspace,
+        createTestDeletedWorkspace,
+        restorationToast,
+        showRestorationToast,
+        clearRestorationToast,
         users: activeUsers,
         allUsers: users,
         deletedUsers,
