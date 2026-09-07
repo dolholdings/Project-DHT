@@ -71,6 +71,7 @@ export const AdminView: React.FC = () => {
     updateUser,
     deleteUser,
     companies,
+    activeCompany,
     authorizedDomains,
     addAuthorizedDomain,
     removeAuthorizedDomain,
@@ -381,6 +382,12 @@ export const AdminView: React.FC = () => {
       setNewUserName('');
       setNewUserEmail('');
       setNewUserPassword('');
+      // Reset all filters so the newly created user is immediately visible in the Admin table!
+      setCompanyFilter('all');
+      setUserSearch('');
+      setRoleFilter('all');
+      setStatusFilter('all');
+      setActiveTab('users');
       setTimeout(() => {
         setIsInviteModalOpen(false);
         setInviteSuccess('');
@@ -468,7 +475,12 @@ export const AdminView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setIsInviteModalOpen(true)}
+            onClick={() => {
+              if (activeCompany?.id) {
+                setNewUserCompany(activeCompany.id);
+              }
+              setIsInviteModalOpen(true);
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0773BB] hover:bg-[#0773BB]/80 text-white font-bold text-xs transition-all shadow-md"
           >
             <UserPlus className="w-4 h-4" />

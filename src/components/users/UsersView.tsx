@@ -44,7 +44,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { APPROVED_DOMAINS, Role, CompanyType, Company, User } from '../../types';
 import { getUserLastActive } from '../../lib/userActivity';
-import { canCreateUser, canDeleteUser, canViewUsersDirectory } from '../../lib/permissions';
+import { canCreateUser, canDeleteUser, canViewUsersDirectory, normalizeRole, isUserSuperAdmin } from '../../lib/permissions';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../../config/auth';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { PermissionGuard } from '../common/PermissionGuard';
@@ -108,8 +108,8 @@ export const UsersView: React.FC = () => {
   const [assignedPassword, setAssignedPassword] = useState('');
   const [role, setRole] = useState<Role>('Team Member');
   const [department, setDepartment] = useState('Engineering');
-  const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id || 'comp_5');
-  const [accessScope, setAccessScope] = useState<'all' | 'specific'>('all');
+  const [selectedCompanyId, setSelectedCompanyId] = useState(activeCompany?.id || companies[0]?.id || 'comp_dgha');
+  const [accessScope, setAccessScope] = useState<'all' | 'specific'>('specific');
   const [selectedAllowedCompanyIds, setSelectedAllowedCompanyIds] = useState<string[]>([]);
   const [isSuperAdminUser, setIsSuperAdminUser] = useState(false);
 
@@ -367,7 +367,7 @@ export const UsersView: React.FC = () => {
     }
 
     const finalAllowedCompanyIds =
-      accessScope === 'all' || isSuperAdminUser || role === 'Admin'
+      accessScope === 'all' || isSuperAdminUser
         ? ['all']
         : selectedAllowedCompanyIds.length > 0
         ? selectedAllowedCompanyIds
@@ -375,7 +375,6 @@ export const UsersView: React.FC = () => {
 
     const finalIsSuperAdmin =
       isSuperAdminUser ||
-      role === 'Admin' ||
       cleanEmail === 'dolphingroup786@gmail.com' ||
       cleanEmail === 'admin@dolrad.ae' ||
       cleanEmail === 'ceo@dolphingroup.ae';
@@ -413,7 +412,7 @@ export const UsersView: React.FC = () => {
         setAssignedPassword('');
         setRole('Team Member');
         setDepartment('Engineering');
-        setAccessScope('all');
+        setAccessScope('specific');
         setSelectedAllowedCompanyIds([]);
         setIsSuperAdminUser(false);
         setIsCustomCompany(false);
@@ -608,6 +607,8 @@ export const UsersView: React.FC = () => {
       </div>
     );
   }
+
+  const isAdminUser = normalizeRole(currentUser?.role) === 'admin' || isUserSuperAdmin(currentUser);
 
   return (
     <div className={`p-3.5 sm:p-6 space-y-6 w-full max-w-[1700px] mx-auto animate-in fade-in ${isLight ? 'text-slate-900' : 'text-slate-100'}`}>
@@ -1243,35 +1244,53 @@ export const UsersView: React.FC = () => {
                           {/* Access Level (Role Controller) */}
                           <td className="p-3.5">
                             <div className="flex items-center gap-1.5">
-                              <select
-                                value={u.role}
-                                onChange={(e) => updateUser(u.id, { role: e.target.value as Role })}
-                                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0773BB] shadow-sm ${
-                                  u.role === 'Admin'
-                                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                                    : u.role === 'Project Manager'
-                                    ? 'bg-[#0773BB]/15 text-[#0773BB] dark:text-[#38BDF8] border-[#0773BB]/30'
-                                    : u.role === 'Team Member'
-                                    ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30'
-                                    : isLight
-                                    ? 'bg-slate-100 text-slate-700 border-slate-300'
-                                    : 'bg-slate-800 text-slate-300 border-slate-700'
-                                }`}
-                                title="Change Access Role"
-                              >
-                                <option value="Viewer" className={isLight ? 'bg-white text-slate-800' : 'bg-[#0D1520] text-slate-300'}>
-                                  Viewer (Read-Only)
-                                </option>
-                                <option value="Team Member" className={isLight ? 'bg-white text-teal-800' : 'bg-[#0D1520] text-teal-400'}>
-                                  Team Member (Standard)
-                                </option>
-                                <option value="Project Manager" className={isLight ? 'bg-white text-blue-800' : 'bg-[#0D1520] text-[#38BDF8]'}>
-                                  Project Manager (PM)
-                                </option>
-                                <option value="Admin" className={isLight ? 'bg-white text-amber-800' : 'bg-[#0D1520] text-amber-400'}>
-                                  Admin (Super Admin)
-                                </option>
-                              </select>
+                              {isAdminUser ? (
+                                <select
+                                  value={u.role}
+                                  onChange={(e) => updateUser(u.id, { role: e.target.value as Role })}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#0773BB] shadow-sm ${
+                                    u.role === 'Admin'
+                                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                      : u.role === 'Project Manager'
+                                      ? 'bg-[#0773BB]/15 text-[#0773BB] dark:text-[#38BDF8] border-[#0773BB]/30'
+                                      : u.role === 'Team Member'
+                                      ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30'
+                                      : isLight
+                                      ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                                  }`}
+                                  title="Change Access Role (Admin Only)"
+                                >
+                                  <option value="Viewer" className={isLight ? 'bg-white text-slate-800' : 'bg-[#0D1520] text-slate-300'}>
+                                    Viewer (Read-Only)
+                                  </option>
+                                  <option value="Team Member" className={isLight ? 'bg-white text-teal-800' : 'bg-[#0D1520] text-teal-400'}>
+                                    Team Member (Standard)
+                                  </option>
+                                  <option value="Project Manager" className={isLight ? 'bg-white text-blue-800' : 'bg-[#0D1520] text-[#38BDF8]'}>
+                                    Project Manager (PM)
+                                  </option>
+                                  <option value="Admin" className={isLight ? 'bg-white text-amber-800' : 'bg-[#0D1520] text-amber-400'}>
+                                    Admin (Super Admin)
+                                  </option>
+                                </select>
+                              ) : (
+                                <span
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border inline-block ${
+                                    u.role === 'Admin'
+                                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                                      : u.role === 'Project Manager'
+                                      ? 'bg-[#0773BB]/15 text-[#0773BB] dark:text-[#38BDF8] border-[#0773BB]/30'
+                                      : u.role === 'Team Member'
+                                      ? 'bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30'
+                                      : isLight
+                                      ? 'bg-slate-100 text-slate-700 border-slate-300'
+                                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                                  }`}
+                                >
+                                  {u.role}
+                                </span>
+                              )}
                             </div>
                           </td>
 
@@ -1372,7 +1391,7 @@ export const UsersView: React.FC = () => {
                           <td className="p-3.5 pr-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
                               {/* 1. Reset Password Action Button */}
-                              {(currentUser?.role === 'Admin' || currentUser?.id === u.id) && (
+                              {isAdminUser && (
                                 <button
                                   onClick={() => handleOpenPasswordResetModal(u)}
                                   className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-400 border border-amber-500/30 shadow-sm"
@@ -1384,7 +1403,7 @@ export const UsersView: React.FC = () => {
                               )}
 
                               {/* 2. Manage Spaces Shortcut */}
-                              {currentUser?.role === 'Admin' && u.role !== 'Admin' && (
+                              {isAdminUser && u.role !== 'Admin' && (
                                 <button
                                   onClick={() => setManagingSpacesUserId(u.id)}
                                   className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 ${
@@ -1399,18 +1418,20 @@ export const UsersView: React.FC = () => {
                               )}
 
                               {/* 3. Edit Profile & Picture Modal Trigger */}
-                              <button
-                                onClick={() => handleOpenEditUserModal(u)}
-                                className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 font-bold ${
-                                  isLight
-                                    ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border border-sky-200'
-                                    : 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#38BDF8] border border-[#0773BB]/30'
-                                }`}
-                                title="Edit User Profile & Change Avatar"
-                              >
-                                <Camera className="w-3.5 h-3.5 text-[#0773BB] dark:text-[#38BDF8]" />
-                                <span className="hidden xl:inline">Edit & Photo</span>
-                              </button>
+                              {(isAdminUser || currentUser?.id === u.id) && (
+                                <button
+                                  onClick={() => handleOpenEditUserModal(u)}
+                                  className={`p-1.5 rounded-xl text-xs transition-all flex items-center gap-1 font-bold ${
+                                    isLight
+                                      ? 'bg-sky-50 hover:bg-sky-100 text-[#0773BB] border border-sky-200'
+                                      : 'bg-[#0773BB]/10 hover:bg-[#0773BB]/20 text-[#38BDF8] border border-[#0773BB]/30'
+                                  }`}
+                                  title="Edit User Profile & Change Avatar"
+                                >
+                                  <Camera className="w-3.5 h-3.5 text-[#0773BB] dark:text-[#38BDF8]" />
+                                  <span className="hidden xl:inline">Edit & Photo</span>
+                                </button>
+                              )}
 
                               {/* 4. Delete User (Protected) */}
                               <PermissionGuard action="delete_user">

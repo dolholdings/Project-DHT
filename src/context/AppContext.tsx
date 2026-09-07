@@ -47,6 +47,7 @@ import {
   canCreateSpace,
   canDeleteSpace,
   canDeleteTask,
+  canAccessCompany,
   isUserSuperAdmin
 } from '../lib/permissions';
 import {
@@ -144,6 +145,7 @@ import {
   subscribeToAuthorizedDomains,
   saveAuthorizedDomainsToFirestore,
 } from '../services/dataService';
+import { initSwSyncBridge, onCrossTabDataChange } from '../services/swSyncBridge';
 import { sendTransactionalEmail } from '../services/emailNotificationService';
 import { validatePasswordPolicy, generateSecureCompliantPassword } from '../config/auth';
 
@@ -634,6 +636,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [companies]);
 
+  // Ensure activeCompany is strictly aligned with the current user's permitted company
+  useEffect(() => {
+    if (currentUser && activeCompany) {
+      if (!canAccessCompany(currentUser, activeCompany.id)) {
+        const userAssignedComp =
+          companies.find((c) => c.id === currentUser.companyId) ||
+          (currentUser.allowedCompanyIds && currentUser.allowedCompanyIds[0] && currentUser.allowedCompanyIds[0] !== 'all'
+            ? companies.find((c) => c.id === currentUser.allowedCompanyIds[0])
+            : null);
+        if (userAssignedComp) {
+          setActiveCompany(userAssignedComp);
+        }
+      }
+    }
+  }, [currentUser?.id, currentUser?.companyId, activeCompany?.id, companies]);
+
   const setIsAuthenticated = (authStatus: boolean) => {
     setIsAuthenticatedState(authStatus);
     if (authStatus && currentUser?.id) {
@@ -759,13 +777,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFirebaseUser(u);
     });
 
-    // Seed initial data to Firestore and sync all local users to Firestore
+    // Seed initial data to Firestore (only seeds pristine/empty collections)
     const localUsersOnBoot = loadFromStorage<User[]>('dolphin_users', INITIAL_USERS);
+    const mergedUsersOnBoot = deduplicateUserList([...INITIAL_USERS, ...localUsersOnBoot]);
     seedInitialFirestoreData(
       INITIAL_PROJECTS,
       INITIAL_TASKS,
       INITIAL_FILES,
-      localUsersOnBoot,
+      mergedUsersOnBoot,
       INITIAL_COMPANIES,
       INITIAL_SUBTASKS,
       INITIAL_DEPENDENCIES,
@@ -773,11 +792,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       INITIAL_TEMPLATES,
       INITIAL_SPRINTS
     );
-    syncAllLocalUsersToFirestore(localUsersOnBoot);
 
     // Subscribe to real-time Firestore updates for Companies/Workspaces
     const unsubscribeCompanies = subscribeToCompanies((remoteCompanies) => {
-      if (remoteCompanies && remoteCompanies.length > 0) {
+      if (remoteCompanies) {
         setCompanies((prev) => {
           const compMap = new Map<string, Company>();
           INITIAL_COMPANIES.forEach((c) => compMap.set(c.id, c));
@@ -797,14 +815,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loadFromStorage<string[]>('dolphin_purged_user_emails', [])
       );
 
-      setUsers((prev) => {
-        const combined = [...prev, ...cleanRemote].filter(
-          (u) => u && u.email && !purgedEmails.has(String(u.email).trim().toLowerCase())
-        );
-        const unified = deduplicateUserList(combined);
-        saveToStorage('dolphin_users', unified);
-        return unified;
-      });
+      const unified = cleanRemote.filter(
+        (u) => u && u.email && !purgedEmails.has(String(u.email).trim().toLowerCase())
+      );
+      setUsers(unified);
+      saveToStorage('dolphin_users', unified);
 
       if (currentUser?.id) {
         const matchedRemote = cleanRemote.find(
@@ -824,15 +839,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Subscribe to real-time Firestore updates for Projects
     const unsubscribeProjects = subscribeToProjects((remoteProjects) => {
-      if (remoteProjects && remoteProjects.length > 0) {
+      if (remoteProjects) {
         setProjects(remoteProjects);
+        saveToStorage('dolphin_projects', remoteProjects);
       }
     });
 
     // Subscribe to real-time Firestore updates for Tasks
     const unsubscribeTasks = subscribeToTasks((remoteTasks) => {
-      if (remoteTasks && remoteTasks.length > 0) {
+      if (remoteTasks) {
         setAllTasks(remoteTasks);
+        saveToStorage('dolphin_tasks', remoteTasks);
         // Automatically check and purge any items older than 30 days
         purgeExpiredTasksFromFirestore(remoteTasks);
       }
@@ -840,60 +857,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Subscribe to real-time Firestore updates for Files
     const unsubscribeFiles = subscribeToFiles((remoteFiles) => {
-      if (remoteFiles && remoteFiles.length > 0) {
+      if (remoteFiles) {
         setFiles(remoteFiles);
+        saveToStorage('dolphin_files', remoteFiles);
       }
     });
 
     // Subscribe to real-time Firestore updates for Subtasks
     const unsubscribeSubtasks = subscribeToSubtasks((remoteSubtasks) => {
-      if (remoteSubtasks && remoteSubtasks.length > 0) {
+      if (remoteSubtasks) {
         setSubtasks(remoteSubtasks);
+        saveToStorage('dolphin_subtasks', remoteSubtasks);
       }
     });
 
     // Subscribe to real-time Firestore updates for Task Comments
     const unsubscribeComments = subscribeToTaskComments((remoteComments) => {
-      if (remoteComments && remoteComments.length > 0) {
+      if (remoteComments) {
         setTaskComments(remoteComments);
+        saveToStorage('dolphin_comments', remoteComments);
       }
     });
 
     // Subscribe to real-time Firestore updates for Task Dependencies
     const unsubscribeDeps = subscribeToDependencies((remoteDeps) => {
-      if (remoteDeps && remoteDeps.length > 0) {
+      if (remoteDeps) {
         setDependencies(remoteDeps);
+        saveToStorage('dolphin_dependencies', remoteDeps);
       }
     });
 
     // Subscribe to real-time Firestore updates for Time Entries
     const unsubscribeTimeEntries = subscribeToTimeEntries((remoteEntries) => {
-      if (remoteEntries && remoteEntries.length > 0) {
+      if (remoteEntries) {
         setTimeEntries(remoteEntries);
+        saveToStorage('dolphin_time_entries', remoteEntries);
       }
     });
 
     // Subscribe to real-time Firestore updates for Custom Fields
     const unsubscribeCustomFields = subscribeToCustomFields((remoteFields) => {
-      if (remoteFields && remoteFields.length > 0) {
+      if (remoteFields) {
         const hiddenIds = new Set(['cf_cost_center', 'cf_risk_rating', 'cf_audit_id', 'cf_approved_qa']);
         const hiddenNames = new Set(['cost center code', 'cost center', 'risk level', 'audit reference no', 'qa approved']);
-        setCustomFields(remoteFields.filter(
+        const filtered = remoteFields.filter(
           (cf) => !hiddenIds.has(cf.id) && !hiddenNames.has(cf.name?.toLowerCase()?.trim())
-        ));
+        );
+        setCustomFields(filtered);
+        saveToStorage('dolphin_custom_fields', filtered);
       }
     });
 
     // Subscribe to real-time Firestore updates for Sprints
     const unsubscribeSprints = subscribeToSprints((remoteSprints) => {
-      if (remoteSprints && remoteSprints.length > 0) {
+      if (remoteSprints) {
         setSprints(remoteSprints);
+        saveToStorage('dolphin_sprints', remoteSprints);
       }
     });
 
     // Subscribe to real-time Firestore updates for Activity Logs
     const unsubscribeActivityLogs = subscribeToActivityLogs((remoteLogs) => {
-      if (remoteLogs && remoteLogs.length > 0) {
+      if (remoteLogs) {
         const cleanLogs = remoteLogs.filter(
           (l) => !l.id?.startsWith('log_audit_') && l.userName !== 'Rohan (Admin)' && l.userName !== 'Tariq Al-Mansoor'
         );
@@ -903,22 +928,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // Subscribe to real-time Firestore updates for Notifications
     const unsubscribeNotifications = subscribeToNotifications((remoteNotifs) => {
-      if (remoteNotifs && remoteNotifs.length > 0) {
+      if (remoteNotifs) {
         setNotifications(remoteNotifs);
       }
     });
 
     // Subscribe to real-time Firestore updates for Automations
     const unsubscribeAutomations = subscribeToAutomations((remoteRules) => {
-      if (remoteRules && remoteRules.length > 0) {
+      if (remoteRules) {
         setAutomations(remoteRules);
+        saveToStorage('dolphin_automations', remoteRules);
       }
     });
 
     // Subscribe to real-time Firestore updates for Email Threads
     const unsubscribeEmailThreads = subscribeToEmailThreads((remoteEmails) => {
-      if (remoteEmails && remoteEmails.length > 0) {
+      if (remoteEmails) {
         setEmailThreads(remoteEmails);
+        saveToStorage('dolphin_emails', remoteEmails);
       }
     });
 
@@ -936,7 +963,67 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Initialize Service Worker background sync bridge and listen to cross-tab updates
+    initSwSyncBridge();
+    const unsubscribeSwSync = onCrossTabDataChange((mutation) => {
+      const { collection, action, id, data } = mutation;
+      if (collection === 'tasks') {
+        setAllTasks((prev) => {
+          let updated = prev;
+          if (action === 'delete') {
+            updated = prev.filter((t) => t.id !== id);
+          } else if (action === 'create' && data) {
+            updated = prev.some((t) => t.id === id) ? prev.map((t) => (t.id === id ? { ...t, ...data } : t)) : [data, ...prev];
+          } else if (action === 'update' && data) {
+            updated = prev.map((t) => (t.id === id ? { ...t, ...data } : t));
+          }
+          saveToStorage('dolphin_tasks', updated);
+          return updated;
+        });
+      } else if (collection === 'projects') {
+        setProjects((prev) => {
+          let updated = prev;
+          if (action === 'delete') {
+            updated = prev.filter((p) => p.id !== id);
+          } else if (action === 'create' && data) {
+            updated = prev.some((p) => p.id === id) ? prev.map((p) => (p.id === id ? { ...p, ...data } : p)) : [data, ...prev];
+          } else if (action === 'update' && data) {
+            updated = prev.map((p) => (p.id === id ? { ...p, ...data } : p));
+          }
+          saveToStorage('dolphin_projects', updated);
+          return updated;
+        });
+      } else if (collection === 'users') {
+        setUsers((prev) => {
+          let updated = prev;
+          if (action === 'delete') {
+            updated = prev.filter((u) => u.id !== id);
+          } else if (action === 'create' && data) {
+            updated = deduplicateUserList([data, ...prev]);
+          } else if (action === 'update' && data) {
+            updated = prev.map((u) => (u.id === id ? { ...u, ...data } : u));
+          }
+          saveToStorage('dolphin_users', updated);
+          return updated;
+        });
+      } else if (collection === 'files') {
+        setFiles((prev) => {
+          let updated = prev;
+          if (action === 'delete') {
+            updated = prev.filter((f) => f.id !== id);
+          } else if (action === 'create' && data) {
+            updated = prev.some((f) => f.id === id) ? prev.map((f) => (f.id === id ? { ...f, ...data } : f)) : [data, ...prev];
+          } else if (action === 'update' && data) {
+            updated = prev.map((f) => (f.id === id ? { ...f, ...data } : f));
+          }
+          saveToStorage('dolphin_files', updated);
+          return updated;
+        });
+      }
+    });
+
     return () => {
+      unsubscribeSwSync();
       unsubscribeAuth();
       unsubscribeCompanies();
       unsubscribeUsers();
@@ -1472,7 +1559,6 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
 
     const determinedIsSuperAdmin =
       isSuperAdmin === true ||
-      role === 'Admin' ||
       cleanEmail === 'dolphingroup786@gmail.com' ||
       cleanEmail === 'admin@dolrad.ae' ||
       cleanEmail === 'ceo@dolphingroup.ae';
@@ -1482,12 +1568,14 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
         ? 'all'
         : 'specific';
 
+    const assignedCompanyId = targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp');
+
     const determinedAllowedCompanies =
       determinedScope === 'all'
         ? ['all']
         : allowedCompanyIds && allowedCompanyIds.length > 0
         ? allowedCompanyIds
-        : [targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp')];
+        : [assignedCompanyId];
 
     if (existingUser) {
       // User already exists: update record and assign new password without creating duplicate ID
@@ -1495,13 +1583,16 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
         ...existingUser,
         name: name || existingUser.name,
         role: role || existingUser.role,
-        companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : existingUser.companyId),
+        companyId: assignedCompanyId,
         allowedCompanyIds: determinedAllowedCompanies,
         companyAccessScope: determinedScope,
         isSuperAdmin: determinedIsSuperAdmin,
         department: department || existingUser.department,
         status: 'Active',
         isDeleted: false,
+        deletedAt: undefined,
+        deletedBy: undefined,
+        deletedByName: undefined,
         password: assignedPassword
       };
 
@@ -1542,7 +1633,7 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       name,
       email: cleanEmail,
       role,
-      companyId: targetComp ? targetComp.id : (activeCompany ? activeCompany.id : 'comp_corp'),
+      companyId: assignedCompanyId,
       allowedCompanyIds: determinedAllowedCompanies,
       companyAccessScope: determinedScope,
       isSuperAdmin: determinedIsSuperAdmin,
@@ -1551,6 +1642,10 @@ This notification was automatically generated & dispatched by ${activeCompany?.n
       hourlyRate: role === 'Admin' ? 200 : role === 'Project Manager' ? 120 : 90,
       maxWeeklyHours: 40,
       status: 'Active',
+      isDeleted: false,
+      deletedAt: undefined,
+      deletedBy: undefined,
+      deletedByName: undefined,
       password: assignedPassword
     };
 

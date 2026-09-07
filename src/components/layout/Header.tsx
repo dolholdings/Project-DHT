@@ -41,6 +41,7 @@ import { useLogo } from '../../context/LogoContext';
 import { UserProfileEditModal } from '../users/UserProfileEditModal';
 import { DolphinLogo } from '../common/DolphinLogo';
 import { UserAvatar } from '../common/UserAvatar';
+import { canAccessCompany } from '../../lib/permissions';
 
 export const Header: React.FC = () => {
   const {

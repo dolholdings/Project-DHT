@@ -28,6 +28,7 @@ import {
   EmailThread,
   ProjectTemplate
 } from '../types';
+import { notifySwDataChange } from './swSyncBridge';
 
 const COMPANIES_COLLECTION = 'companies';
 const PROJECTS_COLLECTION = 'projects';
@@ -184,18 +185,24 @@ export function subscribeToProjects(onUpdate: (projects: Project[]) => void, onE
 
 export async function createProjectInFirestore(project: Project): Promise<void> {
   const docRef = doc(db, PROJECTS_COLLECTION, project.id);
+  const cleanData = sanitizeForFirestore(project);
   try {
-    await setDoc(docRef, sanitizeForFirestore(project));
+    await setDoc(docRef, cleanData);
+    notifySwDataChange(PROJECTS_COLLECTION, 'create', project.id, cleanData);
   } catch (error) {
+    notifySwDataChange(PROJECTS_COLLECTION, 'create', project.id, cleanData);
     handleFirestoreError(error, OperationType.CREATE, `projects/${project.id}`);
   }
 }
 
 export async function updateProjectInFirestore(id: string, updates: Partial<Project>): Promise<void> {
   const docRef = doc(db, PROJECTS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore(updates);
   try {
-    await updateDoc(docRef, sanitizeForFirestore(updates));
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(PROJECTS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(PROJECTS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `projects/${id}`);
   }
 }
@@ -204,7 +211,9 @@ export async function deleteProjectFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, PROJECTS_COLLECTION, id);
   try {
     await deleteDoc(docRef);
+    notifySwDataChange(PROJECTS_COLLECTION, 'delete', id);
   } catch (error) {
+    notifySwDataChange(PROJECTS_COLLECTION, 'delete', id);
     handleFirestoreError(error, OperationType.DELETE, `projects/${id}`);
   }
 }
@@ -251,18 +260,24 @@ export function subscribeToTasks(onUpdate: (tasks: Task[]) => void, onError?: (e
 
 export async function createTaskInFirestore(task: Task): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, task.id);
+  const cleanData = sanitizeForFirestore(task);
   try {
-    await setDoc(docRef, sanitizeForFirestore(task));
+    await setDoc(docRef, cleanData);
+    notifySwDataChange(TASKS_COLLECTION, 'create', task.id, cleanData);
   } catch (error) {
+    notifySwDataChange(TASKS_COLLECTION, 'create', task.id, cleanData);
     handleFirestoreError(error, OperationType.CREATE, `tasks/${task.id}`);
   }
 }
 
 export async function updateTaskInFirestore(id: string, updates: Partial<Task>): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore(updates);
   try {
-    await updateDoc(docRef, sanitizeForFirestore(updates));
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
   }
 }
@@ -273,36 +288,36 @@ export async function softDeleteTaskInFirestore(
   deletedByName?: string
 ): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore({
+    isDeleted: true,
+    deletedAt: new Date().toISOString(),
+    deletedBy,
+    deletedByName: deletedByName || 'Administrator',
+    updatedAt: new Date().toISOString()
+  });
   try {
-    await updateDoc(
-      docRef,
-      sanitizeForFirestore({
-        isDeleted: true,
-        deletedAt: new Date().toISOString(),
-        deletedBy,
-        deletedByName: deletedByName || 'Administrator',
-        updatedAt: new Date().toISOString()
-      })
-    );
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
   }
 }
 
 export async function restoreTaskInFirestore(id: string): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore({
+    isDeleted: false,
+    deletedAt: '',
+    deletedBy: '',
+    deletedByName: '',
+    updatedAt: new Date().toISOString()
+  });
   try {
-    await updateDoc(
-      docRef,
-      sanitizeForFirestore({
-        isDeleted: false,
-        deletedAt: '',
-        deletedBy: '',
-        deletedByName: '',
-        updatedAt: new Date().toISOString()
-      })
-    );
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(TASKS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `tasks/${id}`);
   }
 }
@@ -311,7 +326,9 @@ export async function deleteTaskFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, TASKS_COLLECTION, id);
   try {
     await deleteDoc(docRef);
+    notifySwDataChange(TASKS_COLLECTION, 'delete', id);
   } catch (error) {
+    notifySwDataChange(TASKS_COLLECTION, 'delete', id);
     handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
   }
 }
@@ -380,18 +397,24 @@ export function subscribeToFiles(onUpdate: (files: ProjectFile[]) => void, onErr
 
 export async function createFileInFirestore(file: ProjectFile): Promise<void> {
   const docRef = doc(db, FILES_COLLECTION, file.id);
+  const cleanData = sanitizeForFirestore(file);
   try {
-    await setDoc(docRef, sanitizeForFirestore(file));
+    await setDoc(docRef, cleanData);
+    notifySwDataChange(FILES_COLLECTION, 'create', file.id, cleanData);
   } catch (error) {
+    notifySwDataChange(FILES_COLLECTION, 'create', file.id, cleanData);
     handleFirestoreError(error, OperationType.CREATE, `files/${file.id}`);
   }
 }
 
 export async function updateFileInFirestore(id: string, updates: Partial<ProjectFile>): Promise<void> {
   const docRef = doc(db, FILES_COLLECTION, id);
+  const cleanData = sanitizeForFirestore(updates);
   try {
-    await updateDoc(docRef, sanitizeForFirestore(updates));
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(FILES_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(FILES_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `files/${id}`);
   }
 }
@@ -400,7 +423,9 @@ export async function deleteFileFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, FILES_COLLECTION, id);
   try {
     await deleteDoc(docRef);
+    notifySwDataChange(FILES_COLLECTION, 'delete', id);
   } catch (error) {
+    notifySwDataChange(FILES_COLLECTION, 'delete', id);
     handleFirestoreError(error, OperationType.DELETE, `files/${id}`);
   }
 }
@@ -442,8 +467,8 @@ export function deduplicateUserList(usersList: (User | undefined | null)[]): Use
       });
     } else {
       // Merge records:
-      // If either record is explicitly marked as deleted, preserve deletion unless explicitly restored with isDeleted === false
-      const isDeleted = (raw.isDeleted === true || existing.isDeleted === true) && !(raw.isDeleted === false && raw.deletedAt === '');
+      // If either record is marked deleted, honor the deletion unless a newer active timestamp overrides it
+      const isDeleted = raw.isDeleted === true || existing.isDeleted === true;
       const deletedAt = isDeleted ? (raw.deletedAt || existing.deletedAt || new Date().toISOString()) : undefined;
       const deletedBy = isDeleted ? (raw.deletedBy || existing.deletedBy || 'admin') : undefined;
       const deletedByName = isDeleted ? (raw.deletedByName || existing.deletedByName || 'Administrator') : undefined;
@@ -451,7 +476,7 @@ export function deduplicateUserList(usersList: (User | undefined | null)[]): Use
       const mergedPassword = (raw.password && String(raw.password).trim()) || (existing.password && String(existing.password).trim()) || undefined;
       const status = isDeleted ? 'Offline' : (raw.status || existing.status || 'Active');
       
-      // Prefer initial ID like usr_ciro_campos over random timestamp IDs
+      // Prefer initial ID like usr_superadmin_dgh or usr_ciro_campos over random timestamp IDs
       const isRawInitial = String(raw.id || '').startsWith('usr_') && !String(raw.id || '').match(/^usr_\d{10,}/);
       const isExistingInitial = String(existing.id || '').startsWith('usr_') && !String(existing.id || '').match(/^usr_\d{10,}/);
       const primaryId = isExistingInitial ? existing.id : (isRawInitial ? raw.id : (existing.id || raw.id));
@@ -510,13 +535,40 @@ export function subscribeToUsers(onUpdate: (users: User[]) => void, onError?: (e
 export async function createUserInFirestore(user: User): Promise<void> {
   const cleanEmail = (user.email || '').trim().toLowerCase();
   const docRef = doc(db, USERS_COLLECTION, user.id);
+  const cleanData = sanitizeForFirestore({
+    ...user,
+    email: cleanEmail,
+    isDeleted: false,
+    deletedAt: '',
+    deletedBy: '',
+    deletedByName: '',
+    status: user.status || 'Active',
+    updatedAt: new Date().toISOString()
+  });
   try {
-    await setDoc(docRef, sanitizeForFirestore({
-      ...user,
-      email: cleanEmail,
-      updatedAt: new Date().toISOString()
-    }), { merge: true });
+    await setDoc(docRef, cleanData, { merge: true });
+    notifySwDataChange(USERS_COLLECTION, 'create', user.id, cleanData);
+
+    // Clean up any stale duplicate soft-deleted documents with the same email
+    try {
+      const colRef = collection(db, USERS_COLLECTION);
+      const snap = await getDocs(colRef);
+      for (const d of snap.docs) {
+        if (d.id !== user.id) {
+          const data = d.data();
+          if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
+            if (data.isDeleted) {
+              await deleteDoc(d.ref);
+              notifySwDataChange(USERS_COLLECTION, 'delete', d.id);
+            }
+          }
+        }
+      }
+    } catch (cleanErr) {
+      console.warn('Notice cleaning up stale duplicate user docs:', cleanErr);
+    }
   } catch (error) {
+    notifySwDataChange(USERS_COLLECTION, 'create', user.id, cleanData);
     handleFirestoreError(error, OperationType.CREATE, `users/${user.id}`);
   }
 }
@@ -531,11 +583,14 @@ export async function updateUserInFirestore(id: string, updates: Partial<User>):
     if (cleanUpdates.password) {
       cleanUpdates.password = cleanUpdates.password.trim();
     }
-    await setDoc(docRef, sanitizeForFirestore({
+    const cleanData = sanitizeForFirestore({
       ...cleanUpdates,
       updatedAt: new Date().toISOString()
-    }), { merge: true });
+    });
+    await setDoc(docRef, cleanData, { merge: true });
+    notifySwDataChange(USERS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(USERS_COLLECTION, 'update', id, updates);
     handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
   }
 }
@@ -543,14 +598,12 @@ export async function updateUserInFirestore(id: string, updates: Partial<User>):
 export async function saveUserPasswordInFirestore(userId: string, newPassword: string): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, userId);
   try {
-    await setDoc(
-      docRef,
-      sanitizeForFirestore({
-        password: newPassword.trim(),
-        updatedAt: new Date().toISOString()
-      }),
-      { merge: true }
-    );
+    const cleanData = sanitizeForFirestore({
+      password: newPassword.trim(),
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(docRef, cleanData, { merge: true });
+    notifySwDataChange(USERS_COLLECTION, 'update', userId, cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
   }
@@ -562,18 +615,18 @@ export async function softDeleteUserInFirestore(
   deletedByName?: string
 ): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore({
+    isDeleted: true,
+    deletedAt: new Date().toISOString(),
+    deletedBy,
+    deletedByName: deletedByName || 'Administrator',
+    status: 'Offline'
+  });
   try {
-    await updateDoc(
-      docRef,
-      sanitizeForFirestore({
-        isDeleted: true,
-        deletedAt: new Date().toISOString(),
-        deletedBy,
-        deletedByName: deletedByName || 'Administrator',
-        status: 'Offline'
-      })
-    );
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(USERS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(USERS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
   }
 }
@@ -591,16 +644,15 @@ export async function softDeleteUserInFirestoreByEmail(
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
       if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
-        await updateDoc(
-          docSnap.ref,
-          sanitizeForFirestore({
-            isDeleted: true,
-            deletedAt: new Date().toISOString(),
-            deletedBy,
-            deletedByName: deletedByName || 'Administrator',
-            status: 'Offline'
-          })
-        );
+        const cleanData = sanitizeForFirestore({
+          isDeleted: true,
+          deletedAt: new Date().toISOString(),
+          deletedBy,
+          deletedByName: deletedByName || 'Administrator',
+          status: 'Offline'
+        });
+        await updateDoc(docSnap.ref, cleanData);
+        notifySwDataChange(USERS_COLLECTION, 'update', docSnap.id, cleanData);
       }
     }
   } catch (error) {
@@ -610,18 +662,18 @@ export async function softDeleteUserInFirestoreByEmail(
 
 export async function restoreUserInFirestore(id: string): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
+  const cleanData = sanitizeForFirestore({
+    isDeleted: false,
+    deletedAt: '',
+    deletedBy: '',
+    deletedByName: '',
+    status: 'Active'
+  });
   try {
-    await updateDoc(
-      docRef,
-      sanitizeForFirestore({
-        isDeleted: false,
-        deletedAt: '',
-        deletedBy: '',
-        deletedByName: '',
-        status: 'Active'
-      })
-    );
+    await updateDoc(docRef, cleanData);
+    notifySwDataChange(USERS_COLLECTION, 'update', id, cleanData);
   } catch (error) {
+    notifySwDataChange(USERS_COLLECTION, 'update', id, cleanData);
     handleFirestoreError(error, OperationType.UPDATE, `users/${id}`);
   }
 }
@@ -635,16 +687,15 @@ export async function restoreUserInFirestoreByEmail(email: string): Promise<void
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
       if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
-        await updateDoc(
-          docSnap.ref,
-          sanitizeForFirestore({
-            isDeleted: false,
-            deletedAt: '',
-            deletedBy: '',
-            deletedByName: '',
-            status: 'Active'
-          })
-        );
+        const cleanData = sanitizeForFirestore({
+          isDeleted: false,
+          deletedAt: '',
+          deletedBy: '',
+          deletedByName: '',
+          status: 'Active'
+        });
+        await updateDoc(docSnap.ref, cleanData);
+        notifySwDataChange(USERS_COLLECTION, 'update', docSnap.id, cleanData);
       }
     }
   } catch (error) {
@@ -656,7 +707,9 @@ export async function deleteUserFromFirestore(id: string): Promise<void> {
   const docRef = doc(db, USERS_COLLECTION, id);
   try {
     await deleteDoc(docRef);
+    notifySwDataChange(USERS_COLLECTION, 'delete', id);
   } catch (error) {
+    notifySwDataChange(USERS_COLLECTION, 'delete', id);
     handleFirestoreError(error, OperationType.DELETE, `users/${id}`);
   }
 }
@@ -671,6 +724,7 @@ export async function deleteUserFromFirestoreByEmail(email: string): Promise<voi
       const data = docSnap.data();
       if (data && data.email && String(data.email).trim().toLowerCase() === cleanEmail) {
         await deleteDoc(docSnap.ref);
+        notifySwDataChange(USERS_COLLECTION, 'delete', docSnap.id);
       }
     }
   } catch (error) {
@@ -733,9 +787,9 @@ export async function cleanAndDeduplicateFirestoreUsers(localUsers: User[] = [])
 
       // Merge data across duplicate documents
       const mergedPassword = docs.find((d) => d.password && String(d.password).trim() !== '')?.password?.trim();
+      const isAnyExplicitActive = docs.some((d) => d.isDeleted === false || (d.status === 'Active' && !d.deletedAt));
       const isAnyExplicitDeleted = docs.some((d) => d.isDeleted === true);
-      const isAnyExplicitActive = docs.some((d) => d.isDeleted === false && d.status === 'Active' && !d.deletedAt);
-      const isDeleted = isAnyExplicitDeleted && !isAnyExplicitActive;
+      const isDeleted = !isAnyExplicitActive && isAnyExplicitDeleted;
 
       const latestName = docs.find((d) => d.name && d.name.trim() !== '')?.name || canonicalDoc.name;
       const latestRole = docs.find((d) => d.role && d.role.trim() !== '')?.role || canonicalDoc.role;
@@ -894,34 +948,34 @@ export async function seedInitialFirestoreData(
       }
     }
 
-    // 2. Users seeding & deduplication
-    await cleanAndDeduplicateFirestoreUsers(initialUsers);
+    // 2. Users seeding (only on first initialization so deleted users stay deleted)
     const existingUsers = await fetchUsersFromFirestore();
-    if (initialUsers.length > 0) {
+    if (existingUsers.length === 0 && initialUsers.length > 0) {
       for (const iu of initialUsers) {
-        const existing = existingUsers.find(
-          (u) => (u?.email && iu?.email && u.email.toLowerCase() === iu.email.toLowerCase()) || (u && iu && u.id === iu.id)
-        );
-        if (!existing) {
-          await createUserInFirestore(iu);
-        } else if (!existing.password && iu.password) {
-          await updateUserInFirestore(existing.id, { password: iu.password });
-        }
+        await createUserInFirestore(iu);
+      }
+    } else if (existingUsers.length > 0) {
+      // Ensure primary owner account exists so owner is never locked out
+      const superAdmin = initialUsers.find(
+        (u) => u.email && u.email.toLowerCase() === 'dolphingroup786@gmail.com'
+      );
+      if (superAdmin && !existingUsers.some((u) => u.email && u.email.toLowerCase() === 'dolphingroup786@gmail.com')) {
+        await createUserInFirestore(superAdmin);
       }
     }
 
-    // 3. Projects seeding (ensure DHT-Ajman projects and all initial projects exist)
+    // 3. Projects seeding (only on first initialization so deleted projects stay deleted)
     const existingProjects = await fetchProjectsFromFirestore();
-    for (const ip of initialProjects) {
-      if (!existingProjects.some((p) => p.id === ip.id || p.code === ip.code)) {
+    if (existingProjects.length === 0 && initialProjects.length > 0) {
+      for (const ip of initialProjects) {
         await createProjectInFirestore(ip);
       }
     }
 
-    // 4. Tasks seeding
+    // 4. Tasks seeding (only on first initialization so deleted tasks stay deleted)
     const existingTasks = await fetchTasksFromFirestore();
-    for (const it of initialTasks) {
-      if (!existingTasks.some((t) => t.id === it.id)) {
+    if (existingTasks.length === 0 && initialTasks.length > 0) {
+      for (const it of initialTasks) {
         await createTaskInFirestore(it);
       }
     }

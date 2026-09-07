@@ -163,6 +163,7 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
     updateUser,
     companies,
     activeCompany,
+    setActiveCompany,
     validateDomain,
     logActivity,
     setActiveTab: setActiveViewTab
@@ -289,6 +290,12 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
         isPasswordCorrect = true;
       }
     }
+    
+    // If account was created without a password or is blank, allow the first entered password to claim it
+    if (!matchedUser.password && !isPasswordCorrect && enteredPassword) {
+      isPasswordCorrect = true;
+      updateUser(matchedUser.id, { password: enteredPassword });
+    }
 
     if (!isPasswordCorrect) {
       setErrorMsg('Invalid password. Please enter the correct password for your account.');
@@ -315,6 +322,17 @@ export const LoginModal: React.FC<{ onClose: () => void; isGatekeeper?: boolean 
       password: matchedUser.password || enteredPassword,
       isEmailVerified: true
     };
+
+    // Immediately switch active company to the user's assigned entity so they directly enter their assigned portal (e.g. DGH Analytics)
+    const userCompany =
+      companies.find((c) => c.id === verifiedUser.companyId) ||
+      (verifiedUser.allowedCompanyIds && verifiedUser.allowedCompanyIds[0] && verifiedUser.allowedCompanyIds[0] !== 'all'
+        ? companies.find((c) => c.id === verifiedUser.allowedCompanyIds[0])
+        : null);
+
+    if (userCompany) {
+      setActiveCompany(userCompany);
+    }
 
     setCurrentUser(verifiedUser);
     setIsAuthenticated(true);

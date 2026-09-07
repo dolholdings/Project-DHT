@@ -19,6 +19,7 @@ import {
 import { User, Role, Company } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { AvatarPickerModal } from './AvatarPickerModal';
+import { normalizeRole, isUserSuperAdmin } from '../../lib/permissions';
 
 export interface UserProfileEditModalProps {
   isOpen: boolean;
@@ -62,14 +63,14 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
       setEmail(user.email || '');
       setDepartment(user.department || 'Engineering');
       setRole(user.role || 'Team Member');
-      setCompanyId(user.companyId || companies[0]?.id || 'comp_5');
-      setCompanyAccessScope(user.companyAccessScope || (user.isSuperAdmin || user.role === 'Admin' ? 'all' : 'specific'));
+      setCompanyId(user.companyId || companies[0]?.id || 'comp_dgha');
+      setCompanyAccessScope(user.companyAccessScope || (user.isSuperAdmin ? 'all' : 'specific'));
       setAllowedCompanyIds(
         user.allowedCompanyIds && user.allowedCompanyIds.length > 0
           ? user.allowedCompanyIds
-          : [user.companyId || companies[0]?.id || 'comp_5']
+          : [user.companyId || companies[0]?.id || 'comp_dgha']
       );
-      setIsSuperAdmin(!!user.isSuperAdmin || user.role === 'Admin');
+      setIsSuperAdmin(!!user.isSuperAdmin);
       setHourlyRate(user.hourlyRate || 100);
       setMaxWeeklyHours(user.maxWeeklyHours || 40);
       setStatus(user.status || 'Active');
@@ -82,8 +83,11 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
 
   if (!isOpen || !user) return null;
 
-  const isAdmin = currentUser?.role === 'Admin' || !!currentUser?.isSuperAdmin;
+  const isAdmin = normalizeRole(currentUser?.role) === 'admin' || isUserSuperAdmin(currentUser);
   const isEditingSelf = currentUser?.id === user.id;
+
+  // Non-admins can only view/edit their own profile
+  if (!isAdmin && !isEditingSelf) return null;
 
   const handleToggleCompanyAllowed = (cId: string) => {
     setAllowedCompanyIds((prev) => {
@@ -117,12 +121,12 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
       updates.companyId = companyId;
       updates.companyAccessScope = companyAccessScope;
       updates.allowedCompanyIds =
-        companyAccessScope === 'all' || isSuperAdmin || role === 'Admin'
+        companyAccessScope === 'all'
           ? ['all']
           : allowedCompanyIds.length > 0
           ? allowedCompanyIds
           : [companyId];
-      updates.isSuperAdmin = isSuperAdmin || role === 'Admin';
+      updates.isSuperAdmin = role === 'Admin' ? isSuperAdmin : false;
       updates.hourlyRate = Number(hourlyRate) || 100;
       updates.maxWeeklyHours = Number(maxWeeklyHours) || 40;
     }
@@ -404,6 +408,8 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
                         if (newR === 'Admin') {
                           setCompanyAccessScope('all');
                           setIsSuperAdmin(true);
+                        } else {
+                          setIsSuperAdmin(false);
                         }
                       }}
                       className={`w-full text-xs font-semibold rounded-xl p-2 border focus:outline-none focus:border-amber-500 ${
@@ -463,7 +469,9 @@ export const UserProfileEditModal: React.FC<UserProfileEditModalProps> = ({
                       type="button"
                       onClick={() => {
                         setCompanyAccessScope('all');
-                        setIsSuperAdmin(true);
+                        if (role === 'Admin') {
+                          setIsSuperAdmin(true);
+                        }
                       }}
                       className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                         companyAccessScope === 'all' || isSuperAdmin

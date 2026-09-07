@@ -21,31 +21,31 @@ export function normalizeRole(role?: string | null): string {
 
 /**
  * Checks if a user has Super Admin or Group-Wide Full Access privileges.
+ * Note: Team Members, Project Managers, and Viewers can NEVER have Super Admin authority
+ * unless they are an explicitly hardcoded system administrator email.
+ * Multi-company access scope ('all') does NOT confer administrative privileges.
  */
 export function isUserSuperAdmin(user: User | null): boolean {
   if (!user) return false;
-  const role = normalizeRole(user.role);
-  if (role === 'admin' || user.isSuperAdmin === true) return true;
   const email = (user.email || '').toLowerCase().trim();
-  if (
+  const isDesignatedSystemAdmin =
     email === 'dolphingroup786@gmail.com' ||
     email === 'admin@dolrad.ae' ||
     email === 'ceo@dolphingroup.ae' ||
     email.startsWith('sys_analyst@') ||
-    email.startsWith('sysadmin@')
-  ) {
+    email.startsWith('sysadmin@');
+
+  if (isDesignatedSystemAdmin) {
     return true;
   }
-  if (
-    user.companyAccessScope === 'all' ||
-    (user.allowedCompanyIds &&
-      (user.allowedCompanyIds.includes('all') ||
-        user.allowedCompanyIds.includes('*') ||
-        user.allowedCompanyIds.includes('comp_corp')))
-  ) {
-    return true;
+
+  const role = normalizeRole(user.role);
+  // Team Members, Project Managers, and Viewers can NEVER be Super Admins
+  if (role !== 'admin') {
+    return false;
   }
-  return false;
+
+  return user.isSuperAdmin === true;
 }
 
 /**
@@ -55,7 +55,7 @@ export function canAccessCompany(user: User | null, companyId: string): boolean 
   if (!user) return false;
   if (isUserSuperAdmin(user)) return true;
   if (user.companyId === companyId) return true;
-  if (user.allowedCompanyIds && user.allowedCompanyIds.includes(companyId)) return true;
+  if (user.allowedCompanyIds && (user.allowedCompanyIds.includes(companyId) || user.allowedCompanyIds.includes('all') || user.allowedCompanyIds.includes('*'))) return true;
   return false;
 }
 
@@ -179,7 +179,9 @@ export function getAccessibleTasks(user: User | null, tasks: Task[], projects: P
  */
 export function canCreateUser(user: User | null): boolean {
   if (!user) return false;
-  return isUserSuperAdmin(user);
+  const role = normalizeRole(user.role);
+  if (role === 'team member' || role === 'viewer' || role === 'project manager') return false;
+  return isUserSuperAdmin(user) || role === 'admin';
 }
 
 /**
@@ -188,7 +190,9 @@ export function canCreateUser(user: User | null): boolean {
  */
 export function canViewUsersDirectory(user: User | null): boolean {
   if (!user) return false;
-  return isUserSuperAdmin(user);
+  const role = normalizeRole(user.role);
+  if (role === 'team member' || role === 'viewer') return false;
+  return isUserSuperAdmin(user) || role === 'admin';
 }
 
 /**
@@ -197,7 +201,9 @@ export function canViewUsersDirectory(user: User | null): boolean {
  */
 export function canDeleteUser(user: User | null): boolean {
   if (!user) return false;
-  return isUserSuperAdmin(user);
+  const role = normalizeRole(user.role);
+  if (role === 'team member' || role === 'viewer' || role === 'project manager') return false;
+  return isUserSuperAdmin(user) || role === 'admin';
 }
 
 /**
