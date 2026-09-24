@@ -671,7 +671,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       // Fallback
     }
-    return true;
+    // Default to signed-out so first-time visitors must log in before accessing the workspace
+    return false;
   });
 
   // Synchronize theme with user profile & database preferences when currentUser is updated
